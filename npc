@@ -1,0 +1,41 @@
+#!/usr/bin/python3
+
+import sys, os, re
+
+source_re = r"int main\s*\(\s*\)\s*{\s*return\s+(?P<ret>[0-9]+)\s*;\s*}"
+
+# Keywords regex                         hex             chars      +-   ints and decimals
+lexing_keywords = r"({|}|\(|\)|;|int|return|0[xX][0-9a-fA-F]+|[a-zA-Z]\w*|[+-]|[0-9]*[\.[0-9]*]?)"
+
+assembly_format = """
+.text
+.globl main
+main:
+    movl    ${}, %eax
+    ret
+"""
+
+def lex(source_file):
+
+	with open(source_file, 'r') as infile:
+		source = infile.read().strip()
+		matches = re.findall(lexing_keywords, source)
+
+	# Filter out '' in the list, could probably be done easier in the regex
+	return list(filter(lambda x: x != '', matches))
+
+
+if __name__ == "__main__":
+	source_file = sys.argv[1]
+	tokens = lex(source_file)
+	print(tokens)
+
+#assembly_file = os.path.splitext(source_file)[0] + ".s"
+
+#with open(source_file, 'r') as infile, open(assembly_file, 'w') as outfile:
+#	source = infile.read().strip();
+#	match = re.match(source_re, source)
+#
+#	retval = match.group('ret')
+#	outfile.write(assembly_format.format(retval))
+
