@@ -7,6 +7,9 @@ source_re = r"int main\s*\(\s*\)\s*{\s*return\s+(?P<ret>[0-9]+)\s*;\s*}"
 # Keywords regex                         hex             chars      +-   ints and decimals
 lexing_keywords = r"({|}|\(|\)|;|int|return|0[xX][0-9a-fA-F]+|[a-zA-Z]\w*|[+-]|[0-9]*[\.[0-9]*]?)"
 
+# For function names
+function_name_regex = r"[a-zA-Z]\w*"
+
 assembly_format = """
 .text
 .globl main
@@ -15,20 +18,236 @@ main:
     ret
 """
 
-def lex(source_file):
+class Arguments:
+	def __init__(self, infn=None, outfn=None, pretty=True):
+		self.infn = infn
+		self.outfn = outfn
+		self.pretty = pretty
 
+class Token:
+	def __init__(self, type):
+		self.type = type
+
+class Function(Token):
+	def __init__(self, id, returnType, body): # params
+		super().__init__("FUNCTION")
+		self.id = id
+		self.returnType = returnType
+		self.body = body
+
+class Program(Token):
+	def __init__(self, function):
+		super().__init__("PROGRAM")
+		self.function = function
+
+# class Statement(Token):
+# 	def __init__()
+
+class Return(Token):
+	def __init__(self, exp):
+		super().__init__("RETURN")
+		self.exp = exp
+
+class Const(Token):
+	def __init__(self, type, value):
+		super().__init__("CONST")
+		self.type = type
+		self.value = value
+
+class BinaryExpression(Token):
+	def __init__(self, operand, left, right):
+		super().__init__("BINARY_EXPRESSION")
+		self.operand = operand
+		self.left = left
+		self.right = right
+
+def fail():
+	raise Exception("Error")
+
+
+def lex(source_file):
+	# Read and get matches from regex
 	with open(source_file, 'r') as infile:
 		source = infile.read().strip()
 		matches = re.findall(lexing_keywords, source)
 
 	# Filter out '' in the list, could probably be done easier in the regex
-	return list(filter(lambda x: x != '', matches))
+	matches = list(filter(lambda x: x != '', matches))
+
+	# Yield tokens (creates a generator)
+	for match in matches:
+		yield match
+
+
+def tokenType(token):
+	try:
+		int(token)
+		return "INT"
+	except Exception as e: pass
+	return "STRING"
+
+def parseNum(tokens):
+	negate = False
+	type = ""
+
+	tok = next(tokens)
+	if tok == '-':
+		tok = next(tokens)
+		negate = True
+
+	try:
+		if '.' in tok:
+			num = float(tok)
+			type = "FLOAT"
+		else:
+			num = int(tok)
+			type = "INT"
+
+		num *= -1 if negate else 1
+
+	except Exception as e:
+		fail()
+
+	return Const(type, num)
+
+def parseStatement(tokens):
+	tok = next(tokens)
+
+	if tok != "return":
+		fail()
+
+	exp = parseNum(tokens) # Will fail if not a number
+
+	# if tokenType(tok) != "INT":
+	# 	fail()
+
+	statement = Return(exp)
+
+	tok = next(tokens)
+	if tok != ";":
+		fail()
+
+	return statement
+
+
+def parseFunction(tokens, returnType):
+	id = next(tokens)
+
+	# Invalid function name
+	if not re.match(function_name_regex, id):
+		fail()
+
+	tok = next(tokens)
+	if tok != '(':
+		fail()
+
+	# Function parameters here
+
+	tok = next(tokens)
+	if tok != ')':
+		fail()
+
+	tok = next(tokens)
+	if tok != '{':
+		fail()
+
+	# Support for multiple statements
+	# statement = None
+	# while True:
+	#   statement = ...
+	#   if nextToken==None: EOF, fail()
+	#   if nextToken=='}': break
+
+	statement = parseStatement(tokens)
+	function = Function(id, returnType, [statement])
+
+	return function
+
+def parse(tokens):
+	tok = next(tokens)
+
+	# Shouldn't be anything else yet
+	#if tok == "int":
+
+	function = parseFunction(tokens, tok)
+	program = Program(function)
+	return program
+
+
+def pretty_print(obj, n=0):
+	space = '    '
+	if obj.type == "PROGRAM":
+		print("PROGRAM START:")
+		pretty_print(obj.function, 1)
+
+	elif obj.type == "FUNCTION":
+		print(space*(n+0) + f"FUN {obj.returnType} {obj.id}:")
+		print(space*(n+1) +  "params: ()") # None yet
+		print(space*(n+1) +  "body:")
+
+		for statement in obj.body:
+			print(space*(n+2) + f"{statement.type} {statement.exp.type}<{statement.exp.value}>") ### VERY BAD!! ###
+
+def generate(ast):
+	return "almost working!!"
+
+def parse_args():
+	argv = (x for x in sys.argv)
+	arguments = Arguments() # Put default values here
+
+	arguments.infn = next(argv)
+
+	while True:
+		try:
+			arg = next(argv)
+		except:
+			break
+
+		print("Arg:", arg)
+
+		if arg == '-p':
+			arguments.pretty = True
+
+		if arg == '-o':
+			try:
+				arg = next(argv)
+			except:
+				fail()
+
+			arguments.outfn = arg
+
+	return arguments
+
+def main():
+	arguments = parse_args()
+
+	# No input file
+	if not arguments.infn:
+		fail()
+
+	# Infile doesn't exist
+	if not os.path.isfile(arguments.infn):
+		fail()
+
+	# No output file, using default
+	if not arguments.outfn:
+		arguments.outfn = os.path.splitext(arguments.infn)[0] + '.s'
+
+	tokens = lex(arguments.infn)
+	ast = parse(tokens)
+
+	# Pretty printing
+	if arguments.pretty:
+		pretty_print(ast)
+
+	code = generate(ast)
+
+	with open(arguments.infn, 'r') as infile:
+		infile.write(code)
 
 
 if __name__ == "__main__":
-	source_file = sys.argv[1]
-	tokens = lex(source_file)
-	print(tokens)
+	main()
 
 #assembly_file = os.path.splitext(source_file)[0] + ".s"
 
