@@ -19,7 +19,7 @@ main:
 """
 
 class Arguments:
-	def __init__(self, infn=None, outfn=None, pretty=True):
+	def __init__(self, infn=None, outfn=None, pretty=None):
 		self.infn = infn
 		self.outfn = outfn
 		self.pretty = pretty
@@ -188,13 +188,12 @@ def pretty_print(obj, n=0):
 		for statement in obj.body:
 			print(space*(n+2) + f"{statement.type} {statement.exp.type}<{statement.exp.value}>") ### VERY BAD!! ###
 
-def generate(ast):
-	return "almost working!!"
-
 def parse_args():
 	argv = (x for x in sys.argv)
 	arguments = Arguments() # Put default values here
 
+	# Since the first one is npc, the second is the file name
+	next(argv)
 	arguments.infn = next(argv)
 
 	while True:
@@ -217,6 +216,9 @@ def parse_args():
 			arguments.outfn = arg
 
 	return arguments
+
+def generate(ast):
+	return assembly_format.format(ast.function.body[0].exp.value)
 
 def main():
 	arguments = parse_args()
@@ -242,7 +244,7 @@ def main():
 
 	code = generate(ast)
 
-	with open(arguments.infn, 'r') as infile:
+	with open(arguments.outfn, 'w') as infile:
 		infile.write(code)
 
 
