@@ -2,13 +2,24 @@
 
 import sys, os, re
 
-source_re = r"int main\s*\(\s*\)\s*{\s*return\s+(?P<ret>[0-9]+)\s*;\s*}"
+# source_re = r"int main\s*\(\s*\)\s*{\s*return\s+(?P<ret>[0-9]+)\s*;\s*}"
 
 # Keywords regex                         hex             chars      +-   ints and decimals
 lexing_keywords = r"({|}|\(|\)|;|int|return|0[xX][0-9a-fA-F]+|[a-zA-Z]\w*|[+-]|[0-9]*[\.[0-9]*]?)"
 
 # For function names
 function_name_regex = r"[a-zA-Z]\w*"
+
+# Help message
+help_message =
+"""
+Usage: npc file [options]
+
+Options:
+  -o <file>    Place the output into file.
+  -p           Pretty-print the AST of the program.
+  -h           Display this information and exit.
+"""
 
 assembly_format = """
 .text
@@ -19,10 +30,11 @@ main:
 """
 
 class Arguments:
-	def __init__(self, infn=None, outfn=None, pretty=None):
+	def __init__(self, infn=None, outfn=None, pretty=None, help=None):
 		self.infn = infn
 		self.outfn = outfn
 		self.pretty = pretty
+		self.help = help
 
 class Token:
 	def __init__(self, type):
@@ -192,6 +204,10 @@ def parse_args():
 	argv = (x for x in sys.argv)
 	arguments = Arguments() # Put default values here
 
+	# No arguments, just skip
+	if argc == 1:
+
+
 	# Since the first one is npc, the second is the file name
 	next(argv)
 	arguments.infn = next(argv)
@@ -202,18 +218,26 @@ def parse_args():
 		except:
 			break
 
-		print("Arg:", arg)
+		# print("Arg:", arg)
 
-		if arg == '-p':
+		if  arg == '--help':
+			print(help_message)
+			exit()
+
+		elif arg == '-p':
 			arguments.pretty = True
 
-		if arg == '-o':
+		elif arg == '-o':
 			try:
 				arg = next(argv)
 			except:
 				fail()
 
 			arguments.outfn = arg
+
+		# Unreckgnised argument
+		else:
+			fail()
 
 	return arguments
 
@@ -236,6 +260,7 @@ def main():
 		arguments.outfn = os.path.splitext(arguments.infn)[0] + '.s'
 
 	tokens = lex(arguments.infn)
+
 	ast = parse(tokens)
 
 	# Pretty printing
