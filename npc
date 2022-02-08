@@ -11,17 +11,15 @@ lexing_keywords = r"({|}|\(|\)|;|int|return|0[xX][0-9a-fA-F]+|[a-zA-Z]\w*|[+-]|[
 function_name_regex = r"[a-zA-Z]\w*"
 
 # Help message
-help_message =
-"""
+help_message ="""\
 Usage: npc file [options]
 
 Options:
   -o <file>    Place the output into file.
   -p           Pretty-print the AST of the program.
-  -h           Display this information and exit.
-"""
+  -h           Display this information and exit."""
 
-assembly_format = """
+assembly_format = """\
 .text
 .globl main
 main:
@@ -30,11 +28,14 @@ main:
 """
 
 class Arguments:
-	def __init__(self, infn=None, outfn=None, pretty=None, help=None):
-		self.infn = infn
-		self.outfn = outfn
-		self.pretty = pretty
-		self.help = help
+	def __init__(self):
+		self.infn = None
+		self.outfn = None
+		self.asmfn = None
+		self.pretty = None
+		self.help = None
+		self.none = None
+		self.asm = None
 
 class Token:
 	def __init__(self, type):
@@ -204,9 +205,10 @@ def parse_args():
 	argv = (x for x in sys.argv)
 	arguments = Arguments() # Put default values here
 
-	# No arguments, just skip
-	if argc == 1:
-
+	# No arguments so skip and save
+	if len(sys.argv) == 1:
+		arguments.none = True
+		return arguments
 
 	# Since the first one is npc, the second is the file name
 	next(argv)
@@ -221,11 +223,13 @@ def parse_args():
 		# print("Arg:", arg)
 
 		if  arg == '--help':
-			print(help_message)
-			exit()
+			arguments.help = True
 
 		elif arg == '-p':
 			arguments.pretty = True
+
+		elif arg == '-S':
+			arguments.asm = True
 
 		elif arg == '-o':
 			try:
@@ -247,6 +251,11 @@ def generate(ast):
 def main():
 	arguments = parse_args()
 
+	# Help if --help or no arguments
+	if arguments.help or arguments.none:
+		print(help_message)
+		exit()
+
 	# No input file
 	if not arguments.infn:
 		fail()
@@ -254,10 +263,6 @@ def main():
 	# Infile doesn't exist
 	if not os.path.isfile(arguments.infn):
 		fail()
-
-	# No output file, using default
-	if not arguments.outfn:
-		arguments.outfn = os.path.splitext(arguments.infn)[0] + '.s'
 
 	tokens = lex(arguments.infn)
 
@@ -269,19 +274,22 @@ def main():
 
 	code = generate(ast)
 
-	with open(arguments.outfn, 'w') as infile:
-		infile.write(code)
+	if arguments.asm and arguments.outfn:
+		arguments.asmfn = arguments.outfn
+	else:
+		arguments.asmfn = os.path.splitext(arguments.infn)[0] + '.s'
 
+	if (not arguments.asm) and (not arguments.outfn):
+		arguments.outfn = 'a.out'
+
+	# Write the generated assembly code to the file
+	with open(arguments.asmfn, 'w') as asmfile:
+		asmfile.write(code)
+
+	# Assemble and delete temporary assembly file
+	if not arguments.asm:
+		os.system(f"gcc {arguments.asmfn} -o {arguments.outfn}")
+		os.remove(arguments.asmfn)
 
 if __name__ == "__main__":
 	main()
-
-#assembly_file = os.path.splitext(source_file)[0] + ".s"
-
-#with open(source_file, 'r') as infile, open(assembly_file, 'w') as outfile:
-#	source = infile.read().strip();
-#	match = re.match(source_re, source)
-#
-#	retval = match.group('ret')
-#	outfile.write(assembly_format.format(retval))
-
