@@ -4,8 +4,10 @@ import sys, os, re
 
 # source_re = r"int main\s*\(\s*\)\s*{\s*return\s+(?P<ret>[0-9]+)\s*;\s*}"
 
-# Keywords regex                         hex             chars      +-   ints and decimals
-lexing_keywords = r"({|}|\(|\)|;|int|return|0[xX][0-9a-fA-F]+|[a-zA-Z]\w*|[+-]|[0-9]*[\.[0-9]*]?)"
+# hex: 0[xX][0-9a-fA-F]+
+
+# Keywords regex                              chars      ints
+lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|!)"
 
 # For function names
 function_name_regex = r"[a-zA-Z]\w*"
@@ -19,13 +21,14 @@ Options:
   -p           Pretty-print the AST of the program.
   -h           Display this information and exit."""
 
-assembly_format = """\
+base_asm = """\
 .text
 .globl main
 main:
-    movl    ${}, %eax
-    ret
 """
+#    movl    ${}, %eax
+#    ret
+
 
 class Arguments:
 	def __init__(self):
@@ -49,9 +52,9 @@ class Function(Token):
 		self.body = body
 
 class Program(Token):
-	def __init__(self, function):
+	def __init__(self, functions):
 		super().__init__("PROGRAM")
-		self.function = function
+		self.functions = functions
 
 # class Statement(Token):
 # 	def __init__()
@@ -62,9 +65,9 @@ class Return(Token):
 		self.exp = exp
 
 class Const(Token):
-	def __init__(self, type, value):
+	def __init__(self, value_type, value):
 		super().__init__("CONST")
-		self.type = type
+		self.value_type = value_type
 		self.value = value
 
 class BinaryExpression(Token):
@@ -73,6 +76,23 @@ class BinaryExpression(Token):
 		self.operand = operand
 		self.left = left
 		self.right = right
+
+class UnaryOperator(Token):
+	def __init__(self, operator):
+		super().__init__("UNARY_OPERATOR")
+		self.operator = operator
+
+class UnOp(Token):
+	def __init__(self, op, value):
+		super().__init__("UNOP")
+		self.op = op
+		self.value = value
+
+class Body(Token):
+	def __init__(self, statements):
+		super().__init__("BODY")
+		self.statements = statements
+
 
 def fail():
 	raise Exception("Error")
@@ -87,9 +107,11 @@ def lex(source_file):
 	# Filter out '' in the list, could probably be done easier in the regex
 	matches = list(filter(lambda x: x != '', matches))
 
+	# print(matches)
+
 	# Yield tokens (creates a generator)
 	for match in matches:
-		yield match
+		yield match.strip() # No tokens should have spaces in them
 
 
 def tokenType(token):
@@ -99,29 +121,30 @@ def tokenType(token):
 	except Exception as e: pass
 	return "STRING"
 
-def parseNum(tokens):
-	negate = False
-	type = ""
-
-	tok = next(tokens)
+def parseOperator(tok):
 	if tok == '-':
-		tok = next(tokens)
-		negate = True
+		return UnaryOperator('NEGATE')
 
-	try:
-		if '.' in tok:
-			num = float(tok)
-			type = "FLOAT"
-		else:
-			num = int(tok)
-			type = "INT"
+	elif tok == '!':
+		return UnaryOperator('LOGICAL_NEGATE')
 
-		num *= -1 if negate else 1
+	elif tok == '~':
+		return UnaryOperator('BITWISE_COMPLEMENT')
 
-	except Exception as e:
+	else:
 		fail()
 
-	return Const(type, num)
+def parseExpression(tokens):
+	tok = next(tokens)
+
+	# Is the token a number
+	if tok.isnumeric():
+		return Const("INT", int(tok))
+	else:
+		op = parseOperator(tok) # Convert token to UnaryOperator element, will fail if isn't '-', '!' or '~'
+		inner_exp = parseExpression(tokens) # Recursion!!
+		return UnOp(op, inner_exp)
+
 
 def parseStatement(tokens):
 	tok = next(tokens)
@@ -129,10 +152,7 @@ def parseStatement(tokens):
 	if tok != "return":
 		fail()
 
-	exp = parseNum(tokens) # Will fail if not a number
-
-	# if tokenType(tok) != "INT":
-	# 	fail()
+	exp = parseExpression(tokens)
 
 	statement = Return(exp)
 
@@ -143,7 +163,8 @@ def parseStatement(tokens):
 	return statement
 
 
-def parseFunction(tokens, returnType):
+def parseFunction(tokens):
+	returnType = next(tokens)
 	id = next(tokens)
 
 	# Invalid function name
@@ -172,34 +193,50 @@ def parseFunction(tokens, returnType):
 	#   if nextToken=='}': break
 
 	statement = parseStatement(tokens)
-	function = Function(id, returnType, [statement])
+	function = Function(id, returnType, Body([statement]))
+
+	tok = next(tokens)
+	if tok != '}':
+		fail()
 
 	return function
 
 def parse(tokens):
-	tok = next(tokens)
 
 	# Shouldn't be anything else yet
 	#if tok == "int":
 
-	function = parseFunction(tokens, tok)
-	program = Program(function)
+	function = parseFunction(tokens)
+	program = Program([function])
 	return program
 
 
 def pretty_print(obj, n=0):
 	space = '    '
 	if obj.type == "PROGRAM":
-		print("PROGRAM START:")
-		pretty_print(obj.function, 1)
+		print("PROGRAM:")
+		for func in obj.functions:
+			pretty_print(func, n+1)
 
 	elif obj.type == "FUNCTION":
 		print(space*(n+0) + f"FUN {obj.returnType} {obj.id}:")
 		print(space*(n+1) +  "params: ()") # None yet
 		print(space*(n+1) +  "body:")
+		pretty_print(obj.body, n+1)
 
-		for statement in obj.body:
-			print(space*(n+2) + f"{statement.type} {statement.exp.type}<{statement.exp.value}>") ### VERY BAD!! ###
+	elif obj.type == "BODY":
+		for statement in obj.statements:
+			if statement.type == "RETURN":
+				pretty_print(statement.exp, n+1)
+			else:
+				print(space*(n+2) + f"{statement.type} ???")
+
+	elif obj.type == "UNOP":
+		print(space*(n+0) + f"UNOP<{obj.op.operator}, {obj.value.type}>")
+		pretty_print(obj.value, n+1)
+
+	elif obj.type == "CONST":
+		print(space*n + f"CONST<{obj.value_type}<{obj.value}>>")
 
 def parse_args():
 	argv = (x for x in sys.argv)
@@ -245,8 +282,52 @@ def parse_args():
 
 	return arguments
 
-def generate(ast):
-	return assembly_format.format(ast.function.body[0].exp.value)
+def generate(obj):
+	code = ''
+	if obj.type == "PROGRAM":
+		code += base_asm
+		for func in obj.functions:
+			code += generate(func)
+
+	if obj.type == "FUNCTION":
+		for statement in obj.body.statements:
+			if statement.type == "RETURN":
+				if statement.exp.type == "CONST":
+					code += f"    movl    ${statement.exp.value}, %eax\n"
+
+				elif statement.exp.type == "UNOP":
+					tmp = statement.exp.value
+					while tmp.type != "CONST":
+						tmp = tmp.value
+					code += f"    movl    ${tmp.value}, %eax      # Return value\n"
+					code += generate(statement.exp)
+
+				code += "    ret\n"
+			else:
+				fail()
+
+	if obj.type == "UNOP":
+		if obj.value.type == "UNOP":
+			code += generate(obj.value)
+
+		if obj.op.operator == "NEGATE":
+			code += """\
+    neg     %eax          # eax negated
+"""
+
+		if obj.op.operator == "LOGICAL_NEGATE":
+			code += f"""\
+    cmpl    $0, %eax      # set ZF on if exp == 0, set it off otherwize
+    xor     %eax, %eax    # zero out eax (doesn't change flags)
+    sete    %al           # set al register (the lower byte of eax) to 1 if ZF is on
+"""
+		if obj.op.operator == "BITWISE_COMPLEMENT":
+			code += """\
+    not     %eax          # eax bitwise compliment
+"""
+
+	return code
+#	assembly_format.format(ast.functions[0].body.statements[0].exp.value)
 
 def main():
 	arguments = parse_args()
@@ -274,6 +355,7 @@ def main():
 
 	code = generate(ast)
 
+	# Correct filenames to write to
 	if arguments.asm and arguments.outfn:
 		arguments.asmfn = arguments.outfn
 	else:
