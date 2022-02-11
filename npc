@@ -1,13 +1,14 @@
 #!/usr/bin/python3
 
 import sys, os, re
+import itertools
 
 # source_re = r"int main\s*\(\s*\)\s*{\s*return\s+(?P<ret>[0-9]+)\s*;\s*}"
 
 # hex: 0[xX][0-9a-fA-F]+
 
 # Keywords regex                              chars      ints
-lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|!)"
+lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|!|\+|\*|\/)"
 
 # For function names
 function_name_regex = r"[a-zA-Z]\w*"
@@ -70,13 +71,6 @@ class Const(Token):
 		self.value_type = value_type
 		self.value = value
 
-class BinaryExpression(Token):
-	def __init__(self, operand, left, right):
-		super().__init__("BINARY_EXPRESSION")
-		self.operand = operand
-		self.left = left
-		self.right = right
-
 class UnaryOperator(Token):
 	def __init__(self, operator):
 		super().__init__("UNARY_OPERATOR")
@@ -87,6 +81,18 @@ class UnOp(Token):
 		super().__init__("UNOP")
 		self.op = op
 		self.value = value
+
+class BinaryOperator(Token):
+	def __init__(self, operator):
+		super().__init__("BINARY_OPERATOR")
+		self.operator = operator
+
+class BinOp(Token):
+	def __init__(self, op, left, right):
+		super().__init__("BINOP")
+		self.op = op
+		self.left = left
+		self.right = right
 
 class Body(Token):
 	def __init__(self, statements):
@@ -121,7 +127,7 @@ def tokenType(token):
 	except Exception as e: pass
 	return "STRING"
 
-def parseOperator(tok):
+def parseUnaryOperator(tok):
 	if tok == '-':
 		return UnaryOperator('NEGATE')
 
@@ -134,16 +140,91 @@ def parseOperator(tok):
 	else:
 		fail()
 
-def parseExpression(tokens):
-	tok = next(tokens)
+def parseBinaryOperator(tok):
+	if tok == '+':
+		return BinaryOperator("ADD")
 
-	# Is the token a number
-	if tok.isnumeric():
-		return Const("INT", int(tok))
+	elif tok == '-':
+		return BinaryOperator("SUBTRACT")
+
+	elif tok == '*':
+		return BinaryOperator("MULTIPLY")
+
+	elif tok == '/':
+		return BinaryOperator("DIVIDE")
+
 	else:
-		op = parseOperator(tok) # Convert token to UnaryOperator element, will fail if isn't '-', '!' or '~'
-		inner_exp = parseExpression(tokens) # Recursion!!
-		return UnOp(op, inner_exp)
+		fail()
+
+def isUnop(tok):
+	return tok in ['-', '!', '~']
+
+def parseFactor(tokens):
+	tok = next(tokens)
+	if tok == '(':
+		# <factor> ::= "(" <exp> ")"
+		if not tok.isnumeric():
+			fail()
+
+		exp = int(tok)
+
+		tok = next(tokens)
+		if tok != ')':
+			fail()
+
+		return Const('INT', exp)
+
+	elif isUnop(tok):
+		# <factor> ::= <unary_op> <factor>
+		op = parseUnaryOperator(tok)
+		factor = parseFactor(tokens) # Recursion, again!
+		return UnOp(op, factor)
+
+	elif tok.isnumeric():
+		# <factor> ::= <int>
+		return Const('INT', int(tok))
+
+	else:
+		fail()
+
+def parseTerm(tokens):
+	factor = parseFactor(tokens)
+	tok = next(tokens)
+	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	while tok == '*' or tok == '/':  # Another factor!
+		op = parseBinaryOperator(next(tokens))
+		next_factor = parseFactor(tokens)
+		factor = BinOp(op, factor, next_factor)
+		tok = next(tokens)
+		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	return tokens, factor
+
+def parseExpression(tokens):
+	tokens, term = parseTerm(tokens)
+	tok = next(tokens)
+	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	while tok == '+' or tok == '-':  # There's another term!
+		op = parseBinaryOperator(next(tokens))
+		tokens, next_term = parseTerm(tokens)
+		term = BinOp(op, term, next_term)
+		tok = next(tokens)
+		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	return tokens, term
+
+#def parseExpression(tokens):
+#	tok = next(tokens)
+#
+#	# Is the token a number
+#	if tok.isnumeric():
+#		return Const("INT", int(tok))
+#	else:
+#		op = parseUnaryOperator(tok) # Convert token to UnaryOperator element, will fail if isn't '-', '!' or '~'
+#		inner_exp = parseExpression(tokens) # Recursion!!
+#		return UnOp(op, inner_exp)
 
 
 def parseStatement(tokens):
@@ -152,14 +233,13 @@ def parseStatement(tokens):
 	if tok != "return":
 		fail()
 
-	exp = parseExpression(tokens)
+	tokens, exp = parseExpression(tokens)
 
 	statement = Return(exp)
 
 	tok = next(tokens)
 	if tok != ";":
 		fail()
-
 	return statement
 
 
@@ -235,6 +315,12 @@ def pretty_print(obj, n=0):
 		print(space*(n+0) + f"UNOP<{obj.op.operator}, {obj.value.type}>")
 		pretty_print(obj.value, n+1)
 
+	elif obj.type == "BINOP":
+		print(space*(n+0) + f"BINOP<{obj.left.type}, {obj.op.operator}, {obj.right.type}>")
+		pretty_print(obj.left, n+1)
+		pretty_print(obj.op, n+1)
+		pretty_print(obj.right, n+1)
+
 	elif obj.type == "CONST":
 		print(space*n + f"CONST<{obj.value_type}<{obj.value}>>")
 
@@ -299,8 +385,14 @@ def generate(obj):
 					tmp = statement.exp.value
 					while tmp.type != "CONST":
 						tmp = tmp.value
+
 					code += f"    movl    ${tmp.value}, %eax      # Return value\n"
 					code += generate(statement.exp)
+
+				elif statement.exp.type == "BINOP":
+					code += generate(statement.exp)
+					#code += "    push    %eax  # save value of e1 on the stack\n"
+					#code += "    pop    %ecx  # pop e1 from the stack into ecx\n"
 
 				code += "    ret\n"
 			else:
@@ -325,6 +417,44 @@ def generate(obj):
 			code += """\
     not     %eax          # eax bitwise compliment
 """
+
+	if obj.type == "BINOP":
+		if obj.left.type == "BINOP":
+			code += generate(obj.left)
+
+		else:
+			code += f"""\
+    movl    ${obj.left.value}, %eax	# mov left value to eax
+    pushl   %eax	# push eax
+"""
+
+		if obj.right.type == "BINOP":
+			code += generate(obj.right)
+
+		else:
+			code += f"""\
+    movl    ${obj.right.value}, %eax	# mov right value to eax
+"""
+
+		code += "    popl    %ecx	# pop to ecx (eax->ecx)\n"
+
+		if obj.op.operator == "ADD":
+			code += """\
+    addl    %ecx, %eax	# e1 + e2
+"""
+		if obj.op.operator == "SUBTRACT":
+			code += """\
+    xchg    %eax, %ecx
+    subl    %ecx, %eax	# e2 - e1
+""" # Should definitely change (inefficient)
+
+		if obj.op.operator == "MULTIPLY":
+			code += """\
+    imul    %ecx, %eax  # e1 * e2
+"""
+
+		if obj.op.operator == "DIVIDE":
+			pass
 
 	return code
 #	assembly_format.format(ast.functions[0].body.statements[0].exp.value)
@@ -370,7 +500,7 @@ def main():
 
 	# Assemble and delete temporary assembly file
 	if not arguments.asm:
-		os.system(f"gcc {arguments.asmfn} -o {arguments.outfn}")
+		os.system(f"gcc {arguments.asmfn} -m32 -o {arguments.outfn}")
 		os.remove(arguments.asmfn)
 
 if __name__ == "__main__":
