@@ -368,6 +368,15 @@ def parse_args():
 
 	return arguments
 
+def generateUnOpBase(obj):
+	tmp = obj.value
+	while tmp.type != "CONST":
+		tmp = tmp.value
+
+	return f"    movl    ${tmp.value}, %eax      # Return value\n"
+
+
+
 def generate(obj):
 	code = ''
 	if obj.type == "PROGRAM":
@@ -382,11 +391,7 @@ def generate(obj):
 					code += f"    movl    ${statement.exp.value}, %eax\n"
 
 				elif statement.exp.type == "UNOP":
-					tmp = statement.exp.value
-					while tmp.type != "CONST":
-						tmp = tmp.value
-
-					code += f"    movl    ${tmp.value}, %eax      # Return value\n"
+					code += generateUnOpBase(statement.exp)
 					code += generate(statement.exp)
 
 				elif statement.exp.type == "BINOP":
@@ -421,22 +426,26 @@ def generate(obj):
 	if obj.type == "BINOP":
 		if obj.left.type == "BINOP":
 			code += generate(obj.left)
-
+		elif obj.left.type == "UNOP":
+			code += generateUnOpBase(obj.left)
+			code += generate(obj.left)
 		else:
 			code += f"""\
-    movl    ${obj.left.value}, %eax	# mov left value to eax
-    pushl   %eax	# push eax
+    movl    ${obj.left.value}, %eax	# mov left value to ecx
 """
+		code += "    pushl   %eax	# push ecx\n"
 
 		if obj.right.type == "BINOP":
 			code += generate(obj.right)
-
+		elif obj.right.type == "UNOP":
+			code += generateUnOpBase(obj.right)
+			code += generate(obj.right)
 		else:
 			code += f"""\
-    movl    ${obj.right.value}, %eax	# mov right value to eax
+    movl    ${obj.right.value}, %eax	# mov right value to ecx
 """
 
-		code += "    popl    %ecx	# pop to ecx (eax->ecx)\n"
+		code += "    popl    %ecx	# pop to eax (ecx->eax)\n"
 
 		if obj.op.operator == "ADD":
 			code += """\
@@ -444,9 +453,8 @@ def generate(obj):
 """
 		if obj.op.operator == "SUBTRACT":
 			code += """\
-    xchg    %eax, %ecx
     subl    %ecx, %eax	# e2 - e1
-""" # Should definitely change (inefficient)
+"""
 
 		if obj.op.operator == "MULTIPLY":
 			code += """\
@@ -454,7 +462,11 @@ def generate(obj):
 """
 
 		if obj.op.operator == "DIVIDE":
-			pass
+			code += """\
+    xchg    %eax, %ecx
+    cdq			# edx:eax = 32 bit divident
+    idivl   %ecx	# divide edx:eax by ecx, quotient is stored in eax, remainder in edx
+"""
 
 	return code
 #	assembly_format.format(ast.functions[0].body.statements[0].exp.value)
