@@ -373,9 +373,7 @@ def generateUnOpBase(obj):
 	while tmp.type != "CONST":
 		tmp = tmp.value
 
-	return f"    movl    ${tmp.value}, %eax      # Return value\n"
-
-
+	return f"    movl    ${tmp.value}, %eax	# Return value\n"
 
 def generate(obj):
 	code = ''
@@ -414,10 +412,13 @@ def generate(obj):
 
 		if obj.op.operator == "LOGICAL_NEGATE":
 			code += f"""\
-    cmpl    $0, %eax      # set ZF on if exp == 0, set it off otherwize
-    xor     %eax, %eax    # zero out eax (doesn't change flags)
-    sete    %al           # set al register (the lower byte of eax) to 1 if ZF is on
+    cmpl    $0, %eax	# set ZF on if exp == 0, set it off otherwize
+    mov     $0, %eax	# clear eax
+    sete    %al		# set al register (the lower byte of eax) to 1 if ZF is on
 """
+#     xor     %eax, %eax    # zero out eax (doesn't change flags)
+# Can't use it even though it's better because it sets the zero flag
+
 		if obj.op.operator == "BITWISE_COMPLEMENT":
 			code += """\
     not     %eax          # eax bitwise compliment
