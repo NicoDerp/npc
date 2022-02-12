@@ -7,8 +7,21 @@ import itertools
 
 # hex: 0[xX][0-9a-fA-F]+
 
+# Bakkes-Naur
+# <program> ::= <function>
+# <function> ::= "int" <id> "(" ")" "{" <statement> "}"
+# <statement> ::= "return" <exp> ";"
+# <exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
+# <logical-and-exp> ::= <equality-exp> { "&&" <equality-exp> }
+# <equality-exp> ::= <relational-exp> { ("!=" | "==" ) <relational-exp> }
+# <relational-exp> ::= <additive-exp> { ("<" | ">" | "<=" | ">=") <additive-exp> }
+# <additive-exp> ::= <term> { ("+" | "-") <term> }
+# <term> ::= <factor> { ("*" | "/") <factor> }
+# <factor> ::= "(" <exp> ")" | <unary-op> <factor> | <int>
+# <unary-op> ::= "!" | "~" | "-"
+
 # Keywords regex                              chars      ints
-lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|!|\+|\*|\/)"
+lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|![^=]|\+|\*|\/|&&|\|\||==|!=|<[^=]|<=|>[^=]|>=)"
 
 # For function names
 function_name_regex = r"[a-zA-Z]\w*"
@@ -20,6 +33,7 @@ Usage: npc file [options]
 Options:
   -o <file>    Place the output into file.
   -p           Pretty-print the AST of the program.
+  -S           Do not assemble, output is assembly code.
   -h           Display this information and exit."""
 
 base_asm = """\
@@ -113,11 +127,11 @@ def lex(source_file):
 	# Filter out '' in the list, could probably be done easier in the regex
 	matches = list(filter(lambda x: x != '', matches))
 
-	# print(matches)
+	print(matches)
 
 	# Yield tokens (creates a generator)
 	for match in matches:
-		yield match.strip() # No tokens should have spaces in them
+		yield match.replace(' ', '') # No tokens should have spaces in them
 
 
 def tokenType(token):
@@ -142,16 +156,40 @@ def parseUnaryOperator(tok):
 
 def parseBinaryOperator(tok):
 	if tok == '+':
-		return BinaryOperator("ADD")
+		return BinaryOperator('ADD')
 
 	elif tok == '-':
-		return BinaryOperator("SUBTRACT")
+		return BinaryOperator('SUBTRACT')
 
 	elif tok == '*':
-		return BinaryOperator("MULTIPLY")
+		return BinaryOperator('MULTIPLY')
 
 	elif tok == '/':
-		return BinaryOperator("DIVIDE")
+		return BinaryOperator('DIVIDE')
+
+	elif tok == '&&':
+		return BinaryOperator('AND')
+
+	elif tok == '||':
+		return BinaryOperator('OR')
+
+	elif tok == '==':
+		return BinaryOperator('EQUAL')
+
+	elif tok == '!=':
+		return BinaryOperator('NOT_EQUAL')
+
+	elif tok == '<':
+		return BinaryOperator('LESS_THAN')
+
+	elif tok == '<=':
+		return BinaryOperator('LESS_THAN_OR_EQUAL')
+
+	elif tok == '>':
+		return BinaryOperator('GREATER_THAN')
+
+	elif tok == '>=':
+		return BinaryOperator('GREATER_THAN_OR_EQUAL')
 
 	else:
 		fail()
@@ -163,16 +201,14 @@ def parseFactor(tokens):
 	tok = next(tokens)
 	if tok == '(':
 		# <factor> ::= "(" <exp> ")"
-		if not tok.isnumeric():
-			fail()
 
-		exp = int(tok)
+		tokens, exp = parseExpression(tokens)
 
 		tok = next(tokens)
 		if tok != ')':
 			fail()
 
-		return Const('INT', exp)
+		return exp
 
 	elif isUnop(tok):
 		# <factor> ::= <unary_op> <factor>
@@ -201,12 +237,12 @@ def parseTerm(tokens):
 
 	return tokens, factor
 
-def parseExpression(tokens):
+def parseAdditiveExp(tokens):
 	tokens, term = parseTerm(tokens)
 	tok = next(tokens)
 	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
 
-	while tok == '+' or tok == '-':  # There's another term!
+	while tok == '+' or tok == '-':  # Another one!
 		op = parseBinaryOperator(next(tokens))
 		tokens, next_term = parseTerm(tokens)
 		term = BinOp(op, term, next_term)
@@ -214,6 +250,66 @@ def parseExpression(tokens):
 		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
 
 	return tokens, term
+
+
+def parseRelationalExp(tokens):
+	tokens, additiveExp = parseAdditiveExp(tokens)
+	tok = next(tokens)
+	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	while tok == '<' or tok == '>' or tok == '<=' or tok == '>=':  # Another one!
+		op = parseBinaryOperator(next(tokens))
+		tokens, next_additiveExp = parseAdditiveExp(tokens)
+		additiveExp = BinOp(op, additiveExp, next_additiveExp)
+		tok = next(tokens)
+		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	return tokens, additiveExp
+
+
+def parseEqualityExp(tokens):
+	tokens, relationalExp = parseRelationalExp(tokens)
+	tok = next(tokens)
+	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	while tok == '==' or tok == '!=':  # Another one!
+		op = parseBinaryOperator(next(tokens))
+		tokens, next_relationalExp = parseRelationalExp(tokens)
+		relationalExp = BinOp(op, relationalExp, next_relationalExp)
+		tok = next(tokens)
+		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	return tokens, relationalExp
+
+
+def parseLogicalAndExp(tokens):
+	tokens, equalityExp = parseEqualityExp(tokens)
+	tok = next(tokens)
+	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	while tok == '&&':  # Another one!
+		op = parseBinaryOperator(next(tokens))
+		tokens, next_equalityExp = parseEqualityExp(tokens)
+		equalityExp = BinOp(op, equalityExp, next_equalityExp)
+		tok = next(tokens)
+		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	return tokens, equalityExp
+
+
+def parseExpression(tokens):
+	tokens, lae = parseLogicalAndExp(tokens)
+	tok = next(tokens)
+	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	while tok == '||':  # There's another term!
+		op = parseBinaryOperator(next(tokens))
+		tokens, next_lae = parseLogicalAndExp(tokens)
+		lae = BinOp(op, lae, next_lae)
+		tok = next(tokens)
+		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
+
+	return tokens, lae
 
 #def parseExpression(tokens):
 #	tok = next(tokens)
@@ -335,7 +431,13 @@ def parse_args():
 
 	# Since the first one is npc, the second is the file name
 	next(argv)
-	arguments.infn = next(argv)
+
+	first = next(argv)
+	if first == '--help':
+		arguments.help = True
+		return arguments
+
+	arguments.infn = first
 
 	while True:
 		try:
@@ -345,10 +447,7 @@ def parse_args():
 
 		# print("Arg:", arg)
 
-		if  arg == '--help':
-			arguments.help = True
-
-		elif arg == '-p':
+		if arg == '-p':
 			arguments.pretty = True
 
 		elif arg == '-S':
@@ -374,6 +473,13 @@ def generateUnOpBase(obj):
 		tmp = tmp.value
 
 	return f"    movl    ${tmp.value}, %eax	# Return value\n"
+
+labelCounter = 0
+
+def generateLabel():
+	global labelCounter
+	labelCounter += 1
+	return "L" + str(labelCounter)
 
 def generate(obj):
 	code = ''
@@ -432,9 +538,9 @@ def generate(obj):
 			code += generate(obj.left)
 		else:
 			code += f"""\
-    movl    ${obj.left.value}, %eax	# mov left value to ecx
+    movl    ${obj.left.value}, %eax	# mov left value to eax
 """
-		code += "    pushl   %eax	# push ecx\n"
+		code += "    pushl   %eax	# push eax\n"
 
 		if obj.right.type == "BINOP":
 			code += generate(obj.right)
@@ -443,10 +549,11 @@ def generate(obj):
 			code += generate(obj.right)
 		else:
 			code += f"""\
-    movl    ${obj.right.value}, %eax	# mov right value to ecx
+    movl    ${obj.right.value}, %eax	# mov right value to eax
 """
 
-		code += "    popl    %ecx	# pop to eax (ecx->eax)\n"
+		if obj.op.operator != "OR":
+			code += "    popl    %ecx	# pop to ecx (eax->ecx)\n"
 
 		if obj.op.operator == "ADD":
 			code += """\
@@ -468,6 +575,71 @@ def generate(obj):
     cdq			# edx:eax = 32 bit divident
     idivl   %ecx	# divide edx:eax by ecx, quotient is stored in eax, remainder in edx
 """
+
+		if obj.op.operator == "AND":
+			pass
+
+		if obj.op.operator == "OR":
+			clause = generateLabel()
+			end = generateLabel()
+
+			code += f"""\
+    # Code for e1
+    cmpl    $0, %eax
+    je      {clause}
+    movl    $1, %eax
+    jmp     {end}
+{clause}:
+	# Code for e2
+    popl    %eax	# pop to eax (eax->eax)
+    cmpl    $0, %eax
+    movl    $0, %eax
+    setne   %al
+{end}:
+"""
+
+		if obj.op.operator == "EQUAL":
+			code += """\
+    cmpl    %eax, %ecx	# set ZF on if e1 =	= e2, set it off otherwise
+    movl    $0, %eax	# zero out eax (doesn't change flags)
+    sete    %al		# set al register (the lower byte of eax) to 1 if ZF is on
+"""
+
+		if obj.op.operator == 'NOT_EQUAL':
+			code += """\
+    cmpl    %eax, %ecx	# set ZF on if e1 == e2, set it off otherwise
+    movl    $0, %eax	# zero out eax (doesn't change flags)
+    setne   %al		# set al register (the lower byte of eax) to 1 if ZF is on
+"""
+
+		if obj.op.operator == 'LESS_THAN':
+			code += """\
+    cmpl    %eax, %ecx
+    movl    $0, %eax
+    setl    %al
+"""
+
+		if obj.op.operator == 'LESS_THAN_OR_EQUAL':
+			code += """\
+    cmpl    %eax, %ecx
+    movl    $0, %eax
+    setle   %al
+"""
+
+		if obj.op.operator == 'GREATER_THAN':
+			code += """\
+    cmpl    %eax, %ecx
+    movl    $0, %eax
+    setg    %al
+"""
+
+		if obj.op.operator == 'GREATER_THAN_OR_EQUAL':
+			code += """\
+    cmpl    %eax, %ecx
+    movl    $0, %eax
+	setge   %al
+"""
+
 
 	return code
 #	assembly_format.format(ast.functions[0].body.statements[0].exp.value)
