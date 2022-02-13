@@ -11,17 +11,17 @@ import itertools
 # <program> ::= <function>
 # <function> ::= "int" <id> "(" ")" "{" <statement> "}"
 # <statement> ::= "return" <exp> ";"
-# <exp> ::= <logical-and-exp> { "||" <logical-and-exp> }
-# <logical-and-exp> ::= <equality-exp> { "&&" <equality-exp> }
+# <exp> ::= <logical-and-exp> { ("||" | "|") <logical-and-exp> }
+# <logical-and-exp> ::= <equality-exp> { ("&&" | "&") <equality-exp> }
 # <equality-exp> ::= <relational-exp> { ("!=" | "==" ) <relational-exp> }
 # <relational-exp> ::= <additive-exp> { ("<" | ">" | "<=" | ">=") <additive-exp> }
 # <additive-exp> ::= <term> { ("+" | "-") <term> }
-# <term> ::= <factor> { ("*" | "/") <factor> }
+# <term> ::= <factor> { ("*" | "/" | "%") <factor> }
 # <factor> ::= "(" <exp> ")" | <unary-op> <factor> | <int>
 # <unary-op> ::= "!" | "~" | "-"
 
 # Keywords regex                              chars      ints
-lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|![^=]|\+|\*|\/|&&|\|\||==|!=|<[^=]|<=|>[^=]|>=)"
+lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|![^=]|\+|\*|\/|&&|\|\||==|!=|<[^=]|<=|>[^=]|>=|&[^&]|\|[^\|]|%)"
 
 # For function names
 function_name_regex = r"[a-zA-Z]\w*"
@@ -127,7 +127,7 @@ def lex(source_file):
 	# Filter out '' in the list, could probably be done easier in the regex
 	matches = list(filter(lambda x: x != '', matches))
 
-	# print(matches)
+	print(matches)
 
 	# Yield tokens (creates a generator)
 	for match in matches:
@@ -167,11 +167,20 @@ def parseBinaryOperator(tok):
 	elif tok == '/':
 		return BinaryOperator('DIVIDE')
 
-	elif tok == '&&':
+	elif tok == '&':
 		return BinaryOperator('AND')
 
-	elif tok == '||':
+	elif tok == '&&':
+		return BinaryOperator('LAND')
+
+	elif tok == '%':
+		return BinaryOperator('MODULO')
+
+	elif tok == '|':
 		return BinaryOperator('OR')
+
+	elif tok == '||':
+		return BinaryOperator('LOR')
 
 	elif tok == '==':
 		return BinaryOperator('EQUAL')
@@ -228,7 +237,7 @@ def parseTerm(tokens):
 	tok = next(tokens)
 	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
 
-	while tok == '*' or tok == '/':  # Another factor!
+	while tok == '*' or tok == '/' or tok == '%':  # Another factor!
 		op = parseBinaryOperator(next(tokens))
 		next_factor = parseFactor(tokens)
 		factor = BinOp(op, factor, next_factor)
@@ -287,7 +296,7 @@ def parseLogicalAndExp(tokens):
 	tok = next(tokens)
 	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
 
-	while tok == '&&':  # Another one!
+	while tok == '&&' or tok == '&':  # Another one!
 		op = parseBinaryOperator(next(tokens))
 		tokens, next_equalityExp = parseEqualityExp(tokens)
 		equalityExp = BinOp(op, equalityExp, next_equalityExp)
@@ -302,7 +311,7 @@ def parseExpression(tokens):
 	tok = next(tokens)
 	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
 
-	while tok == '||':  # There's another term!
+	while tok == '||' or tok == '|':  # There's another term!
 		op = parseBinaryOperator(next(tokens))
 		tokens, next_lae = parseLogicalAndExp(tokens)
 		lae = BinOp(op, lae, next_lae)
@@ -553,7 +562,7 @@ def generate(obj):
 """
 
 
-		if obj.op.operator != "AND" and obj.op.operator != "OR":
+		if obj.op.operator != "LAND" and obj.op.operator != "LOR":
 			code += "    popl    %ecx	# pop to ecx (eax->ecx)\n"
 
 		if obj.op.operator == "ADD":
@@ -576,7 +585,24 @@ def generate(obj):
     idivl   %ecx	# divide edx:eax by ecx, quotient is stored in eax, remainder in edx
 """
 
+		if obj.op.operator == "MODULO":
+			code += """\
+    cdq			# edx:eax = 32 bit divident
+    idivl   %ecx	# divide edx:eax by ecx, quotient is stored in eax, remainder in edx
+    movl    %edx, %eax
+"""
+
 		if obj.op.operator == "AND":
+			code += """\
+    and     %ecx, %eax
+"""
+
+		if obj.op.operator == "OR":
+			code += """\
+    or      %ecx, %eax
+"""
+
+		if obj.op.operator == "LAND":
 			clause = generateLabel()
 			end = generateLabel()
 
@@ -597,7 +623,7 @@ def generate(obj):
 
 # AND, OR osv er egentlig LAND, LOR (LOGICAL)
 
-		if obj.op.operator == "OR":
+		if obj.op.operator == "LOR":
 			clause = generateLabel()
 			end = generateLabel()
 
