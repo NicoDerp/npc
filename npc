@@ -127,7 +127,7 @@ def lex(source_file):
 	# Filter out '' in the list, could probably be done easier in the regex
 	matches = list(filter(lambda x: x != '', matches))
 
-	print(matches)
+	# print(matches)
 
 	# Yield tokens (creates a generator)
 	for match in matches:
@@ -531,17 +531,6 @@ def generate(obj):
 """
 
 	if obj.type == "BINOP":
-		if obj.left.type == "BINOP":
-			code += generate(obj.left)
-		elif obj.left.type == "UNOP":
-			code += generateUnOpBase(obj.left)
-			code += generate(obj.left)
-		else:
-			code += f"""\
-    movl    ${obj.left.value}, %eax	# mov left value to eax
-"""
-		code += "    pushl   %eax	# push eax\n"
-
 		if obj.right.type == "BINOP":
 			code += generate(obj.right)
 		elif obj.right.type == "UNOP":
@@ -551,8 +540,20 @@ def generate(obj):
 			code += f"""\
     movl    ${obj.right.value}, %eax	# mov right value to eax
 """
+		code += "    pushl   %eax	# push eax\n"
 
-		if obj.op.operator != "OR":
+		if obj.left.type == "BINOP":
+			code += generate(obj.left)
+		elif obj.left.type == "UNOP":
+			code += generateUnOpBase(obj.left)
+			code += generate(obj.left)
+		else:
+			code += f"""\
+    movl    ${obj.left.value}, %eax	# mov left value to eax
+"""
+
+
+		if obj.op.operator != "AND" and obj.op.operator != "OR":
 			code += "    popl    %ecx	# pop to ecx (eax->ecx)\n"
 
 		if obj.op.operator == "ADD":
@@ -571,13 +572,30 @@ def generate(obj):
 
 		if obj.op.operator == "DIVIDE":
 			code += """\
-    xchg    %eax, %ecx
     cdq			# edx:eax = 32 bit divident
     idivl   %ecx	# divide edx:eax by ecx, quotient is stored in eax, remainder in edx
 """
 
 		if obj.op.operator == "AND":
-			pass
+			clause = generateLabel()
+			end = generateLabel()
+
+			code += f"""\
+    # Code for e1
+    cmpl    $0, %eax
+    jne     {clause}
+    addl    $4, %esp
+    jmp     {end}
+{clause}:
+	# Code for e2
+    popl    %eax	# pop to eax (eax->eax)
+    cmpl    $0, %eax
+    movl    $0, %eax
+    setne   %al
+{end}:
+"""
+
+# AND, OR osv er egentlig LAND, LOR (LOGICAL)
 
 		if obj.op.operator == "OR":
 			clause = generateLabel()
@@ -588,6 +606,7 @@ def generate(obj):
     cmpl    $0, %eax
     je      {clause}
     movl    $1, %eax
+    addl    $4, %esp
     jmp     {end}
 {clause}:
 	# Code for e2
@@ -685,7 +704,7 @@ def main():
 
 	# Assemble and delete temporary assembly file
 	if not arguments.asm:
-		os.system(f"gcc {arguments.asmfn} -m32 -o {arguments.outfn}")
+		os.system(f"gcc {arguments.asmfn} -m32 -g -o {arguments.outfn}")
 		os.remove(arguments.asmfn)
 
 if __name__ == "__main__":
