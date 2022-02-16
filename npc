@@ -12,7 +12,7 @@ import itertools
 # <function> ::= "int" <id> "(" ")" "{" <statement> "}"
 # <statement> ::= "return" <exp> ";"
 # <exp> ::= <logical-and-exp> { ("||" | "|") <logical-and-exp> }
-# <logical-and-exp> ::= <equality-exp> { ("&&" | "&") <equality-exp> }
+# <logical-and-exp> ::= <equality-exp> { ("&&" | "&" | "^") <equality-exp> }
 # <equality-exp> ::= <relational-exp> { ("!=" | "==" ) <relational-exp> }
 # <relational-exp> ::= <additive-exp> { ("<" | ">" | "<=" | ">=") <additive-exp> }
 # <additive-exp> ::= <term> { ("+" | "-") <term> }
@@ -21,7 +21,7 @@ import itertools
 # <unary-op> ::= "!" | "~" | "-"
 
 # Keywords regex                              chars      ints
-lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|![^=]|\+|\*|\/|&&|\|\||==|!=|<[^=]|<=|>[^=]|>=|&[^&]|\|[^\|]|%)"
+lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|![^=]|\+|\*|\/|&&|\|\||==|!=|<[^=]|<=|>[^=]|>=|&[^&]|\|[^\|]|%|\^)"
 
 # For function names
 function_name_regex = r"[a-zA-Z]\w*"
@@ -182,6 +182,9 @@ def parseBinaryOperator(tok):
 	elif tok == '||':
 		return BinaryOperator('LOR')
 
+	elif tok == '^':
+		return BinaryOperator('XOR')
+
 	elif tok == '==':
 		return BinaryOperator('EQUAL')
 
@@ -296,7 +299,7 @@ def parseLogicalAndExp(tokens):
 	tok = next(tokens)
 	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
 
-	while tok == '&&' or tok == '&':  # Another one!
+	while tok == '&&' or tok == '&' or tok == '^':  # Another one!
 		op = parseBinaryOperator(next(tokens))
 		tokens, next_equalityExp = parseEqualityExp(tokens)
 		equalityExp = BinOp(op, equalityExp, next_equalityExp)
@@ -590,6 +593,11 @@ def generate(obj):
     cdq			# edx:eax = 32 bit divident
     idivl   %ecx	# divide edx:eax by ecx, quotient is stored in eax, remainder in edx
     movl    %edx, %eax
+"""
+
+		if obj.op.operator == "XOR":
+			code += """\
+    xor     %ecx, %eax
 """
 
 		if obj.op.operator == "AND":
