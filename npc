@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+# rework branch
+
 import sys, os, re
 import itertools
 
@@ -9,7 +11,7 @@ import itertools
 
 # Bakkes-Naur
 # <program> ::= <function>
-# <function> ::= "int" <id> "(" ")" "{" <statement> "}"
+# <function> ::= "fun" <id> "" <statement> "}"
 # <statement> ::= "return" <exp> ";"
 # <exp> ::= <logical-and-exp> { ("||" | "|") <logical-and-exp> }
 # <logical-and-exp> ::= <equality-exp> { ("&&" | "&" | "^") <equality-exp> }
@@ -20,8 +22,8 @@ import itertools
 # <factor> ::= "(" <exp> ")" | <unary-op> <factor> | <int>
 # <unary-op> ::= "!" | "~" | "-"
 
-# Keywords regex                              chars      ints
-lexing_keywords = r"({|}|\(|\)|;|int|return|[a-zA-Z]\w*|[.[0-9]+|-|~|![^=]|\+|\*|\/|&&|\|\||==|!=|<[^=]|<=|>[^=]|>=|&[^&]|\|[^\|]|%|\^)"
+# Keywords regex
+lexing_keywords = r"([a-zA-Z]+|[0-9]+)"
 
 # For function names
 function_name_regex = r"[a-zA-Z]\w*"
@@ -352,7 +354,10 @@ def parseStatement(tokens):
 
 
 def parseFunction(tokens):
-	returnType = next(tokens)
+	tok = next(tokens)
+	if tok != 'fun':
+		fail()
+
 	id = next(tokens)
 
 	# Invalid function name
@@ -360,17 +365,7 @@ def parseFunction(tokens):
 		fail()
 
 	tok = next(tokens)
-	if tok != '(':
-		fail()
-
-	# Function parameters here
-
-	tok = next(tokens)
-	if tok != ')':
-		fail()
-
-	tok = next(tokens)
-	if tok != '{':
+	if tok != 'in':
 		fail()
 
 	# Support for multiple statements
@@ -379,21 +374,20 @@ def parseFunction(tokens):
 	#   statement = ...
 	#   if nextToken==None: EOF, fail()
 	#   if nextToken=='}': break
-
-	statement = parseStatement(tokens)
-	function = Function(id, returnType, Body([statement]))
+	statements = []
 
 	tok = next(tokens)
-	if tok != '}':
-		fail()
+	while tok != 'end':
+		tok = next(tokens)
+		statement = parseStatement(tok)
+		statements.append(statement)
+
+	print(f"Statements: {statements}")
+	function = Function(id, returnType, Body(statements))
 
 	return function
 
 def parse(tokens):
-
-	# Shouldn't be anything else yet
-	#if tok == "int":
-
 	function = parseFunction(tokens)
 	program = Program([function])
 	return program
