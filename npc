@@ -23,7 +23,7 @@ import itertools
 # <unary-op> ::= "!" | "~" | "-"
 
 # Keywords regex
-lexing_keywords = r"([a-zA-Z]+|[0-9]+)"
+lexing_keywords = r"([a-zA-Z]+|\d|\+)"
 
 # For function names
 function_name_regex = r"[a-zA-Z]\w*"
@@ -62,24 +62,15 @@ class Token:
 		self.type = type
 
 class Function(Token):
-	def __init__(self, id, returnType, body): # params
+	def __init__(self, id, words): # params
 		super().__init__("FUNCTION")
 		self.id = id
-		self.returnType = returnType
-		self.body = body
+		self.words = words
 
 class Program(Token):
 	def __init__(self, functions):
 		super().__init__("PROGRAM")
 		self.functions = functions
-
-# class Statement(Token):
-# 	def __init__()
-
-class Return(Token):
-	def __init__(self, exp):
-		super().__init__("RETURN")
-		self.exp = exp
 
 class Const(Token):
 	def __init__(self, value_type, value):
@@ -87,34 +78,10 @@ class Const(Token):
 		self.value_type = value_type
 		self.value = value
 
-class UnaryOperator(Token):
-	def __init__(self, operator):
-		super().__init__("UNARY_OPERATOR")
-		self.operator = operator
-
-class UnOp(Token):
-	def __init__(self, op, value):
-		super().__init__("UNOP")
-		self.op = op
-		self.value = value
-
 class BinaryOperator(Token):
-	def __init__(self, operator):
+	def __init__(self, op):
 		super().__init__("BINARY_OPERATOR")
-		self.operator = operator
-
-class BinOp(Token):
-	def __init__(self, op, left, right):
-		super().__init__("BINOP")
 		self.op = op
-		self.left = left
-		self.right = right
-
-class Body(Token):
-	def __init__(self, statements):
-		super().__init__("BODY")
-		self.statements = statements
-
 
 def fail():
 	raise Exception("Error")
@@ -135,223 +102,21 @@ def lex(source_file):
 	for match in matches:
 		yield match.replace(' ', '') # No tokens should have spaces in them
 
-
-def tokenType(token):
-	try:
-		int(token)
-		return "INT"
-	except Exception as e: pass
-	return "STRING"
-
-def parseUnaryOperator(tok):
-	if tok == '-':
-		return UnaryOperator('NEGATE')
-
-	elif tok == '!':
-		return UnaryOperator('LOGICAL_NEGATE')
-
-	elif tok == '~':
-		return UnaryOperator('BITWISE_COMPLEMENT')
-
-	else:
-		fail()
-
-def parseBinaryOperator(tok):
-	if tok == '+':
+def parseWord(tok):
+	print(f'Parsing token: {tok}')
+	
+	if tok.isnumeric():
+		return Const('INT', int(tok))
+	elif tok == '+':
 		return BinaryOperator('ADD')
-
 	elif tok == '-':
 		return BinaryOperator('SUBTRACT')
-
 	elif tok == '*':
 		return BinaryOperator('MULTIPLY')
-
 	elif tok == '/':
 		return BinaryOperator('DIVIDE')
-
-	elif tok == '&':
-		return BinaryOperator('AND')
-
-	elif tok == '&&':
-		return BinaryOperator('LAND')
-
-	elif tok == '%':
-		return BinaryOperator('MODULO')
-
-	elif tok == '|':
-		return BinaryOperator('OR')
-
-	elif tok == '||':
-		return BinaryOperator('LOR')
-
-	elif tok == '^':
-		return BinaryOperator('XOR')
-
-	elif tok == '==':
-		return BinaryOperator('EQUAL')
-
-	elif tok == '!=':
-		return BinaryOperator('NOT_EQUAL')
-
-	elif tok == '<':
-		return BinaryOperator('LESS_THAN')
-
-	elif tok == '<=':
-		return BinaryOperator('LESS_THAN_OR_EQUAL')
-
-	elif tok == '>':
-		return BinaryOperator('GREATER_THAN')
-
-	elif tok == '>=':
-		return BinaryOperator('GREATER_THAN_OR_EQUAL')
-
 	else:
 		fail()
-
-def isUnop(tok):
-	return tok in ['-', '!', '~']
-
-def parseFactor(tokens):
-	tok = next(tokens)
-	if tok == '(':
-		# <factor> ::= "(" <exp> ")"
-
-		tokens, exp = parseExpression(tokens)
-
-		tok = next(tokens)
-		if tok != ')':
-			fail()
-
-		return exp
-
-	elif isUnop(tok):
-		# <factor> ::= <unary_op> <factor>
-		op = parseUnaryOperator(tok)
-		factor = parseFactor(tokens) # Recursion, again!
-		return UnOp(op, factor)
-
-	elif tok.isnumeric():
-		# <factor> ::= <int>
-		return Const('INT', int(tok))
-
-	else:
-		fail()
-
-def parseTerm(tokens):
-	factor = parseFactor(tokens)
-	tok = next(tokens)
-	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	while tok == '*' or tok == '/' or tok == '%':  # Another factor!
-		op = parseBinaryOperator(next(tokens))
-		next_factor = parseFactor(tokens)
-		factor = BinOp(op, factor, next_factor)
-		tok = next(tokens)
-		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	return tokens, factor
-
-def parseAdditiveExp(tokens):
-	tokens, term = parseTerm(tokens)
-	tok = next(tokens)
-	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	while tok == '+' or tok == '-':  # Another one!
-		op = parseBinaryOperator(next(tokens))
-		tokens, next_term = parseTerm(tokens)
-		term = BinOp(op, term, next_term)
-		tok = next(tokens)
-		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	return tokens, term
-
-
-def parseRelationalExp(tokens):
-	tokens, additiveExp = parseAdditiveExp(tokens)
-	tok = next(tokens)
-	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	while tok == '<' or tok == '>' or tok == '<=' or tok == '>=':  # Another one!
-		op = parseBinaryOperator(next(tokens))
-		tokens, next_additiveExp = parseAdditiveExp(tokens)
-		additiveExp = BinOp(op, additiveExp, next_additiveExp)
-		tok = next(tokens)
-		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	return tokens, additiveExp
-
-
-def parseEqualityExp(tokens):
-	tokens, relationalExp = parseRelationalExp(tokens)
-	tok = next(tokens)
-	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	while tok == '==' or tok == '!=':  # Another one!
-		op = parseBinaryOperator(next(tokens))
-		tokens, next_relationalExp = parseRelationalExp(tokens)
-		relationalExp = BinOp(op, relationalExp, next_relationalExp)
-		tok = next(tokens)
-		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	return tokens, relationalExp
-
-
-def parseLogicalAndExp(tokens):
-	tokens, equalityExp = parseEqualityExp(tokens)
-	tok = next(tokens)
-	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	while tok == '&&' or tok == '&' or tok == '^':  # Another one!
-		op = parseBinaryOperator(next(tokens))
-		tokens, next_equalityExp = parseEqualityExp(tokens)
-		equalityExp = BinOp(op, equalityExp, next_equalityExp)
-		tok = next(tokens)
-		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	return tokens, equalityExp
-
-
-def parseExpression(tokens):
-	tokens, lae = parseLogicalAndExp(tokens)
-	tok = next(tokens)
-	tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	while tok == '||' or tok == '|':  # There's another term!
-		op = parseBinaryOperator(next(tokens))
-		tokens, next_lae = parseLogicalAndExp(tokens)
-		lae = BinOp(op, lae, next_lae)
-		tok = next(tokens)
-		tokens = itertools.chain([tok], tokens)  # Bad hack for peek()
-
-	return tokens, lae
-
-#def parseExpression(tokens):
-#	tok = next(tokens)
-#
-#	# Is the token a number
-#	if tok.isnumeric():
-#		return Const("INT", int(tok))
-#	else:
-#		op = parseUnaryOperator(tok) # Convert token to UnaryOperator element, will fail if isn't '-', '!' or '~'
-#		inner_exp = parseExpression(tokens) # Recursion!!
-#		return UnOp(op, inner_exp)
-
-
-def parseStatement(tokens):
-	tok = next(tokens)
-
-	if tok != "return":
-		fail()
-
-	tokens, exp = parseExpression(tokens)
-
-	statement = Return(exp)
-
-	tok = next(tokens)
-	if tok != ";":
-		fail()
-	return statement
-
 
 def parseFunction(tokens):
 	tok = next(tokens)
@@ -361,8 +126,8 @@ def parseFunction(tokens):
 	id = next(tokens)
 
 	# Invalid function name
-	if not re.match(function_name_regex, id):
-		fail()
+	#if not re.match(function_name_regex, id):
+	#	fail()
 
 	tok = next(tokens)
 	if tok != 'in':
@@ -374,16 +139,16 @@ def parseFunction(tokens):
 	#   statement = ...
 	#   if nextToken==None: EOF, fail()
 	#   if nextToken=='}': break
-	statements = []
+	words = []
 
-	tok = next(tokens)
-	while tok != 'end':
+	while True:
 		tok = next(tokens)
-		statement = parseStatement(tok)
-		statements.append(statement)
+		if tok == 'end': break
+		word = parseWord(tok)
+		words.append(word)
 
-	print(f"Statements: {statements}")
-	function = Function(id, returnType, Body(statements))
+	print(f"Words: {words}")
+	function = Function(id, words)
 
 	return function
 
@@ -401,7 +166,7 @@ def pretty_print(obj, n=0):
 			pretty_print(func, n+1)
 
 	elif obj.type == "FUNCTION":
-		print(space*(n+0) + f"FUN {obj.returnType} {obj.id}:")
+		print(space*(n+0) + f"FUN {obj.id}:")
 		print(space*(n+1) +  "params: ()") # None yet
 		print(space*(n+1) +  "body:")
 		pretty_print(obj.body, n+1)
@@ -473,13 +238,6 @@ def parse_args():
 
 	return arguments
 
-def generateUnOpBase(obj):
-	tmp = obj.value
-	while tmp.type != "CONST":
-		tmp = tmp.value
-
-	return f"    movl    ${tmp.value}, %eax	# Return value\n"
-
 labelCounter = 0
 
 def generateLabel():
@@ -487,210 +245,38 @@ def generateLabel():
 	labelCounter += 1
 	return "L" + str(labelCounter)
 
-def generate(obj):
+def generateWord(word):
+	print(f'Word type: {word.type}')
+	
 	code = ''
-	if obj.type == "PROGRAM":
-		code += base_asm
-		for func in obj.functions:
-			code += generate(func)
-
-	if obj.type == "FUNCTION":
-		for statement in obj.body.statements:
-			if statement.type == "RETURN":
-				if statement.exp.type == "CONST":
-					code += f"    movl    ${statement.exp.value}, %eax\n"
-
-				elif statement.exp.type == "UNOP":
-					code += generateUnOpBase(statement.exp)
-					code += generate(statement.exp)
-
-				elif statement.exp.type == "BINOP":
-					code += generate(statement.exp)
-					#code += "    push    %eax  # save value of e1 on the stack\n"
-					#code += "    pop    %ecx  # pop e1 from the stack into ecx\n"
-
-				code += "    ret\n"
-			else:
-				fail()
-
-	if obj.type == "UNOP":
-		if obj.value.type == "UNOP":
-			code += generate(obj.value)
-
-		if obj.op.operator == "NEGATE":
-			code += """\
-    neg     %eax          # eax negated
-"""
-
-		if obj.op.operator == "LOGICAL_NEGATE":
-			code += f"""\
-    cmpl    $0, %eax	# set ZF on if exp == 0, set it off otherwize
-    mov     $0, %eax	# clear eax
-    sete    %al		# set al register (the lower byte of eax) to 1 if ZF is on
-"""
-#     xor     %eax, %eax    # zero out eax (doesn't change flags)
-# Can't use it even though it's better because it sets the zero flag
-
-		if obj.op.operator == "BITWISE_COMPLEMENT":
-			code += """\
-    not     %eax          # eax bitwise compliment
-"""
-
-	if obj.type == "BINOP":
-		if obj.right.type == "BINOP":
-			code += generate(obj.right)
-		elif obj.right.type == "UNOP":
-			code += generateUnOpBase(obj.right)
-			code += generate(obj.right)
-		else:
-			code += f"""\
-    movl    ${obj.right.value}, %eax	# mov right value to eax
-"""
-		code += "    pushl   %eax	# push eax\n"
-
-		if obj.left.type == "BINOP":
-			code += generate(obj.left)
-		elif obj.left.type == "UNOP":
-			code += generateUnOpBase(obj.left)
-			code += generate(obj.left)
-		else:
-			code += f"""\
-    movl    ${obj.left.value}, %eax	# mov left value to eax
-"""
-
-
-		if obj.op.operator != "LAND" and obj.op.operator != "LOR":
-			code += "    popl    %ecx	# pop to ecx (eax->ecx)\n"
-
-		if obj.op.operator == "ADD":
-			code += """\
-    addl    %ecx, %eax	# e1 + e2
-"""
-		if obj.op.operator == "SUBTRACT":
-			code += """\
-    subl    %ecx, %eax	# e2 - e1
-"""
-
-		if obj.op.operator == "MULTIPLY":
-			code += """\
-    imul    %ecx, %eax  # e1 * e2
-"""
-
-		if obj.op.operator == "DIVIDE":
-			code += """\
-    cdq			# edx:eax = 32 bit divident
-    idivl   %ecx	# divide edx:eax by ecx, quotient is stored in eax, remainder in edx
-"""
-
-		if obj.op.operator == "MODULO":
-			code += """\
-    cdq			# edx:eax = 32 bit divident
-    idivl   %ecx	# divide edx:eax by ecx, quotient is stored in eax, remainder in edx
-    movl    %edx, %eax
-"""
-
-		if obj.op.operator == "XOR":
-			code += """\
-    xor     %ecx, %eax
-"""
-
-		if obj.op.operator == "AND":
-			code += """\
-    and     %ecx, %eax
-"""
-
-		if obj.op.operator == "OR":
-			code += """\
-    or      %ecx, %eax
-"""
-
-		if obj.op.operator == "LAND":
-			clause = generateLabel()
-			end = generateLabel()
-
-			code += f"""\
-    # Code for e1
-    cmpl    $0, %eax
-    jne     {clause}
-    addl    $4, %esp
-    jmp     {end}
-{clause}:
-	# Code for e2
-    popl    %eax	# pop to eax (eax->eax)
-    cmpl    $0, %eax
-    movl    $0, %eax
-    setne   %al
-{end}:
-"""
-
-# AND, OR osv er egentlig LAND, LOR (LOGICAL)
-
-		if obj.op.operator == "LOR":
-			clause = generateLabel()
-			end = generateLabel()
-
-			code += f"""\
-    # Code for e1
-    cmpl    $0, %eax
-    je      {clause}
-    movl    $1, %eax
-    addl    $4, %esp
-    jmp     {end}
-{clause}:
-	# Code for e2
-    popl    %eax	# pop to eax (eax->eax)
-    cmpl    $0, %eax
-    movl    $0, %eax
-    setne   %al
-{end}:
-"""
-
-		if obj.op.operator == "EQUAL":
-			code += """\
-    cmpl    %eax, %ecx	# set ZF on if e1 =	= e2, set it off otherwise
-    movl    $0, %eax	# zero out eax (doesn't change flags)
-    sete    %al		# set al register (the lower byte of eax) to 1 if ZF is on
-"""
-
-		if obj.op.operator == 'NOT_EQUAL':
-			code += """\
-    cmpl    %eax, %ecx	# set ZF on if e1 == e2, set it off otherwise
-    movl    $0, %eax	# zero out eax (doesn't change flags)
-    setne   %al		# set al register (the lower byte of eax) to 1 if ZF is on
-"""
-
-		if obj.op.operator == 'LESS_THAN':
-			code += """\
-    cmpl    %eax, %ecx
-    movl    $0, %eax
-    setl    %al
-"""
-
-		if obj.op.operator == 'LESS_THAN_OR_EQUAL':
-			code += """\
-    cmpl    %eax, %ecx
-    movl    $0, %eax
-    setle   %al
-"""
-
-		if obj.op.operator == 'GREATER_THAN':
-			code += """\
-    cmpl    %eax, %ecx
-    movl    $0, %eax
-    setg    %al
-"""
-
-		if obj.op.operator == 'GREATER_THAN_OR_EQUAL':
-			code += """\
-    cmpl    %eax, %ecx
-    movl    $0, %eax
-	setge   %al
-"""
-
-
+	if word.type == 'CONST':
+		code += f'    mov     eax, {word.value}\n'
+		code +=  '    push    eax\n'
+	
+	elif word.type == 'BINARY_OPERATOR':
+		if word.op == 'ADD':
+			code += '    pop     ebx\n'
+			code += '    pop     eax\n'
+			code += '    add     eax, ebx\n'
+			code += '    mov     eax, 4\n'
+			
 	return code
-#	assembly_format.format(ast.functions[0].body.statements[0].exp.value)
+			
+def generateFunction(func):
+	code =  f'section .text\n'
+	code += f'global main\n'
+	code += f'main:\n'
+	for word in func.words:
+		code += generateWord(word)
+	code += '    ret\n'
+	return code
 
+def generateProgram(prog):
+	code = ''
+	for func in prog.functions:
+		code += generateFunction(func)
+	return code
+		
 def main():
 	arguments = parse_args()
 
@@ -709,13 +295,13 @@ def main():
 
 	tokens = lex(arguments.infn)
 
-	ast = parse(tokens)
+	prog = parse(tokens)
 
 	# Pretty printing
 	if arguments.pretty:
-		pretty_print(ast)
+		pretty_print(prog)
 
-	code = generate(ast)
+	code = generateProgram(prog)
 
 	# Correct filenames to write to
 	if arguments.asm and arguments.outfn:
