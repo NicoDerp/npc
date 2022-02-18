@@ -4,6 +4,8 @@
 
 import sys, os, re
 import itertools
+import subprocess
+import time
 
 # source_re = r"int main\s*\(\s*\)\s*{\s*return\s+(?P<ret>[0-9]+)\s*;\s*}"
 
@@ -50,88 +52,100 @@ main:
 class Arguments:
 	def __init__(self):
 		self.infn = None
-		self.outfn = None
-		self.asmfn = None
+		self.outfn = 'a.out'
 		self.pretty = None
 		self.help = None
 		self.none = None
 		self.asm = None
 
-class Token:
+class Classified:
 	def __init__(self, type):
 		self.type = type
 
-class Function(Token):
+class Function(Classified):
 	def __init__(self, id, words): # params
 		super().__init__("FUNCTION")
 		self.id = id
 		self.words = words
 
-class Program(Token):
+class Program(Classified):
 	def __init__(self, functions):
 		super().__init__("PROGRAM")
 		self.functions = functions
 
-class Const(Token):
+class Const(Classified):
 	def __init__(self, value_type, value):
 		super().__init__("CONST")
 		self.value_type = value_type
 		self.value = value
 
-class BinaryOperator(Token):
+class Word(Classified):
 	def __init__(self, op):
-		super().__init__("BINARY_OPERATOR")
+		super().__init__("WORD")
 		self.op = op
 
-def fail():
-	raise Exception("Error")
-
+class Token():
+	def __init__(self, token, row, col, filepath):
+		self.token = token
+		self.row = row
+		self.col = col
+		self.filepath = filepath
+	
+def fail(err):
+	print('Error:', err)
+	exit(1)
+	
+def syntaxError(tok, err):
+	tok.row += 1 if tok.row != 0 else 0  # Since emacs is dum dum
+	print(f"{tok.filepath}:{tok.row}:{tok.col}: {err}")
+	exit(1)
 
 def lex(source_file):
 	# Read and get matches from regex
 	with open(source_file, 'r') as infile:
-		source = infile.read().strip()
-		matches = re.findall(lexing_keywords, source)
-
+		#source = infile.read().strip()
+		#matches = re.findall(lexing_keywords, source)
+		matches = [((token.start(), token.group()) for token in re.finditer(r"\S+", line)) for line in infile.readlines()]
+		
 	# Filter out '' in the list, could probably be done easier in the regex
-	matches = list(filter(lambda x: x != '', matches))
-
-	print(matches)
-
-	# Yield tokens (creates a generator)
-	for match in matches:
-		yield match.replace(' ', '') # No tokens should have spaces in them
-
-def parseWord(tok):
-	print(f'Parsing token: {tok}')
+	#matches = list(filter(lambda x: x != '', matches))
 	
-	if tok.isnumeric():
-		return Const('INT', int(tok))
-	elif tok == '+':
-		return BinaryOperator('ADD')
-	elif tok == '-':
-		return BinaryOperator('SUBTRACT')
-	elif tok == '*':
-		return BinaryOperator('MULTIPLY')
-	elif tok == '/':
-		return BinaryOperator('DIVIDE')
+	for row, i in enumerate(matches):
+		for col, tok in i:
+			print(f"Row: {row}, Col: {col}, Token: {tok}")
+			yield Token(tok, row, col, source_file)
+			
+	# Yield tokens (creates a generator)
+	#for match in matches:
+	#	yield match.replace(' ', '') # No tokens should have spaces in them
+
+def parseWord(tok):	
+	if tok.token == '+':
+		return Word('ADD')
+	elif tok.token == '-':
+		return Word('SUBTRACT')
+	elif tok.token == '.':
+		return Word('DUMP')
 	else:
-		fail()
+		try:
+			return Const('INT', int(tok.token))
+		except ValueError as err:
+			syntaxError(tok, err)
 
 def parseFunction(tokens):
 	tok = next(tokens)
-	if tok != 'fun':
-		fail()
+	if tok.token != 'fun':
+		syntaxError(tok, f"got token '{tok}', but expected 'fun'")
 
-	id = next(tokens)
+	id = next(tokens).token
 
 	# Invalid function name
 	#if not re.match(function_name_regex, id):
 	#	fail()
 
 	tok = next(tokens)
-	if tok != 'in':
-		fail()
+	if tok.token != 'in':
+		syntaxError(tok, f"got token '{tok}', but expected 'in'")
 
 	# Support for multiple statements
 	# statement = None
@@ -143,11 +157,10 @@ def parseFunction(tokens):
 
 	while True:
 		tok = next(tokens)
-		if tok == 'end': break
+		if tok.token == 'end': break
 		word = parseWord(tok)
 		words.append(word)
 
-	print(f"Words: {words}")
 	function = Function(id, words)
 
 	return function
@@ -228,13 +241,13 @@ def parse_args():
 			try:
 				arg = next(argv)
 			except:
-				fail()
+				fail("missing filename after '-o'")
 
 			arguments.outfn = arg
 
 		# Unreckgnised argument
 		else:
-			fail()
+			fail("unreckognized argument '{arg}'")
 
 	return arguments
 
@@ -243,36 +256,41 @@ labelCounter = 0
 def generateLabel():
 	global labelCounter
 	labelCounter += 1
-	return "L" + str(labelCounter)
+	return ".L" + str(labelCounter)
 
-def generateWord(word):
-	print(f'Word type: {word.type}')
-	
+def generateWord(word):	
 	code = ''
 	if word.type == 'CONST':
-		code += f'    mov     eax, {word.value}\n'
-		code +=  '    push    eax\n'
+		code += f'    mov     rax, {word.value}\n'
+		code +=  '    push    rax\n'
 	
 	elif word.type == 'BINARY_OPERATOR':
 		if word.op == 'ADD':
-			code += '    pop     ebx\n'
-			code += '    pop     eax\n'
-			code += '    add     eax, ebx\n'
-			code += '    mov     eax, 4\n'
+			code += '    pop     rcx\n'
+			code += '    pop     rax\n'
+			code += '    add     rax, rcx\n'
+
+		elif word.op == 'DUMP':
+			code += '    pop     rdi'
+			code += '    call    dump\n'
 			
 	return code
-			
+
 def generateFunction(func):
-	code =  f'section .text\n'
-	code += f'global main\n'
-	code += f'main:\n'
+	code = f'{func.id}:\n'
 	for word in func.words:
 		code += generateWord(word)
 	code += '    ret\n'
 	return code
 
 def generateProgram(prog):
-	code = ''
+	code =  'section .text\n'
+	code += 'global _start\n'
+	code += '_start:\n'
+	code += '    call    main\n'
+	code += '    mov     rdi, rax\n'
+	code += '    mov     rax, 0x3c\n'
+	code += '    syscall\n'
 	for func in prog.functions:
 		code += generateFunction(func)
 	return code
@@ -287,12 +305,14 @@ def main():
 
 	# No input file
 	if not arguments.infn:
-		fail()
+		fail('no input files supplied')
 
 	# Infile doesn't exist
 	if not os.path.isfile(arguments.infn):
-		fail()
+		fail(f"{arguments.infn}: No such file or directory")
 
+	start = time.time()
+	
 	tokens = lex(arguments.infn)
 
 	prog = parse(tokens)
@@ -303,23 +323,32 @@ def main():
 
 	code = generateProgram(prog)
 
-	# Correct filenames to write to
-	if arguments.asm and arguments.outfn:
-		arguments.asmfn = arguments.outfn
-	else:
-		arguments.asmfn = os.path.splitext(arguments.infn)[0] + '.s'
+	# Type checking ...
 
-	if (not arguments.asm) and (not arguments.outfn):
-		arguments.outfn = 'a.out'
+	end = time.time()
 
+	print(f'[INFO] Compiling took {end-start:0.5f}s')
+	
+	tmp_asm = '.tmp_bip_bop.s'
+	tmp_o = '.tmp_bip_bop.o'
+	
 	# Write the generated assembly code to the file
-	with open(arguments.asmfn, 'w') as asmfile:
+	with open(tmp_asm, 'w') as asmfile:
 		asmfile.write(code)
+		asmfile.close()
 
-	# Assemble and delete temporary assembly file
-	if not arguments.asm:
-		os.system(f"gcc {arguments.asmfn} -m32 -g -o {arguments.outfn}")
-		os.remove(arguments.asmfn)
+	if arguments.asm:
+		os.rename(tmp_asm, arguments.outfn)
+	else:
+		start = time.time()
+		subprocess.Popen(['nasm', '-f', 'elf64', '-o', tmp_o, tmp_asm]).communicate()
+		subprocess.Popen(['ld', '-o', arguments.outfn, tmp_o]).communicate()
+		end = time.time()
 
+		print(f'[INFO] Assembling took {end-start:0.5f}s')
+
+		os.remove(tmp_asm)
+		os.remove(tmp_o)
+		
 if __name__ == "__main__":
 	main()

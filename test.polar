@@ -1,4 +1,3 @@
-
 fun main in
-  6 1 +
+  1 2 +
 end
