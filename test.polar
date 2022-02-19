@@ -1,4 +1,7 @@
 fun main in
-  123 5 +
-  10 - .
+  10
+  5 5 = if
+    1 -
+  end
+  .
 end

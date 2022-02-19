@@ -129,6 +129,10 @@ def parseWord(tok):
 		return Word('DUMP')
 	elif tok.token == '=':
 		return Word('EQU')
+	elif tok.token == 'if':
+		return Word('IF')
+	elif tok.token == 'end':
+		return Word('END')
 	else:
 		try:
 			return Const('INT', int(tok.token))
@@ -158,9 +162,17 @@ def parseFunction(tokens):
 	#   if nextToken=='}': break
 	words = []
 
+	depth = 1
 	while True:
 		tok = next(tokens)
-		if tok.token == 'end': break
+
+		if tok.token == 'if':
+			depth += 1
+		elif tok.token == 'end':
+			depth -= 1
+		if depth == 0:
+			break
+		
 		word = parseWord(tok)
 		words.append(word)
 
@@ -264,6 +276,10 @@ def generateLabel():
 	labelCounter += 1
 	return ".L" + str(labelCounter)
 
+def currentLabel():
+	global labelCounter
+	return ".L" + str(labelCounter)
+
 def generateWord(word):	
 	code = ''
 	if word.type == 'CONST':
@@ -271,6 +287,7 @@ def generateWord(word):
 		code +=  '    push    rax\n'
 	
 	elif word.type == 'WORD':
+		print(f"Generating word '{word.op}'")
 		if word.op == 'ADD':
 			code += '    pop     rcx\n'
 			code += '    pop     rax\n'
@@ -296,9 +313,23 @@ def generateWord(word):
 			code += '    cmove   rdx, rbx\n'
 			code += '    push    rdx\n'
 
+		elif word.op == 'IF':
+			skip = generateLabel()
+			code +=  '    pop     rax\n'
+			code +=  '    test    rax, rax\n'
+			code += f'    jz      {skip}\n'
+			code +=  '    ;; --- If body goes here --- ;;\n'
+
+		elif word.op == 'END':
+			curr = currentLabel()
+			code += f'{curr}:\n'
+			
 		else:
 			compilationError(tok, f"unreckognized word '{word}'")
-			
+
+	else:
+		compilationError(tok, f"unreckognized word '{word}'")
+		
 	return code
 
 def generateFunction(func):
@@ -402,20 +433,21 @@ def main():
 
 	if arguments.asm:
 		os.rename(tmp_asm, arguments.outfn)
-	else:
-		start = time.time()
-		subprocess.Popen(['nasm', '-f', 'elf64', '-o', tmp_o, tmp_asm]).communicate()
-		subprocess.Popen(['ld', '-o', arguments.outfn, tmp_o]).communicate()
-		end = time.time()
+		return
+	
+	start = time.time()
+	subprocess.Popen(['nasm', '-f', 'elf64', '-o', tmp_o, tmp_asm]).communicate()
+	subprocess.Popen(['ld', '-o', arguments.outfn, tmp_o]).communicate()
+	end = time.time()
 
-		print(f'[INFO] Assembling took {end-start:0.5f}s')
+	print(f'[INFO] Assembling took {end-start:0.5f}s')
 
-		os.remove(tmp_asm)
-		os.remove(tmp_o)
+	os.remove(tmp_asm)
+	os.remove(tmp_o)
 
-		if arguments.run:
-			print(f"Running '{arguments.outfn}'\n")
-			subprocess.Popen(['./' + arguments.outfn]).communicate()
+	if arguments.run:
+		print(f"Running '{arguments.outfn}'\n")
+		subprocess.Popen(['./' + arguments.outfn]).communicate()
 		
 if __name__ == "__main__":
 	main()
