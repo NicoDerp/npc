@@ -57,7 +57,8 @@ class Arguments:
 		self.help = None
 		self.none = None
 		self.asm = None
-
+		self.run = None
+		
 class Classified:
 	def __init__(self, type):
 		self.type = type
@@ -112,7 +113,7 @@ def lex(source_file):
 	
 	for row, i in enumerate(matches):
 		for col, tok in i:
-			print(f"Row: {row}, Col: {col}, Token: {tok}")
+			#print(f"Row: {row}, Col: {col}, Token: {tok}")
 			yield Token(tok, row, col, source_file)
 			
 	# Yield tokens (creates a generator)
@@ -126,12 +127,14 @@ def parseWord(tok):
 		return Word('SUB')
 	elif tok.token == '.':
 		return Word('DUMP')
+	elif tok.token == '=':
+		return Word('EQU')
 	else:
 		try:
 			return Const('INT', int(tok.token))
 		except ValueError as err:
 			syntaxError(tok, err)
-
+			
 def parseFunction(tokens):
 	tok = next(tokens)
 	if tok.token != 'fun':
@@ -237,6 +240,9 @@ def parse_args():
 		elif arg == '-S':
 			arguments.asm = True
 
+		elif arg == '-r':
+			arguments.run = True
+			
 		elif arg == '-o':
 			try:
 				arg = next(argv)
@@ -280,6 +286,18 @@ def generateWord(word):
 		elif word.op == 'DUMP':
 			code += '    pop     rdi\n'
 			code += '    call    dump\n'
+
+		elif word.op == 'EQU':
+			code += '    xor     rdx, rdx\n'
+			code += '    mov     rbx, 1\n'
+			code += '    pop     rax\n'
+			code += '    pop     rcx\n'
+			code += '    cmp     rax, rcx\n'
+			code += '    cmove   rdx, rbx\n'
+			code += '    push    rdx\n'
+
+		else:
+			compilationError(tok, f"unreckognized word '{word}'")
 			
 	return code
 
@@ -394,6 +412,10 @@ def main():
 
 		os.remove(tmp_asm)
 		os.remove(tmp_o)
+
+		if arguments.run:
+			print(f"Running '{arguments.outfn}'\n")
+			subprocess.Popen(['./' + arguments.outfn]).communicate()
 		
 if __name__ == "__main__":
 	main()
