@@ -148,6 +148,18 @@ def parseWord(tok):
 	elif tok.token == 'swap':
 		return Word('SWAP')
 
+	elif tok.token == '>':
+		return Word('GREATER_THAN')
+
+	elif tok.token == '<':
+		return Word('LESS_THAN')
+
+	elif tok.token == 'while':
+		return Word('WHILE')
+
+	elif tok.token == 'do':
+		return Word('DO')
+	
 	else:
 		try:
 			return Const('INT', int(tok.token))
@@ -181,7 +193,7 @@ def parseFunction(tokens):
 	while True:
 		tok = next(tokens)
 
-		if tok.token == 'if':
+		if tok.token == 'if' or tok.token == 'while':
 			depth += 1
 		elif tok.token == 'end':
 			depth -= 1
@@ -203,37 +215,8 @@ def parse(tokens):
 
 def pretty_print(obj, n=0):
 	space = '    '
-	if obj.type == "PROGRAM":
-		print("PROGRAM:")
-		for func in obj.functions:
-			pretty_print(func, n+1)
-
-	elif obj.type == "FUNCTION":
-		print(space*(n+0) + f"FUN {obj.id}:")
-		print(space*(n+1) +  "params: ()") # None yet
-		print(space*(n+1) +  "body:")
-		pretty_print(obj.body, n+1)
-
-	elif obj.type == "BODY":
-		for statement in obj.statements:
-			if statement.type == "RETURN":
-				pretty_print(statement.exp, n+1)
-			else:
-				print(space*(n+2) + f"{statement.type} ???")
-
-	elif obj.type == "UNOP":
-		print(space*(n+0) + f"UNOP<{obj.op.operator}, {obj.value.type}>")
-		pretty_print(obj.value, n+1)
-
-	elif obj.type == "BINOP":
-		print(space*(n+0) + f"BINOP<{obj.left.type}, {obj.op.operator}, {obj.right.type}>")
-		pretty_print(obj.left, n+1)
-		pretty_print(obj.op, n+1)
-		pretty_print(obj.right, n+1)
-
-	elif obj.type == "CONST":
-		print(space*n + f"CONST<{obj.value_type}<{obj.value}>>")
-
+	print('Wiiu')
+	
 def parse_args():
 	argv = (x for x in sys.argv)
 	arguments = Arguments() # Put default values here
@@ -286,6 +269,7 @@ def parse_args():
 
 labelCounters = []
 labelDepth = 0
+labelInfo = {'loop': False}
 
 def generateLabel():
 	global labelCounters, labelDepth
@@ -311,6 +295,10 @@ def decreaseDepth():
 	global labelDepth
 	labelDepth -= 1
 
+def getLabelInfo():
+	global labelInfo
+	return labelInfo
+	
 def generateWord(word):	
 	code = ''
 	if word.type == 'CONST':
@@ -362,8 +350,14 @@ def generateWord(word):
 			
 		elif word.op == 'END':
 			label = currentLabel()
+			if getLabelInfo()['loop']:
+				previousLabel()
+				while_label = previousLabel()
+				generateLabel()
+				generateLabel()
+				code += f'    jmp     {while_label}\n'
+			code += f'{label}: ; end_label\n'
 			decreaseDepth()
-			code += f'{label}:\n'
 
 		elif word.op == 'DUP':
 			code += '    pop     rax\n'
@@ -375,7 +369,38 @@ def generateWord(word):
 			code += '    pop     rcx\n'
 			code += '    push    rax\n'
 			code += '    push    rcx\n'
+
+		elif word.op == 'GREATER_THAN':
+			code += '    pop     rax\n'
+			code += '    pop     rcx\n'
+			code += '    xor     rdx, rdx\n'
+			code += '    mov     rbx, 1\n'
+			code += '    cmp     rcx, rax\n'
+			code += '    cmovg   rdx, rbx\n'
+			code += '    push    rdx\n'
+
+		elif word.op == 'LESS_THAN':
+			code += '    pop     rax\n'
+			code += '    pop     rcx\n'
+			code += '    xor     rdx, rdx\n'
+			code += '    mov     rbx, 1\n'
+			code += '    cmp     rcx, rax\n'
+			code += '    cmovl   rdx, rbx\n'
+			code += '    push    rdx\n'
+
+		elif word.op == 'WHILE':
+			increaseDepth()
+			getLabelInfo()['loop'] = True
+			while_label = generateLabel()
+			code += f'{while_label}:  ; while_label\n'
 			
+		elif word.op == 'DO':
+			do_label = generateLabel()
+			end_label = generateLabel()
+			code += f'{do_label}:  ; do_label\n'
+			code +=  '    pop     rax\n'
+			code +=  '    test    rax, rax\n'
+			code += f'    jz      {end_label}\n'
 		else:
 			compilationError(tok, f"unreckognized word '{word}'")
 
@@ -461,6 +486,8 @@ def main():
 	
 	tokens = lex(arguments.infn)
 
+	# Type checking ...	
+
 	prog = parse(tokens)
 
 	# Pretty printing
@@ -468,8 +495,6 @@ def main():
 		pretty_print(prog)
 
 	code = generateProgram(prog)
-
-	# Type checking ...
 
 	end = time.time()
 
