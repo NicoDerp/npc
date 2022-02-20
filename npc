@@ -123,18 +123,31 @@ def lex(source_file):
 def parseWord(tok):	
 	if tok.token == '+':
 		return Word('ADD')
+
 	elif tok.token == '-':
 		return Word('SUB')
+
 	elif tok.token == '.':
 		return Word('DUMP')
+
 	elif tok.token == '=':
 		return Word('EQU')
+
 	elif tok.token == 'if':
 		return Word('IF')
+
 	elif tok.token == 'else':
 		return Word('ELSE')
+
 	elif tok.token == 'end':
 		return Word('END')
+
+	elif tok.token == 'dup':
+		return Word('DUP')
+	
+	elif tok.token == 'swap':
+		return Word('SWAP')
+
 	else:
 		try:
 			return Const('INT', int(tok.token))
@@ -351,6 +364,17 @@ def generateWord(word):
 			label = currentLabel()
 			decreaseDepth()
 			code += f'{label}:\n'
+
+		elif word.op == 'DUP':
+			code += '    pop     rax\n'
+			code += '    push    rax\n'
+			code += '    push    rax\n'
+
+		elif word.op == 'SWAP':
+			code += '    pop     rax\n'
+			code += '    pop     rcx\n'
+			code += '    push    rax\n'
+			code += '    push    rcx\n'
 			
 		else:
 			compilationError(tok, f"unreckognized word '{word}'")
