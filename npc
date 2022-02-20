@@ -131,6 +131,8 @@ def parseWord(tok):
 		return Word('EQU')
 	elif tok.token == 'if':
 		return Word('IF')
+	elif tok.token == 'else':
+		return Word('ELSE')
 	elif tok.token == 'end':
 		return Word('END')
 	else:
@@ -269,16 +271,32 @@ def parse_args():
 
 	return arguments
 
-labelCounter = 0
+labelCounters = []
+labelDepth = 0
 
 def generateLabel():
-	global labelCounter
-	labelCounter += 1
-	return ".L" + str(labelCounter)
+	global labelCounters, labelDepth
+	if len(labelCounters) >= labelDepth:
+		labelCounters.append(0)
+	labelCounters[labelDepth] += 1
+	return f".L{str(labelDepth)}.{str(labelCounters[labelDepth])}"
 
 def currentLabel():
-	global labelCounter
-	return ".L" + str(labelCounter)
+	global labelCounters, labelDepth
+	return f".L{str(labelDepth)}.{str(labelCounters[labelDepth])}"
+
+def previousLabel():
+	global labelCounters
+	labelCounters[labelDepth] -= 1
+	return f".L{str(labelDepth)}.{str(labelCounters[labelDepth])}"
+
+def increaseDepth():
+	global labelDepth
+	labelDepth += 1
+
+def decreaseDepth():
+	global labelDepth
+	labelDepth -= 1
 
 def generateWord(word):	
 	code = ''
@@ -314,15 +332,25 @@ def generateWord(word):
 			code += '    push    rdx\n'
 
 		elif word.op == 'IF':
-			skip = generateLabel()
+			increaseDepth()
+			label = generateLabel()
 			code +=  '    pop     rax\n'
 			code +=  '    test    rax, rax\n'
-			code += f'    jz      {skip}\n'
+			code += f'    jz      {label}\n'
 			code +=  '    ;; --- If body goes here --- ;;\n'
 
+		elif word.op == 'ELSE':
+			else_label = currentLabel()
+			tmp_label = generateLabel()
+			end_label = generateLabel()
+			code += f'{tmp_label}:\n'
+			code += f'    jmp {end_label}\n'
+			code += f'{else_label}:\n'
+			
 		elif word.op == 'END':
-			curr = currentLabel()
-			code += f'{curr}:\n'
+			label = currentLabel()
+			decreaseDepth()
+			code += f'{label}:\n'
 			
 		else:
 			compilationError(tok, f"unreckognized word '{word}'")
