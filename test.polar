@@ -3,6 +3,12 @@ fun main in
   while dup 10 < do
     dup .
     1 +
+    
+    5 5 = if
+      12 .
+    else
+      14 .
+    end
   end
 end
 

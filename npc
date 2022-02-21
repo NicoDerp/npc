@@ -269,7 +269,7 @@ def parse_args():
 
 labelCounters = []
 labelDepth = 0
-labelInfo = {'loop': False}
+labelInfo = []
 
 def generateLabel():
 	global labelCounters, labelDepth
@@ -296,8 +296,10 @@ def decreaseDepth():
 	labelDepth -= 1
 
 def getLabelInfo():
-	global labelInfo
-	return labelInfo
+	global labelInfo, labelDepth
+	while len(labelInfo) <= labelDepth:
+		labelInfo.append({'loop': False})
+	return labelInfo[labelDepth]
 	
 def generateWord(word):	
 	code = ''
@@ -306,7 +308,7 @@ def generateWord(word):
 		code +=  '    push    rax\n'
 	
 	elif word.type == 'WORD':
-		print(f"Generating word '{word.op}'")
+		#print(f"Generating word '{word.op}'")
 		if word.op == 'ADD':
 			code += '    pop     rcx\n'
 			code += '    pop     rax\n'
