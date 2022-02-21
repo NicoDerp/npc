@@ -515,8 +515,18 @@ def main():
 		return
 	
 	start = time.time()
-	subprocess.Popen(['nasm', '-f', 'elf64', '-o', tmp_o, tmp_asm]).communicate()
-	subprocess.Popen(['ld', '-o', arguments.outfn, tmp_o]).communicate()
+	nasm = subprocess.Popen(['nasm', '-f', 'elf64', '-o', tmp_o, tmp_asm])
+	nasm.communicate()
+
+	if nasm.returncode != 0:
+		exit(1)
+	
+	ld = subprocess.Popen(['ld', '-o', arguments.outfn, tmp_o])
+	ld.communicate()
+
+	if ld.returncode != 0:
+		exit(1)
+	
 	end = time.time()
 
 	print(f'[INFO] Assembling took {end-start:0.5f}s')
@@ -527,6 +537,7 @@ def main():
 	if arguments.run:
 		print(f"Running '{arguments.outfn}'\n")
 		subprocess.Popen(['./' + arguments.outfn]).communicate()
+		os.remove(arguments.outfn)
 		
 if __name__ == "__main__":
 	main()
