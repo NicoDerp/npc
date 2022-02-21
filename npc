@@ -149,6 +149,12 @@ def parseWord(tok):
 	elif tok.token == 'swap':
 		return Word('SWAP')
 
+	elif tok.token == 'drop':
+		return Word('DROP')
+
+	elif tok.token == 'over':
+		return Word('OVER')
+	
 	elif tok.token == '>':
 		return Word('GREATER_THAN')
 
@@ -373,6 +379,16 @@ def generateWord(word):
 			code += '    push    rax\n'
 			code += '    push    rcx\n'
 
+		elif word.op == 'DROP':
+			code += '    pop     rax\n'
+
+		elif word.op == 'OVER':
+			code += '    pop     rax\n'
+			code += '    pop     rcx\n'
+			code += '    push    rax\n'
+			code += '    push    rcx\n'
+			code += '    push    rax\n'
+			
 		elif word.op == 'GREATER_THAN':
 			code += '    pop     rax\n'
 			code += '    pop     rcx\n'
@@ -514,15 +530,21 @@ def main():
 	if arguments.asm:
 		os.rename(tmp_asm, arguments.outfn)
 		return
+
+	nasm_args = ['nasm', '-f', 'elf64', '-o', tmp_o, tmp_asm]
+	ld_args = ['ld', '-o', arguments.outfn, tmp_o]
 	
 	start = time.time()
-	nasm = subprocess.Popen(['nasm', '-f', 'elf64', '-o', tmp_o, tmp_asm])
+
+	print("[CMD]", ' '.join(nasm_args))
+	nasm = subprocess.Popen(nasm_args)
 	nasm.communicate()
 
 	if nasm.returncode != 0:
 		exit(1)
-	
-	ld = subprocess.Popen(['ld', '-o', arguments.outfn, tmp_o])
+
+	print("[CMD]", ' '.join(ld_args))
+	ld = subprocess.Popen(ld_args)
 	ld.communicate()
 
 	if ld.returncode != 0:
