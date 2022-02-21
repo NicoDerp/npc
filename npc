@@ -35,10 +35,11 @@ help_message ="""\
 Usage: npc file [options]
 
 Options:
-  -o <file>    Place the output into file.
-  -p           Pretty-print the AST of the program.
-  -S           Do not assemble, output is assembly code.
-  -h           Display this information and exit."""
+  -o <file>    Place the output into file
+  -p           Pretty-print the AST of the program
+  -S           Do not assemble, output is assembly code
+  -r           Run the program after a succesful compilation
+  -h           Display this information and exit"""
 
 base_asm = """\
 .text
