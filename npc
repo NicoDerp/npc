@@ -107,6 +107,9 @@ def parseWord(tok):
 
 	elif tok.token == 'dup':
 		return Word('DUP')
+
+	elif tok.token == '2dup':
+		return Word('2DUP')
 	
 	elif tok.token == 'swap':
 		return Word('SWAP')
@@ -359,6 +362,15 @@ def generateWord(word):
 			code += '    push    rax\n'
 			code += '    push    rax\n'
 
+		elif word.op == '2DUP':
+			code += '\n    ;; -- 2DUP -- ;;\n'
+			code += '    pop     rax\n'
+			code += '    pop     rcx\n'
+			code += '    push    rcx\n'
+			code += '    push    rax\n'
+			code += '    push    rcx\n'
+			code += '    push    rax\n'
+			
 		elif word.op == 'SWAP':
 			code += '\n    ;; -- SWAP -- ;;\n'
 			code += '    pop     rax\n'
