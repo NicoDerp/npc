@@ -175,7 +175,7 @@ def parseWord(tok):
 
 	elif tok.token == '.':
 		return Word('STORE')
-	
+
 	else:
 		try:
 			return Const('INT', int(tok.token))
@@ -607,10 +607,18 @@ def main():
 	os.remove(tmp_o)
 
 	if arguments.run:
-		print(f"Running '{arguments.outfn}'\n")
+		fn_to_run = './' + arguments.outfn
+		print(f"Running '{fn_to_run}'\n")
 		# Segmentation fault show show?
-		subprocess.Popen(['./' + arguments.outfn]).communicate()
+		process = subprocess.Popen([fn_to_run])
+		process.communicate()
+
+		if process.returncode == 0:
+			print("\nProcess exited normally with exit code 0")
+		else:
+			print(f"\nProcess exited abnormally with exit code {process.returncode}")
 		os.remove(arguments.outfn)
 		
 if __name__ == "__main__":
 	main()
+	exit(0)
