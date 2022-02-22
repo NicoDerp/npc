@@ -90,6 +90,18 @@ def parseWord(tok):
 	elif tok.token == '-':
 		return Word('SUB')
 
+	elif tok.token == 'bor':
+		return Word('BINARY_OR')
+
+	elif tok.token == 'band':
+		return Word('BINARY_AND')
+
+	elif tok.token == 'shl':
+		return Word('SHIFT_LEFT')
+
+	elif tok.token == 'shr':
+		return Word('SHIFT_RIGHT')
+	
 	elif tok.token == 'dump':
 		return Word('DUMP')
 
@@ -311,6 +323,36 @@ def generateWord(word):
 			code += '    sub     rcx, rax\n'
 			code += '    push    rcx\n'
 
+		elif word.op == 'BINARY_OR':
+			code += '\n    ;; -- BINARY_OR -- ;;\n'
+			code += '    pop     rax\n'
+			code += '    pop     rcx\n'
+			code += '    or      rcx, rax\n'
+			code += '    push    rcx\n'
+
+
+		elif word.op == 'BINARY_AND':
+			code += '\n    ;; -- BINARY_AND -- ;;\n'
+			code += '    pop     rax\n'
+			code += '    pop     rcx\n'
+			code += '    and     rcx, rax\n'
+			code += '    push    rcx\n'
+
+
+		elif word.op == 'SHIFT_LEFT':
+			code += '\n    ;; -- SHIFT_LEFT -- ;;\n'
+			code += '    pop     rcx\n'
+			code += '    pop     rax\n'
+			code += '    shl     rax, cl\n'
+			code += '    push    rax\n'
+
+		elif word.op == 'SHIFT_RIGHT':
+			code += '\n    ;; -- SHIFT_RIGHT -- ;;\n'
+			code += '    pop     rcx\n'
+			code += '    pop     rax\n'
+			code += '    shr     rax, cl\n'
+			code += '    push    rax\n'
+		
 		elif word.op == 'DUMP':
 			code += '\n    ;; -- DUMP -- ;;\n'
 			code += '    pop     rdi\n'
