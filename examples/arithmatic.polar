@@ -1,4 +1,4 @@
 fun main in
   15 10 -
-  28 + .
+  28 + dump
 end

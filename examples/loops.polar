@@ -1,7 +1,7 @@
 fun main in
   10
   while dup 0 > do
-    dup .
+    dup dump
     1 -
   end
 end

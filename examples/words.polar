@@ -1,11 +1,11 @@
 fun main in
   1 2 3
-  swap . . .
+  swap dump dump dump
 
   1 2 3
-  drop . .
+  drop dump dump
 
   1 2
-  over . . .
+  over dump dump
 end
 

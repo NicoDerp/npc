@@ -9,5 +9,5 @@ fun main in
       3 -
     end
   end
-  .
+  dump
 end

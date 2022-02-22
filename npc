@@ -128,7 +128,7 @@ def parseWord(tok):
 	elif tok.token == '-':
 		return Word('SUB')
 
-	elif tok.token == '.':
+	elif tok.token == 'dump':
 		return Word('DUMP')
 
 	elif tok.token == '=':
@@ -166,6 +166,15 @@ def parseWord(tok):
 
 	elif tok.token == 'do':
 		return Word('DO')
+
+	elif tok.token == 'mem':
+		return Word('MEM')
+
+	elif tok.token == ',':
+		return Word('LOAD')
+
+	elif tok.token == '.':
+		return Word('STORE')
 	
 	else:
 		try:
@@ -311,28 +320,33 @@ def getLabelInfo():
 def generateWord(word):	
 	code = ''
 	if word.type == 'CONST':
+		code +=  '\n    ;; -- CONST -- ;;\n'
 		code += f'    mov     rax, {word.value}\n'
 		code +=  '    push    rax\n'
 	
 	elif word.type == 'WORD':
 		#print(f"Generating word '{word.op}'")
 		if word.op == 'ADD':
+			code += '\n    ;; -- ADD -- ;;\n'
 			code += '    pop     rcx\n'
 			code += '    pop     rax\n'
 			code += '    add     rax, rcx\n'
 			code += '    push    rax\n'
 			
 		elif word.op == 'SUB':
+			code += '\n    ;; -- SUB -- ;;\n'
 			code += '    pop     rax\n'
 			code += '    pop     rcx\n'
 			code += '    sub     rcx, rax\n'
 			code += '    push    rcx\n'
 
 		elif word.op == 'DUMP':
+			code += '\n    ;; -- DUMP -- ;;\n'
 			code += '    pop     rdi\n'
 			code += '    call    dump\n'
 
 		elif word.op == 'EQU':
+			code += '\n    ;; -- EQU -- ;;\n'
 			code += '    xor     rdx, rdx\n'
 			code += '    mov     rbx, 1\n'
 			code += '    pop     rax\n'
@@ -344,6 +358,7 @@ def generateWord(word):
 		elif word.op == 'IF':
 			increaseDepth()
 			label = generateLabel()
+			code +=  '\n    ;; -- IF -- ;;\n'
 			code +=  '    pop     rax\n'
 			code +=  '    test    rax, rax\n'
 			code += f'    jz      {label}\n'
@@ -353,12 +368,14 @@ def generateWord(word):
 			else_label = currentLabel()
 			tmp_label = generateLabel()
 			end_label = generateLabel()
+			code +=  '\n;; -- ELSE -- ;;\n'
 			code += f'{tmp_label}:\n'
 			code += f'    jmp {end_label}\n'
 			code += f'{else_label}:\n'
 			
 		elif word.op == 'END':
 			label = currentLabel()
+			code += '\n;; -- END -- ;;\n'
 			if getLabelInfo()['loop']:
 				previousLabel()
 				while_label = previousLabel()
@@ -369,20 +386,24 @@ def generateWord(word):
 			decreaseDepth()
 
 		elif word.op == 'DUP':
+			code += '\n    ;; -- DUP -- ;;\n'
 			code += '    pop     rax\n'
 			code += '    push    rax\n'
 			code += '    push    rax\n'
 
 		elif word.op == 'SWAP':
+			code += '\n    ;; -- SWAP -- ;;\n'
 			code += '    pop     rax\n'
 			code += '    pop     rcx\n'
 			code += '    push    rax\n'
 			code += '    push    rcx\n'
 
 		elif word.op == 'DROP':
+			code += '\n    ;; -- DROP -- ;;\n'
 			code += '    pop     rax\n'
 
 		elif word.op == 'OVER':
+			code += '\n    ;; -- OVER -- ;;\n'
 			code += '    pop     rax\n'
 			code += '    pop     rcx\n'
 			code += '    push    rax\n'
@@ -390,6 +411,7 @@ def generateWord(word):
 			code += '    push    rax\n'
 			
 		elif word.op == 'GREATER_THAN':
+			code += '\n    ;; -- GREATER_THAN -- ;;\n'
 			code += '    pop     rax\n'
 			code += '    pop     rcx\n'
 			code += '    xor     rdx, rdx\n'
@@ -399,6 +421,7 @@ def generateWord(word):
 			code += '    push    rdx\n'
 
 		elif word.op == 'LESS_THAN':
+			code += '\n    ;; -- LESS_THAN -- ;;\n'
 			code += '    pop     rax\n'
 			code += '    pop     rcx\n'
 			code += '    xor     rdx, rdx\n'
@@ -411,15 +434,35 @@ def generateWord(word):
 			increaseDepth()
 			getLabelInfo()['loop'] = True
 			while_label = generateLabel()
+			code += '\n;; -- WHILE -- ;;\n'
 			code += f'{while_label}:  ; while_label\n'
 			
 		elif word.op == 'DO':
 			do_label = generateLabel()
 			end_label = generateLabel()
+			code += '\n;; -- DO -- ;;\n'
 			code += f'{do_label}:  ; do_label\n'
 			code +=  '    pop     rax\n'
 			code +=  '    test    rax, rax\n'
 			code += f'    jz      {end_label}\n'
+
+		elif word.op == 'MEM':
+			code += '\n    ;; -- MEM -- ;;\n'
+			code += '    push    mem\n'
+
+		elif word.op == 'LOAD':
+			code += '\n    ;; -- LOAD -- ;;\n'
+			code += '    pop     rax\n'
+			code += '    xor     rcx, rcx\n'
+			code += '    mov     cl, [rax]\n'
+			code += '    push    rcx\n'
+
+		elif word.op == 'STORE':
+			code += '\n    ;; -- STORE -- ;;\n'
+			code += '    pop     rax\n'  # 97
+			code += '    pop     rcx\n'  # mem
+			code += '    mov     [rcx], al\n' # Move lower 8 bits into mem
+			
 		else:
 			compilationError(tok, f"unreckognized word '{word}'")
 
@@ -441,6 +484,7 @@ def generateProgram(prog):
 	label = generateLabel()
 
 	code += f"""\
+BITS 64
 dump:
     mov     r9, -3689348814741910323
     sub     rsp, 40
@@ -483,6 +527,11 @@ dump:
 	code += '    syscall\n'
 	for func in prog.functions:
 		code += generateFunction(func)
+	
+	code += '\nsection .bss\n'
+	code += 'mem:\n'
+	code += '    resb    640000\n'
+
 	return code
 		
 def main():
@@ -559,6 +608,7 @@ def main():
 
 	if arguments.run:
 		print(f"Running '{arguments.outfn}'\n")
+		# Segmentation fault show show?
 		subprocess.Popen(['./' + arguments.outfn]).communicate()
 		os.remove(arguments.outfn)
 		

@@ -55,6 +55,10 @@
   :syntax-table polar-mode-syntax-table
   (setq font-lock-defaults '(polar-highlights))
   (setq-local comment-start "// "))
+  (setq whitespace-space-regexp "\\(^ +\\)")
+  (setq whitespace-style '(space-mark))
+
+;; \( +\)
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.polar\\'" . polar-mode))

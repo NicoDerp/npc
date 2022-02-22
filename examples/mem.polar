@@ -3,10 +3,8 @@ fun main in
   mem 1 + 98 .
   mem 2 + 99 .
 
-  0
-  while dup 3 < do
-    dup mem + , dump
-    1 +
-  end
+  mem 0 + , dump
+  mem 1 + , dump
+  mem 2 + , dump
 end
 
