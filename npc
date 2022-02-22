@@ -7,29 +7,6 @@ import itertools
 import subprocess
 import time
 
-# source_re = r"int main\s*\(\s*\)\s*{\s*return\s+(?P<ret>[0-9]+)\s*;\s*}"
-
-# hex: 0[xX][0-9a-fA-F]+
-
-# Bakkes-Naur
-# <program> ::= <function>
-# <function> ::= "fun" <id> "" <statement> "}"
-# <statement> ::= "return" <exp> ";"
-# <exp> ::= <logical-and-exp> { ("||" | "|") <logical-and-exp> }
-# <logical-and-exp> ::= <equality-exp> { ("&&" | "&" | "^") <equality-exp> }
-# <equality-exp> ::= <relational-exp> { ("!=" | "==" ) <relational-exp> }
-# <relational-exp> ::= <additive-exp> { ("<" | ">" | "<=" | ">=") <additive-exp> }
-# <additive-exp> ::= <term> { ("+" | "-") <term> }
-# <term> ::= <factor> { ("*" | "/" | "%") <factor> }
-# <factor> ::= "(" <exp> ")" | <unary-op> <factor> | <int>
-# <unary-op> ::= "!" | "~" | "-"
-
-# Keywords regex
-lexing_keywords = r"([a-zA-Z]+|\d|\+)"
-
-# For function names
-function_name_regex = r"[a-zA-Z]\w*"
-
 # Help message
 help_message ="""\
 Usage: npc file [options]
@@ -40,14 +17,6 @@ Options:
   -S           Do not assemble, output is assembly code
   -r           Run the program after a succesful compilation
   -h           Display this information and exit"""
-
-base_asm = """\
-.text
-.globl main
-main:
-"""
-#    movl    ${}, %eax
-#    ret
 
 
 class Arguments:
@@ -103,23 +72,16 @@ def syntaxError(tok, err):
 	exit(1)
 
 def lex(source_file):
-	# Read and get matches from regex
+	# Read and get tokens (not including comments)
 	with open(source_file, 'r') as infile:
-		#source = infile.read().strip()
-		#matches = re.findall(lexing_keywords, source)
-		matches = [((token.start(), token.group()) for token in re.finditer(r"\S+", line)) for line in infile.readlines()]
-		
-	# Filter out '' in the list, could probably be done easier in the regex
-	#matches = list(filter(lambda x: x != '', matches))
+		# Comments!
+		lines = [line.split('//', 1)[0] for line in infile.readlines()]
+		matches = [((token.start(), token.group()) for token in re.finditer(r"\S+", line)) for line in lines]
 	
 	for row, i in enumerate(matches):
 		for col, tok in i:
 			#print(f"Row: {row}, Col: {col}, Token: {tok}")
 			yield Token(tok, row, col, source_file)
-			
-	# Yield tokens (creates a generator)
-	#for match in matches:
-	#	yield match.replace(' ', '') # No tokens should have spaces in them
 
 def parseWord(tok):	
 	if tok.token == '+':
@@ -176,6 +138,12 @@ def parseWord(tok):
 	elif tok.token == '.':
 		return Word('STORE')
 
+	elif tok.token == 'syscall1':
+		return Word('SYSCALL1')
+	
+	elif tok.token == 'syscall3':
+		return Word('SYSCALL3')
+	
 	else:
 		try:
 			return Const('INT', int(tok.token))
@@ -462,6 +430,20 @@ def generateWord(word):
 			code += '    pop     rax\n'  # 97
 			code += '    pop     rcx\n'  # mem
 			code += '    mov     [rcx], al\n' # Move lower 8 bits into mem
+
+		elif word.op == 'SYSCALL1':
+			code += '\n    ;; -- SYSCALL1 -- ;;\n'
+			code += '    pop rax\n'
+			code += '    pop rdi\n'
+			code += '    syscall\n'
+			
+		elif word.op == 'SYSCALL3':
+			code += '\n    ;; -- SYSCALL3 -- ;;\n'
+			code += '    pop rax\n'
+			code += '    pop rdi\n'
+			code += '    pop rsi\n'
+			code += '    pop rdx\n'
+			code += '    syscall\n'
 			
 		else:
 			compilationError(tok, f"unreckognized word '{word}'")
