@@ -76,13 +76,32 @@ def lex(source_file):
 	with open(source_file, 'r') as infile:
 		# Comments!
 		lines = [line.split('//', 1)[0] for line in infile.readlines()]
-		matches = [((token.start(), token.group()) for token in re.finditer(r"\S+", line)) for line in lines]
-	
+		matches = [((token.start(), token.group()) for token in re.finditer(r"[\"'](.+?)[\"']|\S+", line)) for line in lines]
+		
 	for row, i in enumerate(matches):
 		for col, tok in i:
 			#print(f"Row: {row}, Col: {col}, Token: {tok}")
 			yield Token(tok, row, col, source_file)
 
+def parseString(tok):
+	err = f"end of line while scanning string literal: {tok.token}"
+
+	# Only one character so def no string
+	if len(tok.token) == 1:
+		syntaxError(tok, err)
+
+	quote = tok.token[0]
+	# Not a quote (shouldn't occur)
+	if not quote in '\'"':
+		syntaxError(tok, err)
+
+	# Two different quotes
+	if quote != tok.token[-1]:
+		syntaxError(tok, err)
+	
+	s = tok.token[1:-1]
+	return s
+			
 def parseWord(tok):	
 	if tok.token == '+':
 		return Word('ADD')
@@ -160,6 +179,8 @@ def parseWord(tok):
 		return Word('SYSCALL3')
 	
 	else:
+		if '\'' in tok.token or '\"' in tok.token:
+			return Const('STRING', parseString(tok))
 		try:
 			return Const('INT', int(tok.token))
 		except ValueError as err:
@@ -299,15 +320,36 @@ def getLabelInfo():
 	while len(labelInfo) <= labelDepth:
 		labelInfo.append({'loop': False})
 	return labelInfo[labelDepth]
-	
+
+
+dataLabels = []
+
+def getDataLabels():
+	global dataLabels
+	return dataLabels
+
+def generateDataLabel(data):
+	global dataLabels
+	label = 'D' + str(len(dataLabels))
+	dataLabels.append({'label': label, 'data': data})
+	return label
+
 def generateWord(word):	
 	code = ''
 	if word.type == 'CONST':
-		code +=  '\n    ;; -- CONST -- ;;\n'
-		code += f'    push    {word.value}\n'
-		#code += f'    mov     rax, {word.value}\n'
-		#code +=  '    push    rax\n'
-	
+		if word.value_type == 'INT':
+			code +=  '\n    ;; -- CONST INT -- ;;\n'
+			code += f'    push    {word.value}\n'
+			#code += f'    mov     rax, {word.value}\n'
+			#code +=  '    push    rax\n'
+
+		if word.value_type == 'STRING':
+			label = generateDataLabel(word.value)
+			size = len(word.value)
+			code +=  '\n    ;; -- CONST STRING -- ;;\n'
+			code += f'    push    {size}\n'
+			code += f'    push    {label}\n'
+			
 	elif word.type == 'WORD':
 		#print(f"Generating word '{word.op}'")
 		if word.op == 'ADD':
@@ -569,6 +611,12 @@ dump:
 	code += 'mem:\n'
 	code += '    resb    640000\n'
 
+	code += '\nsection .text\n'
+	
+	for data in getDataLabels():
+		code += f'{data["label"]}:\n'
+		code += f'    db      "{data["data"]}"\n'
+	
 	return code
 		
 def main():
