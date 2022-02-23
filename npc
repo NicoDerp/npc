@@ -326,32 +326,32 @@ def generateWord(word):
 		elif word.op == 'BINARY_OR':
 			code += '\n    ;; -- BINARY_OR -- ;;\n'
 			code += '    pop     rax\n'
-			code += '    pop     rcx\n'
-			code += '    or      rcx, rax\n'
-			code += '    push    rcx\n'
+			code += '    pop     rbx\n'
+			code += '    or      rbx, rax\n'
+			code += '    push    rbx\n'
 
 
 		elif word.op == 'BINARY_AND':
 			code += '\n    ;; -- BINARY_AND -- ;;\n'
 			code += '    pop     rax\n'
-			code += '    pop     rcx\n'
-			code += '    and     rcx, rax\n'
-			code += '    push    rcx\n'
+			code += '    pop     rbx\n'
+			code += '    and     rbx, rax\n'
+			code += '    push    rbx\n'
 
 
 		elif word.op == 'SHIFT_LEFT':
 			code += '\n    ;; -- SHIFT_LEFT -- ;;\n'
 			code += '    pop     rcx\n'
-			code += '    pop     rax\n'
-			code += '    shl     rax, cl\n'
-			code += '    push    rax\n'
+			code += '    pop     rbx\n'
+			code += '    shl     rbx, cl\n'
+			code += '    push    rbx\n'
 
 		elif word.op == 'SHIFT_RIGHT':
 			code += '\n    ;; -- SHIFT_RIGHT -- ;;\n'
 			code += '    pop     rcx\n'
-			code += '    pop     rax\n'
-			code += '    shr     rax, cl\n'
-			code += '    push    rax\n'
+			code += '    pop     rbx\n'
+			code += '    shr     rbx, cl\n'
+			code += '    push    rbx\n'
 		
 		elif word.op == 'DUMP':
 			code += '\n    ;; -- DUMP -- ;;\n'
@@ -475,15 +475,15 @@ def generateWord(word):
 		elif word.op == 'LOAD':
 			code += '\n    ;; -- LOAD -- ;;\n'
 			code += '    pop     rax\n'
-			code += '    xor     rcx, rcx\n'
-			code += '    mov     cl, [rax]\n'
-			code += '    push    rcx\n'
+			code += '    xor     rbx, rbx\n'
+			code += '    mov     bl, [rax]\n'
+			code += '    push    rbx\n'
 
 		elif word.op == 'STORE':
 			code += '\n    ;; -- STORE -- ;;\n'
-			code += '    pop     rax\n'  # 97
-			code += '    pop     rcx\n'  # mem
-			code += '    mov     [rcx], al\n' # Move lower 8 bits into mem
+			code += '    pop     rbx\n'  # 97
+			code += '    pop     rax\n'  # mem
+			code += '    mov     [rax], bl\n' # Move lower 8 bits into mem
 
 		elif word.op == 'SYSCALL1':
 			code += '\n    ;; -- SYSCALL1 -- ;;\n'
