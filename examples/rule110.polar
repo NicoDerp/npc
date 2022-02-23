@@ -12,10 +12,10 @@ fun main in
   mem 102 + 42 .
 
   // Start with a single dot
-  mem 28 + 1 .
+  mem 98 + 1 .
 
-  0 while dup 28 < do
-    0 while dup 30 < do
+  0 while dup 98 < do
+    0 while dup 100 < do
       dup mem + , if
         // Write '*' to stdout
         1 mem 102 + 1 1 syscall3
@@ -34,7 +34,7 @@ fun main in
     // pattern
     mem , 1 shl mem 1 + , bor
     // (pattern stuff) j (mem + j) (110 >> (((pattern << 1) & 7) | *(mem + j + 1)))
-    1 while dup 28 < do
+    1 while dup 98 < do
       swap
       1 shl 7 band
       swap over mem + 1 + , bor

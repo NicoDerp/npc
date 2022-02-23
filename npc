@@ -304,8 +304,9 @@ def generateWord(word):
 	code = ''
 	if word.type == 'CONST':
 		code +=  '\n    ;; -- CONST -- ;;\n'
-		code += f'    mov     rax, {word.value}\n'
-		code +=  '    push    rax\n'
+		code += f'    push    {word.value}\n'
+		#code += f'    mov     rax, {word.value}\n'
+		#code +=  '    push    rax\n'
 	
 	elif word.type == 'WORD':
 		#print(f"Generating word '{word.op}'")
