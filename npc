@@ -9,14 +9,14 @@ import time
 
 # Help message
 help_message ="""\
-Usage: npc file [options]
+Usage: npc <file> [options]
 
 Options:
   -o <file>    Place the output into file
   -p           Pretty-print the AST of the program
   -S           Do not assemble, output is assembly code
   -r           Run the program after a succesful compilation
-  -h           Display this information and exit"""
+  --help       Display this information and exit"""
 
 
 class Arguments:
@@ -613,7 +613,7 @@ dump:
 	
 	code += '\nsection .bss\n'
 	code += 'mem:\n'
-	code += '    resb    640000\n'
+	code += '    resb    4096\n'
 
 	code += '\nsection .text\n'
 	
