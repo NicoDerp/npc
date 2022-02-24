@@ -5,6 +5,8 @@
 Polar is a stack-based concatinative language.
 Polar uses [reverse polish notation](https://en.wikipedia.org/wiki/Reverse_Polish_notation). There are no variables, and I plan it to be that way.
 
+Inspired by [Alexey Kutepov's Porth compiler](https://gitlab.com/tsoding/porth/).
+
 ## Milestones
 
 Polar is planned to
