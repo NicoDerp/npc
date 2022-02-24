@@ -76,7 +76,7 @@ def lex(source_file):
 	with open(source_file, 'r') as infile:
 		# Comments!
 		lines = [line.split('//', 1)[0] for line in infile.readlines()]
-		matches = [((token.start(), token.group()) for token in re.finditer(r"[\"'](.+?)[\"']|\S+", line)) for line in lines]
+		matches = [((token.start(), token.group()) for token in re.finditer(r"\"(.+?)\"|'(.+?)'|\S+", line)) for line in lines]
 		
 	for row, i in enumerate(matches):
 		for col, tok in i:
@@ -98,8 +98,12 @@ def parseString(tok):
 	# Two different quotes
 	if quote != tok.token[-1]:
 		syntaxError(tok, err)
-	
+
+	# Remove quotes
 	s = tok.token[1:-1]
+
+	# For escaped stuff, convert to bytes, then back again
+	s = bytes(s, 'utf-8').decode('unicode_escape')
 	return s
 			
 def parseWord(tok):	
@@ -189,7 +193,7 @@ def parseWord(tok):
 def parseFunction(tokens):
 	tok = next(tokens)
 	if tok.token != 'fun':
-		syntaxError(tok, f"got token '{tok}', but expected 'fun'")
+		syntaxError(tok, f"got token '{tok.token}', but expected 'fun'")
 
 	id = next(tokens).token
 
@@ -614,8 +618,9 @@ dump:
 	code += '\nsection .text\n'
 	
 	for data in getDataLabels():
+		data_bytes = ','.join(map(hex, bytes(data['data'], 'utf-8')))
 		code += f'{data["label"]}:\n'
-		code += f'    db      "{data["data"]}"\n'
+		code += f'    db      {data_bytes}\n'
 	
 	return code
 		
