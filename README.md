@@ -11,11 +11,15 @@ Inspired by [Alexey Kutepov's Porth compiler](https://gitlab.com/tsoding/porth/)
 
 Polar is planned to
 - [x] Be Turing-complete
-- [x] Support strings
-- [ ] Support multiple files
 - [ ] Have a standard library
-- [ ] Be Self-hosted
-- [ ] Be Optimized 
+- [ ] Be self-hosted
+- [ ] Be optimized
+- [ ] Have better type-checking
+
+## Features
+- [x] Support strings
+- [ ] Inline functions or macros
+- [ ] Support includes
 
 ## Examples
 
