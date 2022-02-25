@@ -48,6 +48,7 @@ class Position():
 	def __init__(self, tok):
 		self.row = tok.row
 		self.col = tok.col
+		self.filepath = tok.filepath
 		
 class Const(Classified, Position):
 	def __init__(self, value_type, value, tok):
@@ -88,9 +89,9 @@ class Depth():
 		self.counter += 1
 		return f".L{self.depth}.{self.counter}"
 	
-def syntaxError(tok, err):
-	tok.row += 1 if tok.row != 0 else 0  # Since emacs is dum dum
-	print(f"{tok.filepath}:{tok.row}:{tok.col}: {err}")
+def syntaxError(word, err):
+	word.row += 1 if word.row != 0 else 0  # Since emacs is dum dum
+	print(f"{word.filepath}:{word.row}:{word.col}: {err}")
 	exit(1)
 
 def compilationError(err):
@@ -132,7 +133,7 @@ def parseString(tok):
 	s = bytes(s, 'utf-8').decode('unicode_escape')
 	return s
 			
-def parseWord(tok):	
+def parseToken(tok):	
 	if tok.token == '+':
 		return Word('ADD', tok)
 
@@ -222,58 +223,9 @@ def parseWord(tok):
 		except ValueError as err:
 			syntaxError(tok, err)
 			
-def parseFunction(tokens):
-	tok = next(tokens)
-	if tok.token != 'fun':
-		syntaxError(tok, f"got token '{tok.token}', but expected 'fun'")
-
-	id = next(tokens).token
-
-	# Invalid function name
-	#if not re.match(function_name_regex, id):
-	#	fail()
-
-	tok = next(tokens)
-	if tok.token != 'in':
-		syntaxError(tok, f"got token '{tok}', but expected 'in'")
-
-	# Support for multiple statements
-	# statement = None
-	# while True:
-	#   statement = ...
-	#   if nextToken==None: EOF, fail()
-	#   if nextToken=='}': break
-	words = []
-
-	depth = 1
-	while True:
-		tok = next(tokens)
-
-		if tok.token == 'if' or tok.token == 'while':
-			depth += 1
-		elif tok.token == 'end':
-			depth -= 1
-		if depth == 0:
-			break
-		
-		word = parseWord(tok)
-		words.append(word)
-
-	function = Function(id, words)
-
-	return function
-
 def parse(tokens):
-	functions = []
-	while True:
-		try:
-			functions.append(parseFunction(tokens))
-		except StopIteration:
-			break
-	
-	program = Program(functions)
-	return program
-
+	for tok in tokens:
+		yield parseToken(tok)
 
 def pretty_print(obj, n=0):
 	space = '    '
@@ -328,11 +280,8 @@ def parse_args():
 			fail("unreckognized argument '{arg}'")
 
 	return arguments
-# TODO: Move everything into generateProgram function
-# That way labels, labelDepth ++ can be variables and
-# I don't have to deal with wrapper functions
 
-def generateProgram(prog):
+def generateProgram(words):
 	code =  'section .text\n'
 	code += 'global _start\n'
 
@@ -375,242 +324,234 @@ dump:
 	code += '_start:\n'
 
 	# If there is a main function (if there isn't there's a bunch of unused code)
-	if list(filter(lambda x: x.id == 'main', prog.functions)) == []:
-		compilationError("'main' procedure does not exist")
+	#if list(filter(lambda x: x.id == 'main', prog.functions)) == []:
+	#	compilationError("'main' procedure does not exist")
 		
 	code += '    call    _main_\n'
 
 	code += '    xor     rdi, rdi\n'
 	code += '    mov     rax, 60\n'
 	code += '    syscall\n'
+	code += '_main_:\n'
 
 	dataLabels = []
-	for func in prog.functions:
-		# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
-		# depth: 2
-		depthCounters = []
-		labelDepth = 0
+	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
+	# depth: 2
+	depthCounters = []
+	labelDepth = 0
+	for word in words:
+		if word.type == 'CONST':
+			if word.value_type == 'INT':
+				code +=  '\n    ;; -- CONST INT -- ;;\n'
+				code += f'    push    {word.value}\n'
+				#code += f'    mov     rax, {word.value}\n'
+				#code +=  '    push    rax\n'
 
-		code += f'_{func.id}_:\n'
-		for word in func.words:
-			if word.type == 'CONST':
-				if word.value_type == 'INT':
-					code +=  '\n    ;; -- CONST INT -- ;;\n'
-					code += f'    push    {word.value}\n'
-					#code += f'    mov     rax, {word.value}\n'
-					#code +=  '    push    rax\n'
-	
-				if word.value_type == 'STRING':
-					label = 'D' + str(len(dataLabels))
-					dataLabels.append({'label': label, 'data': word.value})
-					size = len(word.value)
-					code +=  '\n    ;; -- CONST STRING -- ;;\n'
-					code += f'    push    {size}\n'
-					code += f'    push    {label}\n'
-	
-			elif word.type == 'WORD':
-				#print(f"Generating word '{word.op}'")
-				if word.op == 'ADD':
-					code += '\n    ;; -- ADD -- ;;\n'
-					code += '    pop     rcx\n'
-					code += '    pop     rax\n'
-					code += '    add     rax, rcx\n'
-					code += '    push    rax\n'
+			if word.value_type == 'STRING':
+				label = 'D' + str(len(dataLabels))
+				dataLabels.append({'label': label, 'data': word.value})
+				size = len(word.value)
+				code +=  '\n    ;; -- CONST STRING -- ;;\n'
+				code += f'    push    {size}\n'
+				code += f'    push    {label}\n'
 
-				elif word.op == 'SUB':
-					code += '\n    ;; -- SUB -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    pop     rcx\n'
-					code += '    sub     rcx, rax\n'
-					code += '    push    rcx\n'
+		elif word.type == 'WORD':
+			#print(f"Generating word '{word.op}'")
+			if word.op == 'ADD':
+				code += '\n    ;; -- ADD -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rax\n'
+				code += '    add     rax, rcx\n'
+				code += '    push    rax\n'
+			elif word.op == 'SUB':
+				code += '\n    ;; -- SUB -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    sub     rcx, rax\n'
+				code += '    push    rcx\n'
+			elif word.op == 'BINARY_OR':
+				code += '\n    ;; -- BINARY_OR -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rbx\n'
+				code += '    or      rbx, rax\n'
+				code += '    push    rbx\n'
+			elif word.op == 'BINARY_AND':
+				code += '\n    ;; -- BINARY_AND -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rbx\n'
+				code += '    and     rbx, rax\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'SHIFT_LEFT':
+				code += '\n    ;; -- SHIFT_LEFT -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rbx\n'
+				code += '    shl     rbx, cl\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'SHIFT_RIGHT':
+				code += '\n    ;; -- SHIFT_RIGHT -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rbx\n'
+				code += '    shr     rbx, cl\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'DUMP':
+				code += '\n    ;; -- DUMP -- ;;\n'
+				code += '    pop     rdi\n'
+				code += '    call    dump\n'
+				
+			elif word.op == 'EQU':
+				code += '\n    ;; -- EQU -- ;;\n'
+				code += '    xor     rdx, rdx\n'
+				code += '    mov     rbx, 1\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    cmp     rax, rcx\n'
+				code += '    cmove   rdx, rbx\n'
+				code += '    push    rdx\n'
+				
+			elif word.op == 'DUP':
+				code += '\n    ;; -- DUP -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    push    rax\n'
+				code += '    push    rax\n'
+				
+			elif word.op == '2DUP':
+				code += '\n    ;; -- 2DUP -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    push    rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rcx\n'
+				code += '    push    rax\n'
+				
+			elif word.op == 'SWAP':
+				code += '\n    ;; -- SWAP -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rcx\n'
+				
+			elif word.op == 'DROP':
+				code += '\n    ;; -- DROP -- ;;\n'
+				code += '    pop     rax\n'
+				
+			elif word.op == 'OVER':
+				code += '\n    ;; -- OVER -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rcx\n'
+				code += '    push    rax\n'
+				
+			elif word.op == 'GREATER_THAN':
+				code += '\n    ;; -- GREATER_THAN -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    xor     rdx, rdx\n'
+				code += '    mov     rbx, 1\n'
+				code += '    cmp     rcx, rax\n'
+				code += '    cmovg   rdx, rbx\n'
+				code += '    push    rdx\n'
+				
+			elif word.op == 'LESS_THAN':
+				code += '\n    ;; -- LESS_THAN -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    xor     rdx, rdx\n'
+				code += '    mov     rbx, 1\n'
+				code += '    cmp     rcx, rax\n'
+				code += '    cmovl   rdx, rbx\n'
+				code += '    push    rdx\n'
+				
+			elif word.op == 'MEM':
+				code += '\n    ;; -- MEM -- ;;\n'
+				code += '    push    mem\n'
+				
+			elif word.op == 'LOAD':
+				code += '\n    ;; -- LOAD -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    xor     rbx, rbx\n'
+				code += '    mov     bl, [rax]\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'STORE':
+				code += '\n    ;; -- STORE -- ;;\n'
+				code += '    pop     rbx\n'  # 97
+				code += '    pop     rax\n'  # mem
+				code += '    mov     [rax], bl\n' # Move lower 8 bits into mem
+				
+			elif word.op == 'SYSCALL1':
+				code += '\n    ;; -- SYSCALL1 -- ;;\n'
+				code += '    pop rax\n'
+				code += '    pop rdi\n'
+				code += '    syscall\n'
+				
+			elif word.op == 'SYSCALL3':
+				code += '\n    ;; -- SYSCALL3 -- ;;\n'
+				code += '    pop rax\n'
+				code += '    pop rdi\n'
+				code += '    pop rsi\n'
+				code += '    pop rdx\n'
+				code += '    syscall\n'
+				
+			else:
+				syntaxError(tok, f"unreckognized word '{word.op}'")
+		elif word.type == 'KEYWORD':
+			if word.op == 'WHILE':
+				labelDepth += 1
+				while len(depthCounters) <= labelDepth:
+					depthCounters.append(Depth(labelDepth))
+				depthCounters[labelDepth].loop = True
+				while_label = depthCounters[labelDepth].nextLabel()
+				code += '\n;; -- WHILE -- ;;\n'
+				code += f'{while_label}:\n'
+				
+			elif word.op == 'DO':
+				do_label = depthCounters[labelDepth].nextLabel()
+				end_label = depthCounters[labelDepth].nextLabel()
+				code += '\n;; -- DO -- ;;\n'
+				code += f'{do_label}:\n'
+				code +=  '    pop     rax\n'
+				code +=  '    test    rax, rax\n'
+				code += f'    jz      {end_label}\n'
+				
+			elif word.op == 'IF':
+				labelDepth += 1
+				while len(depthCounters) <= labelDepth:
+					depthCounters.append(Depth(labelDepth))
+				label = depthCounters[labelDepth].nextLabel()
+				code +=  '\n    ;; -- IF -- ;;\n'
+				code +=  '    pop     rax\n'
+				code +=  '    test    rax, rax\n'
+				code += f'    jz      {label}\n'
+				code +=  '    ;; --- If body goes here --- ;;\n'
+				
+			elif word.op == 'ELSE':
+				else_label = depthCounters[labelDepth].label()
+				tmp_label = depthCounters[labelDepth].nextLabel()
+				end_label = depthCounters[labelDepth].nextLabel()
+				code +=  '\n;; -- ELSE -- ;;\n'
+				code += f'{tmp_label}:\n'
+				code += f'    jmp {end_label}\n'
+				code += f'{else_label}:\n'
+				
+			elif word.op == 'END':
+				label = depthCounters[labelDepth].label()
+				code += '\n;; -- END -- ;;\n'
+				if depthCounters[labelDepth].loop:
+					depthCounters[labelDepth].counter -= 2
+					while_label = depthCounters[labelDepth].label()
+					depthCounters[labelDepth].counter += 2
+					code += f'    jmp     {while_label}\n'
+				code += f'{label}: ; end_label\n'
+				labelDepth -= 1
 
-				elif word.op == 'BINARY_OR':
-					code += '\n    ;; -- BINARY_OR -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    pop     rbx\n'
-					code += '    or      rbx, rax\n'
-					code += '    push    rbx\n'
+			else:
+				syntaxError(word, f"unreckognized word type: '{word.type}' with word: '{word.op}'")
 
-
-				elif word.op == 'BINARY_AND':
-					code += '\n    ;; -- BINARY_AND -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    pop     rbx\n'
-					code += '    and     rbx, rax\n'
-					code += '    push    rbx\n'
-
-					
-				elif word.op == 'SHIFT_LEFT':
-					code += '\n    ;; -- SHIFT_LEFT -- ;;\n'
-					code += '    pop     rcx\n'
-					code += '    pop     rbx\n'
-					code += '    shl     rbx, cl\n'
-					code += '    push    rbx\n'
-					
-				elif word.op == 'SHIFT_RIGHT':
-					code += '\n    ;; -- SHIFT_RIGHT -- ;;\n'
-					code += '    pop     rcx\n'
-					code += '    pop     rbx\n'
-					code += '    shr     rbx, cl\n'
-					code += '    push    rbx\n'
-					
-				elif word.op == 'DUMP':
-					code += '\n    ;; -- DUMP -- ;;\n'
-					code += '    pop     rdi\n'
-					code += '    call    dump\n'
-					
-				elif word.op == 'EQU':
-					code += '\n    ;; -- EQU -- ;;\n'
-					code += '    xor     rdx, rdx\n'
-					code += '    mov     rbx, 1\n'
-					code += '    pop     rax\n'
-					code += '    pop     rcx\n'
-					code += '    cmp     rax, rcx\n'
-					code += '    cmove   rdx, rbx\n'
-					code += '    push    rdx\n'
-					
-				elif word.op == 'DUP':
-					code += '\n    ;; -- DUP -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    push    rax\n'
-					code += '    push    rax\n'
-					
-				elif word.op == '2DUP':
-					code += '\n    ;; -- 2DUP -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    pop     rcx\n'
-					code += '    push    rcx\n'
-					code += '    push    rax\n'
-					code += '    push    rcx\n'
-					code += '    push    rax\n'
-					
-				elif word.op == 'SWAP':
-					code += '\n    ;; -- SWAP -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    pop     rcx\n'
-					code += '    push    rax\n'
-					code += '    push    rcx\n'
-					
-				elif word.op == 'DROP':
-					code += '\n    ;; -- DROP -- ;;\n'
-					code += '    pop     rax\n'
-					
-				elif word.op == 'OVER':
-					code += '\n    ;; -- OVER -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    pop     rcx\n'
-					code += '    push    rax\n'
-					code += '    push    rcx\n'
-					code += '    push    rax\n'
-					
-				elif word.op == 'GREATER_THAN':
-					code += '\n    ;; -- GREATER_THAN -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    pop     rcx\n'
-					code += '    xor     rdx, rdx\n'
-					code += '    mov     rbx, 1\n'
-					code += '    cmp     rcx, rax\n'
-					code += '    cmovg   rdx, rbx\n'
-					code += '    push    rdx\n'
-					
-				elif word.op == 'LESS_THAN':
-					code += '\n    ;; -- LESS_THAN -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    pop     rcx\n'
-					code += '    xor     rdx, rdx\n'
-					code += '    mov     rbx, 1\n'
-					code += '    cmp     rcx, rax\n'
-					code += '    cmovl   rdx, rbx\n'
-					code += '    push    rdx\n'
-					
-				elif word.op == 'MEM':
-					code += '\n    ;; -- MEM -- ;;\n'
-					code += '    push    mem\n'
-					
-				elif word.op == 'LOAD':
-					code += '\n    ;; -- LOAD -- ;;\n'
-					code += '    pop     rax\n'
-					code += '    xor     rbx, rbx\n'
-					code += '    mov     bl, [rax]\n'
-					code += '    push    rbx\n'
-					
-				elif word.op == 'STORE':
-					code += '\n    ;; -- STORE -- ;;\n'
-					code += '    pop     rbx\n'  # 97
-					code += '    pop     rax\n'  # mem
-					code += '    mov     [rax], bl\n' # Move lower 8 bits into mem
-					
-				elif word.op == 'SYSCALL1':
-					code += '\n    ;; -- SYSCALL1 -- ;;\n'
-					code += '    pop rax\n'
-					code += '    pop rdi\n'
-					code += '    syscall\n'
-					
-				elif word.op == 'SYSCALL3':
-					code += '\n    ;; -- SYSCALL3 -- ;;\n'
-					code += '    pop rax\n'
-					code += '    pop rdi\n'
-					code += '    pop rsi\n'
-					code += '    pop rdx\n'
-					code += '    syscall\n'
-					
-				else:
-					syntaxError(tok, f"unreckognized word '{word.op}'")
-
-			elif word.type == 'KEYWORD':
-				if word.op == 'WHILE':
-					labelDepth += 1
-					while len(depthCounters) <= labelDepth:
-						depthCounters.append(Depth(labelDepth))
-					depthCounters[labelDepth].loop = True
-					while_label = depthCounters[labelDepth].nextLabel()
-					code += '\n;; -- WHILE -- ;;\n'
-					code += f'{while_label}:\n'
-					
-				elif word.op == 'DO':
-					do_label = depthCounters[labelDepth].nextLabel()
-					end_label = depthCounters[labelDepth].nextLabel()
-					code += '\n;; -- DO -- ;;\n'
-					code += f'{do_label}:\n'
-					code +=  '    pop     rax\n'
-					code +=  '    test    rax, rax\n'
-					code += f'    jz      {end_label}\n'
-					
-				elif word.op == 'IF':
-					labelDepth += 1
-					while len(depthCounters) <= labelDepth:
-						depthCounters.append(Depth(labelDepth))
-					label = depthCounters[labelDepth].nextLabel()
-					code +=  '\n    ;; -- IF -- ;;\n'
-					code +=  '    pop     rax\n'
-					code +=  '    test    rax, rax\n'
-					code += f'    jz      {label}\n'
-					code +=  '    ;; --- If body goes here --- ;;\n'
-					
-				elif word.op == 'ELSE':
-					else_label = depthCounters[labelDepth].label()
-					tmp_label = depthCounters[labelDepth].nextLabel()
-					end_label = depthCounters[labelDepth].nextLabel()
-					code +=  '\n;; -- ELSE -- ;;\n'
-					code += f'{tmp_label}:\n'
-					code += f'    jmp {end_label}\n'
-					code += f'{else_label}:\n'
-					
-				elif word.op == 'END':
-					label = depthCounters[labelDepth].label()
-					code += '\n;; -- END -- ;;\n'
-					if depthCounters[labelDepth].loop:
-						depthCounters[labelDepth].counter -= 2
-						while_label = depthCounters[labelDepth].label()
-						depthCounters[labelDepth].counter += 2
-						code += f'    jmp     {while_label}\n'
-					code += f'{label}: ; end_label\n'
-					labelDepth -= 1
-
-				else:
-					syntaxError(tok, f"unreckognized word type: '{word.type}' with word: '{word.op}'")
-
-		code += '    ret\n'
+	code += '    ret\n'
 	
 	code += '\nsection .bss\n'
 	code += 'mem:\n'
@@ -647,13 +588,13 @@ def main():
 
 	# Type checking ...	
 
-	prog = parse(tokens)
+	words = parse(tokens)
 
 	# Pretty printing
 	if arguments.pretty:
 		pretty_print(prog)
 
-	code = generateProgram(prog)
+	code = generateProgram(words)
 
 	end = time.time()
 
@@ -706,9 +647,9 @@ def main():
 
 		if process.returncode == 0:
 			print("\nProcess exited normally with exit code 0")
+			os.remove(arguments.outfn)
 		else:
 			print(f"\nProcess exited abnormally with exit code {process.returncode}")
-		os.remove(arguments.outfn)
 		
 if __name__ == "__main__":
 	main()
