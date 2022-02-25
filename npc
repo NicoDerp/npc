@@ -3,7 +3,6 @@
 # rework branch
 
 import sys, os, re
-import itertools
 import subprocess
 import time
 
@@ -28,6 +27,7 @@ class Arguments:
 		self.none = None
 		self.asm = None
 		self.run = None
+		self.include_path = './'
 		
 class Classified:
 	def __init__(self, type):
@@ -98,7 +98,7 @@ def compilationError(err):
 	print(err)
 	exit(1)
 
-def lex(source_file):
+def lexFile(source_file):
 	# Read and get tokens (not including comments)
 	with open(source_file, 'r') as infile:
 		# Comments!
@@ -214,6 +214,9 @@ def parseToken(tok):
 
 	elif tok.token == 'do':
 		return Keyword('DO', tok)
+
+	elif tok.token == 'include':
+		return Keyword('INCLUDE', tok)
 	
 	else:
 		if '\'' in tok.token or '\"' in tok.token:
@@ -271,15 +274,45 @@ def parse_args():
 			try:
 				arg = next(argv)
 			except:
-				fail("missing filename after '-o'")
+				print("ERROR: failed to parse args, missing filename after '-o'")
+				exit(1)
 
 			arguments.outfn = arg
 
+		elif arg == '-I':
+			try:
+				arg = next(argv)
+			except:
+				print("ERROR: failed to parse args, missing path after '-I'")
+				exit(1)
+			
+			arguments.include_path = arg
+			
 		# Unreckgnised argument
 		else:
 			fail("unreckognized argument '{arg}'")
 
 	return arguments
+
+def preprocess(words, args):
+	while True:
+		try:
+			word = next(words)
+		except StopIteration:
+			break
+		
+		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
+			inc = next(words)
+			if inc.type != 'CONST' or inc.value_type != 'STRING':
+				syntaxError(fn, f'expected string to include got \'{inc.type}\'')
+			fileName = os.path.join(args.include_path, inc.value)
+			if not os.path.exists(fileName):
+				syntaxError(inc, f'file \'{fileName}\' not found')
+
+			for t in lexFile(fileName):
+				yield parseToken(t)
+		else:
+			yield word
 
 def generateProgram(words):
 	code =  'section .text\n'
@@ -548,6 +581,9 @@ dump:
 				code += f'{label}: ; end_label\n'
 				labelDepth -= 1
 
+			elif word.op == 'INCLUDE':
+				syntaxError(word, f'there shouldn\'t be an include here anymore! Maybe the file you tried to include also includes something?')
+				
 			else:
 				syntaxError(word, f"unreckognized word type: '{word.type}' with word: '{word.op}'")
 
@@ -584,12 +620,14 @@ def main():
 
 	start = time.time()
 	
-	tokens = lex(arguments.infn)
+	tokens = lexFile(arguments.infn)
 
 	# Type checking ...	
 
 	words = parse(tokens)
 
+	words = preprocess(words, arguments)
+	
 	# Pretty printing
 	if arguments.pretty:
 		pretty_print(prog)
