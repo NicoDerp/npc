@@ -1,3 +1,3 @@
-fun main in
-  "Halla" 1 1 syscall3
-end
+include "std.polar"
+
+"Hallo!\n" 1 1 syscall3
