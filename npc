@@ -124,8 +124,12 @@ def parseString(tok):
 
 	# Two different quotes
 	if quote != tok.token[-1]:
-		syntaxError(tok, err)
+		syntaxError(tok, f"unclosed string literal \'{tok.token}\'")
 
+	# Character
+	if quote == "'" and len(tok.token) != 3:
+		syntaxError(tok, f"only a single byte is allowed inside a character literal")
+	
 	# Remove quotes
 	s = tok.token[1:-1]
 

@@ -5,7 +5,7 @@
 Polar is a stack-based concatinative language.
 Polar uses [reverse polish notation](https://en.wikipedia.org/wiki/Reverse_Polish_notation). There are no variables, and I plan it to be that way.
 
-Inspired by [Alexey Kutepov's Porth compiler](https://gitlab.com/tsoding/porth/).
+Inspired by [Alexey Kutepov's Porth compiler](https://gitlab.com/tsoding/porth/) and [Forth](https://forth-standard.org/).
 
 ## Milestones
 
@@ -17,9 +17,9 @@ Polar is planned to
 - [ ] Have better type-checking
 
 ## Features
-- [x] Support strings
+- [x] Support strings and characters
 - [ ] Inline functions or macros
-- [ ] Support includes
+- [x] Support includes
 
 ## Examples
 
@@ -107,7 +107,7 @@ This will push 10 and 20 on the stack, and sum them up with the `+` operation.
 
 #### String
 
-A string is a sequence of characters between two `"` or two `'`.
+A string is a sequence of characters between two `"`.
 Newlines inside strings are not allowed. Special characters (like newlines) are expressed by these escape characters:
 
 - `\n` - new line
@@ -132,6 +132,19 @@ Example of the stack afterwards:
 ```
 13 420123
 ```
+
+#### Character
+
+A character is a single byte between two `'`. Escaping works the same as in strings.
+
+When the compiler encounters a character, the character gets pushed onto the stack as an integer. 
+
+Example:
+```
+'E' dump
+```
+
+This program will write the integer `69` to stdout. This is because the ASCII code of the letter `E` is `69`.
 
 ### Built-in words
 
@@ -228,3 +241,10 @@ end
 
 Even though Polar uses `fun`, it is not functions, just procedures.
 You never return anything, since there is only one stack.
+
+### Including
+
+```
+include "file.polar"
+```
+
