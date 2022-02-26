@@ -139,7 +139,7 @@ def parseString(tok):
 	if len(s) != 1:
 		syntaxError(tok, f"only a single byte is allowed inside a character literal")
 
-	return Const('CHARACTER', hex(list(bytes_string)[0]), tok)
+	return Const('CHARACTER', hex(ord(s)), tok)
 
 def parseToken(tok):	
 	if tok.token == '+':
