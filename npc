@@ -125,18 +125,24 @@ def parseString(tok):
 	# Two different quotes
 	if quote != tok.token[-1]:
 		syntaxError(tok, f"unclosed string literal \'{tok.token}\'")
-
-	# Character
-	if quote == "'" and len(tok.token) != 3:
-		syntaxError(tok, f"only a single byte is allowed inside a character literal")
 	
 	# Remove quotes
 	s = tok.token[1:-1]
 
 	# For escaped stuff, convert to bytes, then back again
-	s = bytes(s, 'utf-8').decode('unicode_escape')
-	return s
-			
+	bytes_string = bytes(s, 'utf-8')
+	s = bytes_string.decode('unicode_escape')
+
+	# String
+	if quote == '"':
+		return Const('STRING', s, tok)
+	
+	# Character
+	if len(s) != 1:
+		syntaxError(tok, f"only a single byte is allowed inside a character literal")
+
+	return Const('CHARACTER', hex(list(bytes_string)[0]), tok)
+
 def parseToken(tok):	
 	if tok.token == '+':
 		return Word('ADD', tok)
@@ -224,7 +230,7 @@ def parseToken(tok):
 	
 	else:
 		if '\'' in tok.token or '\"' in tok.token:
-			return Const('STRING', parseString(tok), tok)
+			return parseString(tok)
 		try:
 			return Const('INT', int(tok.token), tok)
 		except ValueError as err:
@@ -308,7 +314,7 @@ def preprocess(words, args):
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			inc = next(words)
 			if inc.type != 'CONST' or inc.value_type != 'STRING':
-				syntaxError(fn, f'expected string to include got \'{inc.type}\'')
+				syntaxError(inc, f'expected string to include got \'{inc.type}\'')
 			fileName = os.path.join(args.include_path, inc.value)
 			if not os.path.exists(fileName):
 				syntaxError(inc, f'file \'{fileName}\' not found')
@@ -384,7 +390,7 @@ dump:
 				#code += f'    mov     rax, {word.value}\n'
 				#code +=  '    push    rax\n'
 
-			if word.value_type == 'STRING':
+			elif word.value_type == 'STRING':
 				label = 'D' + str(len(dataLabels))
 				dataLabels.append({'label': label, 'data': word.value})
 				size = len(word.value)
@@ -392,6 +398,13 @@ dump:
 				code += f'    push    {size}\n'
 				code += f'    push    {label}\n'
 
+			elif word.value_type == 'CHARACTER':
+				code +=  '\n    ;; -- CONST CHAR -- ;;\n'
+				code += f'    push    {word.value}\n'
+
+			else:
+				syntaxError(word, f"Unknown const type '{word.value_type}'")
+				
 		elif word.type == 'WORD':
 			#print(f"Generating word '{word.op}'")
 			if word.op == 'ADD':
