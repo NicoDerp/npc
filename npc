@@ -89,12 +89,12 @@ class Depth():
 		self.counter += 1
 		return f".L{self.depth}.{self.counter}"
 	
-def syntaxError(word, err):
+def programError(word, err):
 	word.row += 1 if word.row != 0 else 0  # Since emacs is dum dum
 	print(f"{word.filepath}:{word.row}:{word.col}: {err}")
 	exit(1)
 
-def compilationError(err):
+def compilerError(err):
 	print(err)
 	exit(1)
 
@@ -113,16 +113,16 @@ def lexFile(source_file):
 def parseString(tok):
 	# Only one character so def no string
 	if len(tok.token) == 1:
-		syntaxError(tok, f"ERROR: unclosed string literal `{tok.token}`")
+		programError(tok, f"ERROR: unclosed string literal `{tok.token}`")
 
 	quote = tok.token[0]
 	# Not a quote (shouldn't occur)
 	if not quote in '\'"':
-		syntaxError(tok, f"ERROR: unclosed string literal `{tok.token}`")
+		programError(tok, f"ERROR: unclosed string literal `{tok.token}`")
 
 	# Two different quotes
 	if quote != tok.token[-1]:
-		syntaxError(tok, f"ERROR: unclosed string literal `{tok.token}`")
+		programError(tok, f"ERROR: unclosed string literal `{tok.token}`")
 	
 	# Remove quotes
 	s = tok.token[1:-1]
@@ -137,7 +137,7 @@ def parseString(tok):
 	
 	# Character
 	if len(s) != 1:
-		syntaxError(tok, f"ERROR: only a single byte is allowed inside a character literal")
+		programError(tok, f"ERROR: only a single byte is allowed inside a character literal")
 
 	return Const('CHARACTER', hex(ord(s)), tok)
 
@@ -232,7 +232,7 @@ def parseToken(tok):
 		try:
 			return Const('INT', int(tok.token), tok)
 		except ValueError as err:
-			syntaxError(tok, "ERROR: " + err)
+			programError(tok, "ERROR: " + err)
 			
 def parse(tokens):
 	for tok in tokens:
@@ -282,8 +282,7 @@ def parse_args():
 			try:
 				arg = next(argv)
 			except:
-				print("ERROR: failed to parse args, missing filename after '-o'")
-				exit(1)
+				compilerError("ERROR: failed to parse args, missing filename after '-o'")
 
 			arguments.outfn = arg
 
@@ -291,8 +290,7 @@ def parse_args():
 			try:
 				arg = next(argv)
 			except:
-				print("ERROR: failed to parse args, missing path after '-I'")
-				exit(1)
+				compilerError("ERROR: failed to parse args, missing path after '-I'")
 			
 			arguments.include_path = arg
 			
@@ -312,17 +310,19 @@ def preprocess(words, args, includes=0):
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			inc = next(words)
 			if inc.type != 'CONST' or inc.value_type != 'STRING':
-				syntaxError(inc, f'ERROR: expected string to include got \'{inc.type}\'')
+				programError(inc, f'ERROR: expected string to include got \'{inc.type}\'')
 			fileName = os.path.join(args.include_path, inc.value)
 			if not os.path.exists(fileName):
-				syntaxError(inc, f"ERROR: couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
+				programError(inc, f"ERROR: couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 			includes += 1
 			# Max includes
 			if includes >= 5:
-				print(f"ERROR: max includes reached: `{includes}`")
-				exit(1)
+				programError(word, f"ERROR: max includes reached: `{includes}`")
 			for word in preprocess((parseToken(w) for w in lexFile(fileName)), args, includes):
 				yield word
+
+		if word.type == 'KEYWORD' and word.op == ''
+				
 		else:
 			yield word
 
@@ -405,7 +405,7 @@ dump:
 				code += f'    push    {word.value}\n'
 
 			else:
-				syntaxError(word, f"ERROR: unknown const type '{word.value_type}'")
+				programError(word, f"ERROR: unknown const type '{word.value_type}'")
 				
 		elif word.type == 'WORD':
 			#print(f"Generating word '{word.op}'")
@@ -549,7 +549,7 @@ dump:
 				code += '    syscall\n'
 				
 			else:
-				syntaxError(tok, f"ERROR: unreckognized word '{word.op}'")
+				programError(tok, f"ERROR: unreckognized word '{word.op}'")
 		elif word.type == 'KEYWORD':
 			if word.op == 'WHILE':
 				labelDepth += 1
@@ -601,10 +601,10 @@ dump:
 				labelDepth -= 1
 
 			elif word.op == 'INCLUDE':
-				syntaxError(word, f"ERROR: there shouldn't be an include here! It's probably a bug in the compiler")
+				programError(word, f"ERROR: there shouldn't be an include here! It's probably a bug in the compiler")
 
 			else:
-				syntaxError(word, f"ERROR: unreckognized word type: '{word.type}' with word: '{word.op}'")
+				programError(word, f"ERROR: unreckognized word type: '{word.type}' with word: '{word.op}'")
 
 	code += '    ret\n'
 	
