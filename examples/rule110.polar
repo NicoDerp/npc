@@ -1,9 +1,9 @@
 // [                    ] [                    ]
 //        0 - 99                100 - 200
 
-fun main in
+//fun main in
   // Write '\n' to mem 200
-  mem 200 + 10 .
+  mem 200 + '\n' .
 
   // Start with a single dot
   mem 98 + 1 .
@@ -11,11 +11,11 @@ fun main in
   0 while dup 98 < do
     0 while dup 100 < do
       dup mem + , if
-        dup mem + 100 + 42 .
+        dup mem + 100 + '*' .
         // Write '*' to stdout
         //1 mem 102 + 1 1 syscall3
       else
-        dup mem + 100 + 32 .
+        dup mem + 100 + ' ' .
         // Write ' ' to stdout
         //1 mem 101 + 1 1 syscall3
       end
@@ -41,4 +41,4 @@ fun main in
     end drop drop
     1 +
   end drop
-end
+//end
