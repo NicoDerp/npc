@@ -302,7 +302,7 @@ def parse_args():
 
 	return arguments
 
-def preprocess(words, args):
+def preprocess(words, args, includes=0):
 	while True:
 		try:
 			word = next(words)
@@ -316,9 +316,13 @@ def preprocess(words, args):
 			fileName = os.path.join(args.include_path, inc.value)
 			if not os.path.exists(fileName):
 				syntaxError(inc, f"ERROR: couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
-
-			for t in lexFile(fileName):
-				yield parseToken(t)
+			includes += 1
+			# Max includes
+			if includes >= 5:
+				print(f"ERROR: max includes reached: `{includes}`")
+				exit(1)
+			for word in preprocess((parseToken(w) for w in lexFile(fileName)), args, includes):
+				yield word
 		else:
 			yield word
 
@@ -597,8 +601,8 @@ dump:
 				labelDepth -= 1
 
 			elif word.op == 'INCLUDE':
-				syntaxError(word, f"ERROR: there shouldn't be an include here anymore! Maybe the file you tried to include also includes something?")
-				
+				syntaxError(word, f"ERROR: there shouldn't be an include here! It's probably a bug in the compiler")
+
 			else:
 				syntaxError(word, f"ERROR: unreckognized word type: '{word.type}' with word: '{word.op}'")
 
