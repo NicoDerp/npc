@@ -89,16 +89,16 @@ class Depth():
 		self.counter += 1
 		return f".L{self.depth}.{self.counter}"
 	
-def programError(word, err):
+def program_error(word, err):
 	word.row += 1 if word.row != 0 else 0  # Since emacs is dum dum
 	print(f"{word.filepath}:{word.row}:{word.col}: {err}")
 	exit(1)
 
-def compilerError(err):
+def compiler_error(err):
 	print(err)
 	exit(1)
 
-def lexFile(source_file):
+def lex_file(source_file):
 	# Read and get tokens (not including comments)
 	with open(source_file, 'r') as infile:
 		# Comments!
@@ -110,19 +110,19 @@ def lexFile(source_file):
 			#print(f"Row: {row}, Col: {col}, Token: {tok}")
 			yield Token(tok, row, col, source_file)
 
-def parseString(tok):
+def parse_string(tok):
 	# Only one character so def no string
 	if len(tok.token) == 1:
-		programError(tok, f"ERROR: unclosed string literal `{tok.token}`")
+		program_error(tok, f"ERROR: unclosed string literal `{tok.token}`")
 
 	quote = tok.token[0]
 	# Not a quote (shouldn't occur)
 	if not quote in '\'"':
-		programError(tok, f"ERROR: unclosed string literal `{tok.token}`")
+		program_error(tok, f"ERROR: unclosed string literal `{tok.token}`")
 
 	# Two different quotes
 	if quote != tok.token[-1]:
-		programError(tok, f"ERROR: unclosed string literal `{tok.token}`")
+		program_error(tok, f"ERROR: unclosed string literal `{tok.token}`")
 	
 	# Remove quotes
 	s = tok.token[1:-1]
@@ -137,11 +137,11 @@ def parseString(tok):
 	
 	# Character
 	if len(s) != 1:
-		programError(tok, f"ERROR: only a single byte is allowed inside a character literal")
+		program_error(tok, f"ERROR: only a single byte is allowed inside a character literal")
 
 	return Const('CHARACTER', hex(ord(s)), tok)
 
-def parseToken(tok):	
+def parse_token(tok):	
 	if tok.token == '+':
 		return Word('ADD', tok)
 
@@ -228,19 +228,15 @@ def parseToken(tok):
 	
 	else:
 		if '\'' in tok.token or '\"' in tok.token:
-			return parseString(tok)
+			return parse_string(tok)
 		try:
 			return Const('INT', int(tok.token), tok)
 		except ValueError as err:
-			programError(tok, "ERROR: " + err)
+			program_error(tok, "ERROR: " + str(err))
 			
 def parse(tokens):
 	for tok in tokens:
-		yield parseToken(tok)
-
-def pretty_print(obj, n=0):
-	space = '    '
-	print('Wiiu')
+		yield parse_token(tok)
 	
 def parse_args():
 	argv = (x for x in sys.argv)
@@ -282,7 +278,7 @@ def parse_args():
 			try:
 				arg = next(argv)
 			except:
-				compilerError("ERROR: failed to parse args, missing filename after '-o'")
+				compiler_error("ERROR: failed to parse args, missing filename after '-o'")
 
 			arguments.outfn = arg
 
@@ -290,7 +286,7 @@ def parse_args():
 			try:
 				arg = next(argv)
 			except:
-				compilerError("ERROR: failed to parse args, missing path after '-I'")
+				compiler_error("ERROR: failed to parse args, missing path after '-I'")
 			
 			arguments.include_path = arg
 			
@@ -310,23 +306,279 @@ def preprocess(words, args, includes=0):
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			inc = next(words)
 			if inc.type != 'CONST' or inc.value_type != 'STRING':
-				programError(inc, f'ERROR: expected string to include got \'{inc.type}\'')
+				program_error(inc, f'ERROR: expected string to include got \'{inc.type}\'')
 			fileName = os.path.join(args.include_path, inc.value)
 			if not os.path.exists(fileName):
-				programError(inc, f"ERROR: couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
+				program_error(inc, f"ERROR: couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 			includes += 1
 			# Max includes
 			if includes >= 5:
-				programError(word, f"ERROR: max includes reached: `{includes}`")
-			for word in preprocess((parseToken(w) for w in lexFile(fileName)), args, includes):
+				program_error(word, f"ERROR: max includes reached: `{includes}`")
+			for word in preprocess((parse_token(w) for w in lex_file(fileName)), args, includes):
 				yield word
 
-		if word.type == 'KEYWORD' and word.op == ''
-				
-		else:
-			yield word
+		yield word
 
-def generateProgram(words):
+def not_enough_arguments(word):
+	program_error(word, f"ERROR: not enough arguments for operation `{word.op}`")
+
+def invalid_arguments(word, expected, got):
+	program_error(word, f"ERROR: invalid argument types for {word.op} operation. Expected {expected} but got {got}")
+	
+def typecheck_program(words):
+	stack: List[Tuple[String, Word]] = []
+
+	while True:
+		try:
+			word = next(words)
+			yield word
+		except StopIteration:
+			break
+		
+		if word.type == 'CONST':
+			if word.value_type == 'INT':
+				stack.append(('INT', word))
+
+			elif word.value_type == 'STRING':
+				stack.append(('INT', word))
+				stack.append(('PTR', word))
+
+			elif word.value_type == 'CHAR':
+				stack.append(('INT', word))
+
+			else:
+				program_error(word, f"unknown const type `{word.value_type}`")
+
+		elif word.type == 'WORD':
+			if word.op == 'ADD':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type == 'INT' and b_type == 'INT':
+					stack.append(('INT', word))
+				if a_type == 'PTR' and b_type == 'INT':
+					stack.append(('PTR', word))
+				if a_type == 'INT' and b_type == 'PTR':
+					stack.append(('PTR', word))
+				else:
+					invalid_arguments(word, '`INT` and `PTR`', f'`{a_type}` and `{b_type}`')
+					
+			elif word.op == 'SUB':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type == 'INT' and b_type == 'INT':
+					stack.append(('INT', word))
+				elif a_type == 'PTR' and b_type == 'INT':
+					stack.append(('PTR', word))
+				elif a_type == 'INT' and b_type == 'PTR':
+					stack.append('PTR', word)
+				else:
+					invalid_arguments(word, '`INT` and `PTR`', f'`{a_type}` and `{b_type}`')
+
+			elif word.op == 'DUP':
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a = stack.pop()
+					
+				stack.append(a)
+				stack.append(a)
+
+			elif word.op == 'SWAP':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a = stack.pop()
+				b = stack.pop()
+
+				stack.append(a)
+				stack.append(b)
+
+			elif word.op == '2DUP':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a = stack.pop()
+				b = stack.pop()
+
+				stack.append(b)
+				stack.append(a)
+				stack.append(b)
+				stack.append(a)
+
+			elif word.op == 'BINARY_OR':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_Type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
+				
+				stack.append(('INT', word))
+
+			elif word.op == 'BINARY_AND':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_Type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', '`{a_type}` and `{b_type}`')
+									  
+				stack.append(('INT', word))
+
+			elif word.op == 'SHIFT_LEFT':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_Type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
+				
+				stack.append(('INT', word))
+
+			elif word.op == 'SHIFT_RIGHT':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
+				
+				stack.append(('INT', word))
+
+			elif word.op == 'LOAD':
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+
+				if a_type != 'PTR':
+					invalid_arguments(word, '`PTR`', f'`{a_type}`')
+				
+				stack.append(('INT', word))
+
+			elif word.op == 'STORE':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_type != 'PTR':
+					invalid_arguments(word, '`INT` and `PTR`', f'`{a_type}` and `{b_type}`')
+
+			elif word.op == 'DUMP':
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+
+				if a_type != 'INT':
+					invalid_arguments(word, '`INT`', f'`{a_type}`')
+
+			elif word.op == 'DROP':
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a = stack.pop()
+
+			elif word.op == 'OVER':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a = stack.pop()
+				b = stack.pop()
+
+				stack.append(b)
+				stack.append(a)
+				stack.append(b)
+
+			elif word.op == 'EQU':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				# if a_type != b_type
+				
+				stack.push(('BOOL', word))
+
+			elif word.op == 'GREATER_THAN':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'BOOL' or b_type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
+				stack.push(('INT', word))
+
+			elif word.op == 'LESS_THAN':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
+				stack.push(('BOOL', word))
+
+			elif word.op == 'SYSCALL1':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b = stack_pop()
+
+				if a_type != 'INT':
+					invalid_arguments(word, '`INT`', f'`{a_type}`')
+
+				# I think they don't push anything
+			
+			elif word.op == 'SYSCALL3':
+				if len(stack) < 4:
+					print(stack)
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b = stack.pop()
+				c = stack.pop()
+				d = stack.pop()
+
+				if a_type != 'INT':
+					invalid_arguments(word, '`INT`', f'`{a_type}`')
+					
+			elif word.op == 'MEM':
+				stack.append(('PTR', word))
+				
+		elif word.type == 'KEYWORD':
+			pass
+
+		else:
+			program_error(word, f'unknown word type `{word.type}`')
+
+	if len(stack) != 0:
+		compiler_error("ERROR: stack is not empty after program is done!")
+
+def generate_program(words):
 	code =  'section .text\n'
 	code += 'global _start\n'
 
@@ -405,7 +657,7 @@ dump:
 				code += f'    push    {word.value}\n'
 
 			else:
-				programError(word, f"ERROR: unknown const type '{word.value_type}'")
+				program_error(word, f"ERROR: unknown const type '{word.value_type}'")
 				
 		elif word.type == 'WORD':
 			#print(f"Generating word '{word.op}'")
@@ -549,7 +801,7 @@ dump:
 				code += '    syscall\n'
 				
 			else:
-				programError(tok, f"ERROR: unreckognized word '{word.op}'")
+				program_error(tok, f"ERROR: unreckognized word '{word.op}'")
 		elif word.type == 'KEYWORD':
 			if word.op == 'WHILE':
 				labelDepth += 1
@@ -601,10 +853,10 @@ dump:
 				labelDepth -= 1
 
 			elif word.op == 'INCLUDE':
-				programError(word, f"ERROR: there shouldn't be an include here! It's probably a bug in the compiler")
+				program_error(word, f"ERROR: there shouldn't be an include here! It's probably a bug in the compiler")
 
 			else:
-				programError(word, f"ERROR: unreckognized word type: '{word.type}' with word: '{word.op}'")
+				program_error(word, f"ERROR: unreckognized word type: '{word.type}' with word: '{word.op}'")
 
 	code += '    ret\n'
 	
@@ -638,20 +890,21 @@ def main():
 		fail(f"{arguments.infn}: No such file or directory")
 
 	start = time.time()
-	
-	tokens = lexFile(arguments.infn)
 
-	# Type checking ...	
+	# Lexing
+	tokens = lex_file(arguments.infn)
 
+	# Parsing
 	words = parse(tokens)
 
+	# Preprocess (includes, maybe expand something more in future)
 	words = preprocess(words, arguments)
 	
-	# Pretty printing
-	if arguments.pretty:
-		pretty_print(prog)
+	# Typechecking
+	words = typecheck_program(words)
 
-	code = generateProgram(words)
+	# Compiling
+	code = generate_program(words)
 
 	end = time.time()
 
