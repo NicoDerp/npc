@@ -113,16 +113,16 @@ def lexFile(source_file):
 def parseString(tok):
 	# Only one character so def no string
 	if len(tok.token) == 1:
-		syntaxError(tok, f"unclosed string literal `{tok.token}`")
+		syntaxError(tok, f"ERROR: unclosed string literal `{tok.token}`")
 
 	quote = tok.token[0]
 	# Not a quote (shouldn't occur)
 	if not quote in '\'"':
-		syntaxError(tok, f"unclosed string literal `{tok.token}`")
+		syntaxError(tok, f"ERROR: unclosed string literal `{tok.token}`")
 
 	# Two different quotes
 	if quote != tok.token[-1]:
-		syntaxError(tok, f"unclosed string literal `{tok.token}`")
+		syntaxError(tok, f"ERROR: unclosed string literal `{tok.token}`")
 	
 	# Remove quotes
 	s = tok.token[1:-1]
@@ -137,7 +137,7 @@ def parseString(tok):
 	
 	# Character
 	if len(s) != 1:
-		syntaxError(tok, f"only a single byte is allowed inside a character literal")
+		syntaxError(tok, f"ERROR: only a single byte is allowed inside a character literal")
 
 	return Const('CHARACTER', hex(ord(s)), tok)
 
@@ -232,7 +232,7 @@ def parseToken(tok):
 		try:
 			return Const('INT', int(tok.token), tok)
 		except ValueError as err:
-			syntaxError(tok, err)
+			syntaxError(tok, "ERROR: " + err)
 			
 def parse(tokens):
 	for tok in tokens:
@@ -312,10 +312,10 @@ def preprocess(words, args):
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			inc = next(words)
 			if inc.type != 'CONST' or inc.value_type != 'STRING':
-				syntaxError(inc, f'expected string to include got \'{inc.type}\'')
+				syntaxError(inc, f'ERROR: expected string to include got \'{inc.type}\'')
 			fileName = os.path.join(args.include_path, inc.value)
 			if not os.path.exists(fileName):
-				syntaxError(inc, f'file \'{fileName}\' not found')
+				syntaxError(inc, f"ERROR: couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 
 			for t in lexFile(fileName):
 				yield parseToken(t)
@@ -401,7 +401,7 @@ dump:
 				code += f'    push    {word.value}\n'
 
 			else:
-				syntaxError(word, f"Unknown const type '{word.value_type}'")
+				syntaxError(word, f"ERROR: unknown const type '{word.value_type}'")
 				
 		elif word.type == 'WORD':
 			#print(f"Generating word '{word.op}'")
@@ -545,7 +545,7 @@ dump:
 				code += '    syscall\n'
 				
 			else:
-				syntaxError(tok, f"unreckognized word '{word.op}'")
+				syntaxError(tok, f"ERROR: unreckognized word '{word.op}'")
 		elif word.type == 'KEYWORD':
 			if word.op == 'WHILE':
 				labelDepth += 1
@@ -597,10 +597,10 @@ dump:
 				labelDepth -= 1
 
 			elif word.op == 'INCLUDE':
-				syntaxError(word, f'there shouldn\'t be an include here anymore! Maybe the file you tried to include also includes something?')
+				syntaxError(word, f"ERROR: there shouldn't be an include here anymore! Maybe the file you tried to include also includes something?")
 				
 			else:
-				syntaxError(word, f"unreckognized word type: '{word.type}' with word: '{word.op}'")
+				syntaxError(word, f"ERROR: unreckognized word type: '{word.type}' with word: '{word.op}'")
 
 	code += '    ret\n'
 	
