@@ -539,9 +539,9 @@ def typecheck_program(words):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				if a_type != 'BOOL' or b_type != 'INT':
+				if a_type != 'INT' or b_type != 'INT':
 					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
-				stack.append(('INT', word))
+				stack.append(('BOOL', word))
 
 			elif word.op == 'LESS_THAN':
 				if len(stack) < 2:
@@ -552,7 +552,7 @@ def typecheck_program(words):
 
 				if a_type != 'INT' or b_type != 'INT':
 					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
-				stack.push(('BOOL', word))
+				stack.append(('BOOL', word))
 
 			elif word.op == 'SYSCALL1':
 				if len(stack) < 2:
@@ -604,6 +604,34 @@ def typecheck_program(words):
 
 				block_stack.append((stack.copy(), word))
 				stack = stack_snapshot
+
+			if word.op == 'WHILE':
+				block_stack.append((stack.copy(), word))
+
+			if word.op == 'DO':
+				if len(block_stack) < 1:
+					program_error(word, 'do keyword is missing previous while block!')
+
+				expected_stack, block_type = block_stack.pop()
+
+				if block_type.op != 'WHILE':
+					program_error(word, 'do keyword is missing previous while block!')
+
+				if len(stack) < 1:
+					not_enough_arguments(word)
+					
+				a_type, a_loc = stack.pop()
+
+				if a_type != 'BOOL':
+					invalid_arguments(word, '`BOOL`', f'`{a_type}`')
+
+				expected_types = list(map(lambda x: x[0], expected_stack))
+				actual_types = list(map(lambda x: x[0], stack))
+
+				if expected_types != actual_types:
+					program_error(word, 'do block is not allowed to alter the stack')
+
+				block_stack.append((expected_stack, word))
 				
 			if word.op == 'END':
 				expected_stack, block_type = block_stack.pop()
@@ -623,6 +651,10 @@ def typecheck_program(words):
 						program_note(word, f'expected types: {expected_types}')
 						program_note(word, f'actual types: {actual_types}')
 						exit(1)
+
+				elif block_type.op == 'DO':
+					if expected_types != actual_types:
+						print('hei')
 					
 		else:
 			program_error(word, f'unknown word type `{word.type}`')
