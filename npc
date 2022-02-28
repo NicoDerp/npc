@@ -146,13 +146,13 @@ def parse_string(tok):
 
 	# String
 	if quote == '"':
-		return Const('STRING', s, tok)
+		return Const('STR', s, tok)
 	
 	# Character
 	if len(s) != 1:
 		program_error(tok, f"only a single byte is allowed inside a character literal")
 
-	return Const('CHARACTER', hex(ord(s)), tok)
+	return Const('CHAR', hex(ord(s)), tok)
 
 def parse_token(tok):	
 	if tok.token == '+':
@@ -318,7 +318,7 @@ def preprocess(words, args, includes=0):
 		
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			inc = next(words)
-			if inc.type != 'CONST' or inc.value_type != 'STRING':
+			if inc.type != 'CONST' or inc.value_type != 'STR':
 				program_error(inc, f'expected string to include got \'{inc.type}\'')
 			fileName = os.path.join(args.include_path, inc.value)
 			if not os.path.exists(fileName):
@@ -352,7 +352,7 @@ def typecheck_program(words):
 			if word.value_type == 'INT':
 				stack.append(('INT', word))
 
-			elif word.value_type == 'STRING':
+			elif word.value_type == 'STR':
 				stack.append(('INT', word))
 				stack.append(('PTR', word))
 
@@ -433,7 +433,7 @@ def typecheck_program(words):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				if a_type != 'INT' or b_Type != 'INT':
+				if a_type != 'INT' or b_type != 'INT':
 					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
 				
 				stack.append(('INT', word))
@@ -445,7 +445,7 @@ def typecheck_program(words):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				if a_type != 'INT' or b_Type != 'INT':
+				if a_type != 'INT' or b_type != 'INT':
 					invalid_arguments(word, '`INT` and `INT`', '`{a_type}` and `{b_type}`')
 									  
 				stack.append(('INT', word))
@@ -457,7 +457,7 @@ def typecheck_program(words):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				if a_type != 'INT' or b_Type != 'INT':
+				if a_type != 'INT' or b_type != 'INT':
 					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
 				
 				stack.append(('INT', word))
@@ -629,9 +629,9 @@ def typecheck_program(words):
 				actual_types = list(map(lambda x: x[0], stack))
 
 				if expected_types != actual_types:
-					program_error(word, 'do block is not allowed to alter the stack')
+					program_error(word, 'do block is not allowed to alter the types on the stack')
 
-				block_stack.append((expected_stack, word))
+				block_stack.append((stack.copy(), word))
 				
 			if word.op == 'END':
 				expected_stack, block_type = block_stack.pop()
@@ -640,22 +640,24 @@ def typecheck_program(words):
 				
 				if block_type.op == 'IF':
 					if expected_types != actual_types:
-						program_error_(word, 'else-less if block is not allowed to alter the stack')
+						program_error_(word, 'else-less if block is not allowed to alter types on the stack')
 						program_note(word, f'expected types: {expected_types}')
 						program_note(word, f'actual types: {actual_types}')
 						exit(1)
 
 				elif block_type.op == 'ELSE':
 					if expected_types != actual_types:
-						program_error_(word, 'both if and else blocks must produce the same amount of types on the stack')
+						program_error_(word, 'both if and else blocks must produce the same types on the stack')
 						program_note(word, f'expected types: {expected_types}')
 						program_note(word, f'actual types: {actual_types}')
 						exit(1)
 
 				elif block_type.op == 'DO':
 					if expected_types != actual_types:
-						print('hei')
-					
+						program_error_(word, 'code between do block and end block is not allowed to alter the types on the stack')
+						program_note(word, f'expected types: {expected_types}')
+						program_note(word, f'actual types: {actual_types}')
+						
 		else:
 			program_error(word, f'unknown word type `{word.type}`')
 
@@ -730,15 +732,15 @@ dump:
 				#code += f'    mov     rax, {word.value}\n'
 				#code +=  '    push    rax\n'
 
-			elif word.value_type == 'STRING':
+			elif word.value_type == 'STR':
 				label = 'D' + str(len(dataLabels))
 				dataLabels.append({'label': label, 'data': word.value})
 				size = len(word.value)
-				code +=  '\n    ;; -- CONST STRING -- ;;\n'
+				code +=  '\n    ;; -- CONST STR -- ;;\n'
 				code += f'    push    {size}\n'
 				code += f'    push    {label}\n'
 
-			elif word.value_type == 'CHARACTER':
+			elif word.value_type == 'CHAR':
 				code +=  '\n    ;; -- CONST CHAR -- ;;\n'
 				code += f'    push    {word.value}\n'
 
@@ -904,7 +906,6 @@ dump:
 				code += '\n;; -- DO -- ;;\n'
 				code += f'{do_label}:\n'
 				code +=  '    pop     rax\n'
-				code +=  '    test    rax, rax\n'
 				code += f'    jz      {end_label}\n'
 				
 			elif word.op == 'IF':
