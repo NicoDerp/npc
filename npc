@@ -15,6 +15,7 @@ Options:
   -p           Pretty-print the AST of the program
   -S           Do not assemble, output is assembly code
   -r           Run the program after a succesful compilation
+  --unsafe     Disable type-checking
   --help       Display this information and exit"""
 
 
@@ -28,6 +29,7 @@ class Arguments:
 		self.asm = None
 		self.run = None
 		self.include_path = './'
+		self.unsafe = None
 		
 class Classified:
 	def __init__(self, type):
@@ -49,6 +51,11 @@ class Position():
 		self.row = tok.row
 		self.col = tok.col
 		self.filepath = tok.filepath
+
+	def pos(self):
+		row = self.row
+		row += 1 if row != 0 else 0  # Since emacs is dum dum
+		return f"{self.filepath}:{row}:{self.col}"
 		
 class Const(Classified, Position):
 	def __init__(self, value_type, value, tok):
@@ -93,19 +100,19 @@ class Depth():
 def program_error(word, err):
 	row = word.row
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
-	print(f"{word.filepath}:{row}:{word.col}: ERROR: {err}")
+	print(f"{word.pos()}: ERROR: {err}")
 	exit(1)
 
 def program_error_(word, err):
 	row = word.row
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
-	print(f"{word.filepath}:{row}:{word.col}: ERROR: {err}")
+	print(f"{word.pos()}: ERROR: {err}")
 
 	
 def program_note(word, note):
 	row = word.row
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
-	print(f"{word.filepath}:{row}:{word.col}: NOTE: {note}")
+	print(f"{word.pos()}: NOTE: {note}")
 
 def compiler_error(err):
 	print(err)
@@ -286,6 +293,9 @@ def parse_args():
 
 		elif arg == '-r':
 			arguments.run = True
+
+		elif arg == '--unsafe':
+			arguments.unsafe = True
 			
 		elif arg == '-o':
 			try:
@@ -317,31 +327,41 @@ def preprocess(words, args, includes=0):
 			break
 		
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
+			includes += 1
+			# Max includes
+			if includes >= 5:
+				program_error(word, f"max includes reached: `{includes}`")
 			inc = next(words)
 			if inc.type != 'CONST' or inc.value_type != 'STR':
 				program_error(inc, f'expected string to include got \'{inc.type}\'')
 			fileName = os.path.join(args.include_path, inc.value)
 			if not os.path.exists(fileName):
 				program_error(inc, f"couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
-			includes += 1
-			# Max includes
-			if includes >= 5:
-				program_error(word, f"max includes reached: `{includes}`")
-			for word in preprocess((parse_token(w) for w in lex_file(fileName)), args, includes):
-				yield word
-
-		yield word
+			
+			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes):
+				yield w
+		else:
+			yield word
 
 def not_enough_arguments(word):
 	program_error(word, f"not enough arguments for operation `{word.op}`")
 
 def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
-	
+
+def format_stack(stack):
+	for typ, word in stack:
+		if word.type == 'CONST':
+			yield f'{word.pos()}: `{typ}` from `{word.value}`'
+		elif word.type == 'WORD':
+			yield f'{word.pos()}: `{typ}` from `{word.op}`'
+		else:
+			print('unknown')
+
 def typecheck_program(words):
 	stack: List[Tuple[String, Word]] = []
 	block_stack: List[Tuple[List[Tuple[String, Word]], Keyword]] = []
-
+	
 	while True:
 		try:
 			word = next(words)
@@ -391,7 +411,7 @@ def typecheck_program(words):
 				elif a_type == 'PTR' and b_type == 'INT':
 					stack.append(('PTR', word))
 				elif a_type == 'INT' and b_type == 'PTR':
-					stack.append('PTR', word)
+					stack.append(('PTR', word))
 				else:
 					invalid_arguments(word, '`INT` or `PTR`', f'`{a_type}` and `{b_type}`')
 
@@ -629,7 +649,10 @@ def typecheck_program(words):
 				actual_types = list(map(lambda x: x[0], stack))
 
 				if expected_types != actual_types:
-					program_error(word, 'do block is not allowed to alter the types on the stack')
+					program_error_(word, 'do block is not allowed to alter the types on the stack')
+					program_note(word, f'expected types: {expected_types}')
+					program_note(word, f'actual types: {actual_types}')
+					exit(1)
 
 				block_stack.append((stack.copy(), word))
 				
@@ -664,7 +687,9 @@ def typecheck_program(words):
 		yield word
 			
 	if len(stack) != 0:
-		program_error(word, "unhandled data on the stack")
+		program_error_(word, "unhandled data on the stack")
+		program_note(word, 'Stack at end of code\n'+''.join(format_stack(stack)))
+		exit(1)
 
 def generate_program(words):
 	code =  'section .text\n'
@@ -981,18 +1006,16 @@ def main():
 
 	# Parsing
 	words = parse(tokens)
-
+	
 	# Preprocess (includes, maybe expand something more in future)
 	words = preprocess(words, arguments)
-
-	start_typecheck = time.time()
 	
 	# Typechecking
-	words = (w for w in list(typecheck_program(words)))
-
-	end_typecheck = time.time()
-
-	print(f'[INFO] Typechecking took {end_typecheck-start_typecheck:0.5f}s')
+	if not arguments.unsafe:
+		start_typecheck = time.time()
+		words = (w for w in list(typecheck_program(words)))
+		end_typecheck = time.time()
+		print(f'[INFO] Typechecking took {end_typecheck-start_typecheck:0.5f}s')
 	
 	start_compile = time.time()
 	
