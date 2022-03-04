@@ -10,7 +10,7 @@
 
   0 while dup 98 < do
     0 while dup 100 < do
-      dup mem + , if
+      dup mem + , 1 = if
         dup mem + 100 + '*' .
         // Write '*' to stdout
         //1 mem 102 + 1 1 syscall3

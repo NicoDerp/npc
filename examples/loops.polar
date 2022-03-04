@@ -3,4 +3,4 @@
 while dup 0 > do
   dup dump
   1 -
-end
+end drop
