@@ -75,8 +75,21 @@ class Word(Classified, Position):
 		Classified.__init__(self, "WORD")
 		Position.__init__(self, tok)
 		self.op = op
+		
+class Macro(Classified, Position):
+	def __init__(self, body, name, tok):
+		Classified.__init__(self, "MACRO")
+		Position.__init__(self, tok)
+		self.body = body
+		self.name = name
 
-class Token():
+class MacroCall(Classified, Position):
+	def __init__(self, tok):
+		Classified.__init__(self, "MACRO_CALL")
+		Position.__init__(self, tok)
+		self.name = tok.token
+
+class Token(Position):
 	def __init__(self, token, row, col, filepath):
 		self.token = token
 		self.row = row
@@ -245,14 +258,19 @@ def parse_token(tok):
 
 	elif tok.token == 'include':
 		return Keyword('INCLUDE', tok)
+
+	elif tok.token == 'macro':
+		return Keyword('MACRO', tok)
 	
 	else:
 		if '\'' in tok.token or '\"' in tok.token:
 			return parse_string(tok)
+		
 		try:
 			return Const('INT', int(tok.token), tok)
 		except ValueError as err:
-			program_error(tok, err)
+			return MacroCall(tok)
+			#program_error(tok, err)
 			
 def parse(tokens):
 	for tok in tokens:
@@ -319,13 +337,26 @@ def parse_args():
 
 	return arguments
 
-def preprocess(words, args, includes=0):
+def pretty_print_word(word):
+	if word.type == 'KEYWORD':
+		print(f"KEYWORD: `{word.op}`")
+
+	elif word.type == 'WORD':
+		print(f"WORD: `{word.op}`")
+
+	elif word.type == 'CONST':
+		print(f"CONST: `[{word.value_type}: {word.value}]`")
+
+	else:
+		print(f'Unknown {word.type}')
+	
+def preprocess(words, args, includes=0, expansions=0):
 	while True:
 		try:
 			word = next(words)
 		except StopIteration:
 			break
-		
+	
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			includes += 1
 			# Max includes
@@ -340,6 +371,37 @@ def preprocess(words, args, includes=0):
 			
 			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes):
 				yield w
+
+		elif word.type == 'KEYWORD' and word.op == 'MACRO':
+			expansions += 1
+			body = []
+			depth = 1
+			
+			name = next(words)
+			if name.type != 'MACRO_CALL':
+				program_error(name, f"wrong type for macro name. Expected `MACRO_CALL`, but got `{name.type}")
+				
+			while True:
+				try:
+					w = next(words)
+				except StopIteration:
+					program_error(word, '`macro` word is missing `end`')
+				
+				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
+					depth += 1
+					
+				if w.type == 'KEYWORD' and w.op == 'END':
+					depth -= 1
+
+				if depth == 0:
+					break
+
+				body.append(w)
+
+			body = list(preprocess((x for x in body), expansions))
+				
+			yield Macro(body, name.name, word)
+			
 		else:
 			yield word
 
@@ -744,12 +806,19 @@ dump:
 	code += '    syscall\n'
 	code += '_main_:\n'
 
+	macros = {}
+	
 	dataLabels = []
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
 	# depth: 2
 	depthCounters = []
 	labelDepth = 0
-	for word in words:
+	while True:
+		try:
+			word = next(words)
+		except StopIteration:
+			break
+		
 		if word.type == 'CONST':
 			if word.value_type == 'INT':
 				code +=  '\n    ;; -- CONST INT -- ;;\n'
@@ -773,7 +842,7 @@ dump:
 				program_error(word, f"unknown const type '{word.value_type}'")
 				
 		elif word.type == 'WORD':
-			#print(f"Generating word '{word.op}'")
+			#print(f"Generating WORD operation {word.op}")
 			if word.op == 'ADD':
 				code += '\n    ;; -- ADD -- ;;\n'
 				code += '    pop     rcx\n'
@@ -914,8 +983,10 @@ dump:
 				code += '    syscall\n'
 				
 			else:
-				program_error(tok, f"unreckognized word '{word.op}'")
+				program_error(word, f"unreckognized word '{word.op}'")
+				
 		elif word.type == 'KEYWORD':
+			#print(f"Generating KEYWORD operation {word.op}")
 			if word.op == 'WHILE':
 				labelDepth += 1
 				while len(depthCounters) <= labelDepth:
@@ -965,10 +1036,31 @@ dump:
 				labelDepth -= 1
 
 			elif word.op == 'INCLUDE':
-				program_error(word, f"there shouldn't be an include here! It's probably a bug in the compiler")
+				program_error(word, f"there shouldn't be an `include` here! It's probably a bug in the compiler")
 
 			else:
-				program_error(word, f"unreckognized word type: '{word.type}' with word: '{word.op}'")
+				program_error(word, f"unreckognized keyword operation '{word.op}'")
+
+		elif word.type == 'MACRO':
+			if word.name in macros.keys():
+				program_error_(word, f"redefinition of already existing macro `{word.name}`")
+				program_note(macros[word.name], f"the first definition is located here")
+				exit(1)
+
+			print(f'Adding macro `{word.name}`')
+			macros[word.name] = word
+
+		elif word.type == 'MACRO_CALL':
+			if word.name not in macros.keys():
+				program_error_(word, f"macro `{word.name}` does not exist")
+				exit(1)
+				
+			# Sneaky hack. Insert macro words first
+			words = (x for x in (macros[word.name].body + list(words)))
+			print('Inserted')
+				
+		else:
+			program_error(word, f"unreckognized word type: '{word.type}'")
 
 	code += '    ret\n'
 	
@@ -1007,7 +1099,7 @@ def main():
 	# Parsing
 	words = parse(tokens)
 	
-	# Preprocess (includes, maybe expand something more in future)
+	# Preprocess (includes and macro expansion)
 	words = preprocess(words, arguments)
 	
 	# Typechecking
