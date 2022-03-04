@@ -1057,7 +1057,6 @@ dump:
 				
 			# Sneaky hack. Insert macro words first
 			words = (x for x in (macros[word.name].body + list(words)))
-			print('Inserted')
 				
 		else:
 			program_error(word, f"unreckognized word type: '{word.type}'")
