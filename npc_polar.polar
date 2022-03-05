@@ -48,6 +48,7 @@ end
 
 macro NotImplemented "NotImplemented" puts 0 exit end
 macro Unreachable    "Unreachable"    puts 0 exit end
+macro MEM_CAPACITY 4096 end
 
 // ptr type
 macro compile_ops
@@ -119,7 +120,10 @@ macro compile_ops
     drop
     1 +
   end drop
-  "\n    ret\n" puts
+  "\n    ret\n"    puts
+  "\nsegment .bss\n" puts
+  "mem:\n"         puts
+  "    resb    "   puts MEM_CAPACITY dump "\n" puts
 end
 
 
