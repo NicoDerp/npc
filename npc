@@ -181,6 +181,12 @@ def parse_token(tok):
 	elif tok.token == '-':
 		return Word('SUB', tok)
 
+	elif tok.token == '*':
+		return Word('MULT', tok)
+
+	elif tok.token == '/':
+		return Word('DIV', tok)
+
 	elif tok.token == 'bor':
 		return Word('BINARY_OR', tok)
 
@@ -498,6 +504,29 @@ def typecheck_program(words):
 					stack.append(('PTR', word))
 				else:
 					invalid_arguments(word, '`INT` or `PTR`', f'`{a_type}` and `{b_type}`')
+
+			elif word.op == 'MULT':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
+				stack.append(('INT', word))
+
+			elif word.op == 'DIV':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
+				stack.append(('INT', word))
+
 
 			elif word.op == 'DUP':
 				if len(stack) < 1:
@@ -892,18 +921,35 @@ dump:
 				code += '    pop     rax\n'
 				code += '    add     rax, rcx\n'
 				code += '    push    rax\n'
+				
 			elif word.op == 'SUB':
 				code += '\n    ;; -- SUB -- ;;\n'
 				code += '    pop     rax\n'
 				code += '    pop     rcx\n'
 				code += '    sub     rcx, rax\n'
 				code += '    push    rcx\n'
+
+			elif word.op == 'MULT':
+				code += '\n    ;; -- MULT -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    mul     rcx\n'
+				code += '    push    rax\n'
+
+			elif word.op == 'DIV':
+				code += '\n    ;; -- DIV -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rax\n'
+				code += '    div     rcx\n'
+				code += '    push    rax\n'
+				
 			elif word.op == 'BINARY_OR':
 				code += '\n    ;; -- BINARY_OR -- ;;\n'
 				code += '    pop     rax\n'
 				code += '    pop     rbx\n'
 				code += '    or      rbx, rax\n'
 				code += '    push    rbx\n'
+				
 			elif word.op == 'BINARY_AND':
 				code += '\n    ;; -- BINARY_AND -- ;;\n'
 				code += '    pop     rax\n'
