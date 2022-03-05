@@ -213,6 +213,9 @@ def parse_token(tok):
 
 	elif tok.token == 'over':
 		return Word('OVER', tok)
+
+	elif tok.token == 'rot':
+		return Word('ROT', tok)
 	
 	elif tok.token == '>':
 		return Word('GREATER_THAN', tok)
@@ -624,6 +627,18 @@ def typecheck_program(words):
 				stack.append(a)
 				stack.append(b)
 
+			elif word.op == 'ROT':
+				if len(stack) < 3:
+					not_enough_arguments(word)
+
+				a = stack.pop()
+				b = stack.pop()
+				c = stack.pop()
+
+				stack.append(b)
+				stack.append(a)
+				stack.append(c)
+
 			elif word.op == 'EQU':
 				if len(stack) < 2:
 					not_enough_arguments(word)
@@ -631,7 +646,7 @@ def typecheck_program(words):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				# if a_type != b_type
+				# if a_type != b_type:
 				
 				stack.append(('BOOL', word))
 
@@ -960,6 +975,15 @@ dump:
 				code += '    push    rax\n'
 				code += '    push    rcx\n'
 				code += '    push    rax\n'
+
+			elif word.op == 'ROT':
+				code += '\n    ;; -- ROT -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rbx\n'
+				code += '    push    rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rbx\n'
 				
 			elif word.op == 'GREATER_THAN':
 				code += '\n    ;; -- GREATER_THAN -- ;;\n'
