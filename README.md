@@ -232,16 +232,17 @@ mem 4 + , 1 +
 
 This will read the contents of offset 4, add 1, then store that number into offset 17.
 
-### Procedures
+### Macros
 
 ```
-fun <id> in
+macro <id>
   <body>
 end
+
+<id>
 ```
 
-Even though Polar uses `fun`, it is not functions, just procedures.
-You never return anything, since there is only one stack.
+When <id> is written in code, then that macro's <body> is copied over.
 
 ### Including
 
