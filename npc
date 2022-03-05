@@ -1047,7 +1047,6 @@ dump:
 				program_note(macros[word.name], f"the first definition is located here")
 				exit(1)
 
-			print(f'Adding macro `{word.name}`')
 			macros[word.name] = word
 
 		elif word.type == 'MACRO_CALL':
