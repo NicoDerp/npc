@@ -364,7 +364,6 @@ def preprocess(words, args, includes=0, expansions=0, macros={}):
 			if includes >= 5:
 				program_error(next(words), f"recursive include limit reached: `{includes}`")
 	
-			includes += 1
 			inc = next(words)
 			if inc.type != 'CONST' or inc.value_type != 'STR':
 				program_error(inc, f'expected string to include got \'{inc.type}\'')
@@ -372,14 +371,13 @@ def preprocess(words, args, includes=0, expansions=0, macros={}):
 			if not os.path.exists(fileName):
 				program_error(inc, f"couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 			
-			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes, expansions, macros):
+			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes+1, expansions, macros):
 				yield w
 
 		elif word.type == 'KEYWORD' and word.op == 'MACRO':
 			if expansions >= 5:
 				program_error(next(words), f"recursive expansions limit reached: `{expansions}`")
 
-			expansions += 1
 			body = []
 			depth = 1
 			
@@ -410,7 +408,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}):
 
 				body.append(w)
 
-			body = list(preprocess((x for x in body), args, includes, expansions, macros))
+			body = list(preprocess((x for x in body), args, includes, expansions+1, macros))
 				
 			macros[name.name] = (body, word)
 			
@@ -677,7 +675,7 @@ def typecheck_program(words):
 					not_enough_arguments(word)
 
 				a_type, a_loc = stack.pop()
-				b = stack_pop()
+				b = stack.pop()
 
 				if a_type != 'INT':
 					invalid_arguments(word, '`INT`', f'`{a_type}`')
