@@ -435,9 +435,9 @@ def invalid_arguments(word, expected, got):
 def format_stack(stack):
 	for typ, word in stack:
 		if word.type == 'CONST':
-			yield f'{word.pos()}: `{typ}` from `{word.value}`'
+			yield f'{word.pos()}: `{typ}` from `pushing {word.value}`'
 		elif word.type == 'WORD':
-			yield f'{word.pos()}: `{typ}` from `{word.op}`'
+			yield f'{word.pos()}: `{typ}` from word `{word.op}`'
 		else:
 			print('unknown')
 
@@ -763,6 +763,7 @@ def typecheck_program(words):
 						program_error_(word, 'while block is not allowed to alter the types on the stack')
 						program_note(word, f'expected types: {expected_types}')
 						program_note(word, f'actual types: {actual_types}')
+						exit(1)
 
 			elif word.op == 'MACRO':
 				program_error(word, f"there shouldn't be a macro keyword here. It's probably a bug in the preprocessing")
@@ -780,7 +781,8 @@ def typecheck_program(words):
 			
 	if len(stack) != 0:
 		program_error_(word, "unhandled data on the stack")
-		program_note(word, 'Stack at end of code\n'+''.join(format_stack(stack)))
+		program_note(word, 'Stack at end of code:')
+		[print(x) for x in format_stack(stack)]
 		exit(1)
 
 def generate_program(words):
