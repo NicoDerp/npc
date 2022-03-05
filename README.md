@@ -18,7 +18,7 @@ Polar is planned to
 
 ## Features
 - [x] Support strings and characters
-- [ ] Inline functions or macros
+- [x] Inline functions or macros
 - [x] Support includes
 
 ## Examples
@@ -157,6 +157,7 @@ This program will write the integer `69` to stdout. This is because the ASCII co
 | `drop` | `a b -- a`     | drops the top element of the stack     |
 | `dump` | `a b -- a`     | write the top element of the stack to stdout |
 | `over` | `a b -- a b a` | duplicated the second element of the stack |
+| `rot`  | `a b c -- b c a` | rotates the top three elements of the stacj |
 
 #### Comparison
 
