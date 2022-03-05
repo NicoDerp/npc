@@ -760,7 +760,7 @@ def typecheck_program(words):
 
 				elif block_type.op == 'DO':
 					if expected_types != actual_types:
-						program_error_(word, 'code between do block and end block is not allowed to alter the types on the stack')
+						program_error_(word, 'while block is not allowed to alter the types on the stack')
 						program_note(word, f'expected types: {expected_types}')
 						program_note(word, f'actual types: {actual_types}')
 
