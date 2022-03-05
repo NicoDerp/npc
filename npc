@@ -75,8 +75,21 @@ class Word(Classified, Position):
 		Classified.__init__(self, "WORD")
 		Position.__init__(self, tok)
 		self.op = op
+		
+class Macro(Classified, Position):
+	def __init__(self, body, name, tok):
+		Classified.__init__(self, "MACRO")
+		Position.__init__(self, tok)
+		self.body = body
+		self.name = name
 
-class Token():
+class MacroCall(Classified, Position):
+	def __init__(self, tok):
+		Classified.__init__(self, "MACRO_CALL")
+		Position.__init__(self, tok)
+		self.name = tok.token
+
+class Token(Position):
 	def __init__(self, token, row, col, filepath):
 		self.token = token
 		self.row = row
@@ -100,19 +113,19 @@ class Depth():
 def program_error(word, err):
 	row = word.row
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
-	print(f"{word.pos()}: ERROR: {err}")
+	print(f"{word.pos()}: error: {err}")
 	exit(1)
 
 def program_error_(word, err):
 	row = word.row
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
-	print(f"{word.pos()}: ERROR: {err}")
+	print(f"{word.pos()}: error: {err}")
 
 	
 def program_note(word, note):
 	row = word.row
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
-	print(f"{word.pos()}: NOTE: {note}")
+	print(f"{word.pos()}: note: {note}")
 
 def compiler_error(err):
 	print(err)
@@ -245,14 +258,19 @@ def parse_token(tok):
 
 	elif tok.token == 'include':
 		return Keyword('INCLUDE', tok)
+
+	elif tok.token == 'macro':
+		return Keyword('MACRO', tok)
 	
 	else:
 		if '\'' in tok.token or '\"' in tok.token:
 			return parse_string(tok)
+		
 		try:
 			return Const('INT', int(tok.token), tok)
 		except ValueError as err:
-			program_error(tok, err)
+			return MacroCall(tok)
+			#program_error(tok, err)
 			
 def parse(tokens):
 	for tok in tokens:
@@ -319,18 +337,31 @@ def parse_args():
 
 	return arguments
 
-def preprocess(words, args, includes=0):
+def pretty_print_word(word):
+	if word.type == 'KEYWORD':
+		print(f"KEYWORD: `{word.op}`")
+
+	elif word.type == 'WORD':
+		print(f"WORD: `{word.op}`")
+
+	elif word.type == 'CONST':
+		print(f"CONST: `[{word.value_type}: {word.value}]`")
+
+	else:
+		print(f'Unknown {word.type}')
+	
+def preprocess(words, args, includes=0, expansions=0, macros={}):
 	while True:
 		try:
 			word = next(words)
 		except StopIteration:
 			break
-		
+	
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
-			includes += 1
-			# Max includes
 			if includes >= 5:
-				program_error(word, f"max includes reached: `{includes}`")
+				program_error(next(words), f"recursive include limit reached: `{includes}`")
+	
+			includes += 1
 			inc = next(words)
 			if inc.type != 'CONST' or inc.value_type != 'STR':
 				program_error(inc, f'expected string to include got \'{inc.type}\'')
@@ -338,8 +369,60 @@ def preprocess(words, args, includes=0):
 			if not os.path.exists(fileName):
 				program_error(inc, f"couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 			
-			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes):
+			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes, expansions, macros):
 				yield w
+
+		elif word.type == 'KEYWORD' and word.op == 'MACRO':
+			if expansions >= 5:
+				program_error(next(words), f"recursive expansions limit reached: `{expansions}`")
+
+			expansions += 1
+			body = []
+			depth = 1
+			
+			name = next(words)
+			if name.type != 'MACRO_CALL':
+				program_error(name, f"wrong type for macro name. Expected `MACRO_CALL`, but got `{name.type}")
+
+			if name.name in macros.keys():
+				program_error_(word, f"redefinition of already existing macro `{name.name}`")
+				program_note(macros[name.name][1], f"the first definition is located here")
+				exit(1)
+
+				
+			while True:
+				try:
+					w = next(words)
+				except StopIteration:
+					program_error(word, '`macro` word is missing `end`')
+				
+				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
+					depth += 1
+					
+				if w.type == 'KEYWORD' and w.op == 'END':
+					depth -= 1
+
+				if depth == 0:
+					break
+
+				body.append(w)
+
+			body = list(preprocess((x for x in body), args, includes, expansions, macros))
+				
+			macros[name.name] = (body, word)
+			
+		elif word.type == 'MACRO_CALL':
+			if word.name not in macros.keys():
+				program_error_(word, f"macro `{word.name}` does not exist or is used inside it's definition")
+				exit(1)
+				
+			for w in macros[word.name][0]:
+				yield w
+				
+			# Sneaky hack. Insert macro words first
+			#words = (x for x in (macros[word.name].body + list(words)))
+
+			
 		else:
 			yield word
 
@@ -352,9 +435,9 @@ def invalid_arguments(word, expected, got):
 def format_stack(stack):
 	for typ, word in stack:
 		if word.type == 'CONST':
-			yield f'{word.pos()}: `{typ}` from `{word.value}`'
+			yield f'{word.pos()}: `{typ}` from `pushing {word.value}`'
 		elif word.type == 'WORD':
-			yield f'{word.pos()}: `{typ}` from `{word.op}`'
+			yield f'{word.pos()}: `{typ}` from word `{word.op}`'
 		else:
 			print('unknown')
 
@@ -625,10 +708,10 @@ def typecheck_program(words):
 				block_stack.append((stack.copy(), word))
 				stack = stack_snapshot
 
-			if word.op == 'WHILE':
+			elif word.op == 'WHILE':
 				block_stack.append((stack.copy(), word))
 
-			if word.op == 'DO':
+			elif word.op == 'DO':
 				if len(block_stack) < 1:
 					program_error(word, 'do keyword is missing previous while block!')
 
@@ -656,7 +739,7 @@ def typecheck_program(words):
 
 				block_stack.append((stack.copy(), word))
 				
-			if word.op == 'END':
+			elif word.op == 'END':
 				expected_stack, block_type = block_stack.pop()
 				expected_types = list(map(lambda x: x[0], expected_stack))
 				actual_types = list(map(lambda x: x[0], stack))
@@ -677,9 +760,19 @@ def typecheck_program(words):
 
 				elif block_type.op == 'DO':
 					if expected_types != actual_types:
-						program_error_(word, 'code between do block and end block is not allowed to alter the types on the stack')
+						program_error_(word, 'while block is not allowed to alter the types on the stack')
 						program_note(word, f'expected types: {expected_types}')
 						program_note(word, f'actual types: {actual_types}')
+						exit(1)
+
+			elif word.op == 'MACRO':
+				program_error(word, f"there shouldn't be a macro keyword here. It's probably a bug in the preprocessing")
+
+		elif word.type == 'MACRO':
+			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
+
+		elif word.type == 'MACRO_CALL':
+			program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 						
 		else:
 			program_error(word, f'unknown word type `{word.type}`')
@@ -688,7 +781,8 @@ def typecheck_program(words):
 			
 	if len(stack) != 0:
 		program_error_(word, "unhandled data on the stack")
-		program_note(word, 'Stack at end of code\n'+''.join(format_stack(stack)))
+		program_note(word, 'Stack at end of code:')
+		[print(x) for x in format_stack(stack)]
 		exit(1)
 
 def generate_program(words):
@@ -749,7 +843,12 @@ dump:
 	# depth: 2
 	depthCounters = []
 	labelDepth = 0
-	for word in words:
+	while True:
+		try:
+			word = next(words)
+		except StopIteration:
+			break
+		
 		if word.type == 'CONST':
 			if word.value_type == 'INT':
 				code +=  '\n    ;; -- CONST INT -- ;;\n'
@@ -773,7 +872,7 @@ dump:
 				program_error(word, f"unknown const type '{word.value_type}'")
 				
 		elif word.type == 'WORD':
-			#print(f"Generating word '{word.op}'")
+			#print(f"Generating WORD operation {word.op}")
 			if word.op == 'ADD':
 				code += '\n    ;; -- ADD -- ;;\n'
 				code += '    pop     rcx\n'
@@ -914,8 +1013,10 @@ dump:
 				code += '    syscall\n'
 				
 			else:
-				program_error(tok, f"unreckognized word '{word.op}'")
+				program_error(word, f"unreckognized word '{word.op}'")
+				
 		elif word.type == 'KEYWORD':
+			#print(f"Generating KEYWORD operation {word.op}")
 			if word.op == 'WHILE':
 				labelDepth += 1
 				while len(depthCounters) <= labelDepth:
@@ -965,10 +1066,19 @@ dump:
 				labelDepth -= 1
 
 			elif word.op == 'INCLUDE':
-				program_error(word, f"there shouldn't be an include here! It's probably a bug in the compiler")
+				program_error(word, f"there shouldn't be an `include` here! It's probably a bug in the preprocessing")
 
 			else:
-				program_error(word, f"unreckognized word type: '{word.type}' with word: '{word.op}'")
+				program_error(word, f"unreckognized keyword operation '{word.op}'")
+
+		elif word.type == 'MACRO':
+			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
+
+		elif word.type == 'MACRO_CALL':
+			program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
+			
+		else:
+			program_error(word, f"unreckognized word type: '{word.type}'")
 
 	code += '    ret\n'
 	
@@ -1007,7 +1117,7 @@ def main():
 	# Parsing
 	words = parse(tokens)
 	
-	# Preprocess (includes, maybe expand something more in future)
+	# Preprocess (includes and macro expansion)
 	words = preprocess(words, arguments)
 	
 	# Typechecking
