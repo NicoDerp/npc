@@ -350,8 +350,7 @@ def pretty_print_word(word):
 	else:
 		print(f'Unknown {word.type}')
 	
-def preprocess(words, args, includes=0, expansions=0):		
-	macros = {}
+def preprocess(words, args, includes=0, expansions=0, macros={}):
 	while True:
 		try:
 			word = next(words)
@@ -370,7 +369,7 @@ def preprocess(words, args, includes=0, expansions=0):
 			if not os.path.exists(fileName):
 				program_error(inc, f"couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 			
-			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes, expansions):
+			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes, expansions, macros):
 				yield w
 
 		elif word.type == 'KEYWORD' and word.op == 'MACRO':
@@ -408,7 +407,7 @@ def preprocess(words, args, includes=0, expansions=0):
 
 				body.append(w)
 
-			body = list(preprocess((x for x in body), args, includes, expansions))
+			body = list(preprocess((x for x in body), args, includes, expansions, macros))
 				
 			macros[name.name] = (body, word)
 			
@@ -837,8 +836,6 @@ dump:
 	code += '    syscall\n'
 	code += '_main_:\n'
 
-	macros = {}
-	
 	dataLabels = []
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
 	# depth: 2
