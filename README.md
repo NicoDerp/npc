@@ -14,7 +14,7 @@ Polar is planned to
 - [ ] Have a standard library
 - [ ] Be self-hosted
 - [ ] Be optimized
-- [ ] Have better type-checking
+- [x] Have better type-checking
 
 ## Features
 - [x] Support strings and characters
@@ -25,21 +25,17 @@ Polar is planned to
 
 Hello world:
 
-```polar
-fun main in
-  "Hello world!\n" 1 1 syscall3
-end
+```
+"Hello world!\n" 1 1 syscall3
 ```
 
 Simple program that prints the numbers from 0 to 99 in ascending order:
 
-```polar
-fun main in
-  100 0 while 2dup > do
-    dup dump
-    1 +
-  end drop drop
-end
+```
+100 0 while 2dup > do
+  dup dump
+  1 +
+end drop drop
 ```
 
 More examples are located at ./examples folder.
@@ -57,17 +53,16 @@ Feel free to make changes as you like.
 
 ### Compilation
 
-This will first generate assembly, and then assemble with nasm, and then link with ld.
-
-```shell
+```
 $ cat program.polar
-fun main in
-  242 178 + dump
-end
+
+242 178 + dump
+
 $ ./npc program.polar -o program
 ...
-... Compilation stuff
+... Compilation logs
 ...
+
 $ ./program
 420
 ```
@@ -83,6 +78,7 @@ Options:
   -p           Pretty-print the AST of the program
   -S           Do not assemble, output is assembly code
   -r           Run the program after a succesful compilation
+  --unsafe     Disable type-checking
   --help       Display this information and exit
 ```
 
@@ -171,8 +167,10 @@ This program will write the integer `69` to stdout. This is because the ASCII co
 
 | Name | Signature | Description |
 |------|:----------|-------------|
-| `+`  | `[a: int] [b: int] -- [a + b: int]` | sum the top two elements of the stack |
-| `-` | `[a: int] [b: int] -- [a - b: int]`  | subtract the top two elements of the stack |
+| `+`  | `[a: int] [b: int] -- [a + b: int]` | sum the top two elements of the stack      |
+| `-`  | `[a: int] [b: int] -- [a - b: int]` | subtract the top two elements of the stack |
+| `*`  | `[a: int] [b: int] -- [a * b: int]` | multiply the top two elements of the stack |
+| `/`  | `[a: int] [b: int] -- [a / b: int]` | divide the top two elements of the stack   |
 
 #### Bitwise
 
@@ -187,9 +185,11 @@ This program will write the integer `69` to stdout. This is because the ASCII co
 
 | Name | Signature | Description |
 |------|:----------|-------------|
-| `mem`  | `-- [mem: int]` | pushes memory location on top of the stack |
-| `,` | `[loc: int] -- [byte: int]`  | read a byte from location in memory |
-| `.` | `[loc: int] [byte: int] --`   | store byte into location in memory |
+| `mem`| `-- [mem: int]`              | pushes memory location on top of the stack     |
+| `,`  | `[loc: int] -- [byte: int]`  | read a byte from location in memory            |
+| `.`  | `[loc: int] [byte: int] --`  | store byte into location in memory             |
+| `,64`| `[loc: int] -- [byte: int]`  | read an 8-byte word from a location in memory  |
+| `.64`| `[loc: int] [byte: int] --`  | store an 8-byte word from a location in memory |
 
 #### System
 
@@ -225,12 +225,12 @@ Each program has reserved 4kb of memory. You can access the memory with the `,` 
 
 Example:
 ```
-mem 17 +
-mem 4 + , 1 +
-.
+mem 0 + 72 .
+mem 1 + 105 .
+
 ```
 
-This will read the contents of offset 4, add 1, then store that number into offset 17.
+This write "Hi" from the memory offsets zero to one.
 
 ### Macros
 
@@ -250,3 +250,4 @@ When <id> is written in code, then that macro's <body> is copied over.
 include "file.polar"
 ```
 
+This will copy a file's contents to where that include was written.
