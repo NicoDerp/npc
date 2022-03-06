@@ -238,6 +238,12 @@ def parse_token(tok):
 	elif tok.token == '.':
 		return Word('STORE', tok)
 
+	elif tok.token == ',64':
+		return Word('LOAD64', tok)
+	
+	elif tok.token == '.64':
+		return Word('STORE64', tok)
+
 	elif tok.token == 'syscall1':
 		return Word('SYSCALL1', tok)
 	
@@ -1065,6 +1071,18 @@ dump:
 				code += '    pop     rbx\n'  # 97
 				code += '    pop     rax\n'  # mem
 				code += '    mov     [rax], bl\n' # Move lower 8 bits into mem
+
+			elif word.op == 'LOAD64':
+				code += '\n    ;; -- LOAD64 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    xor     rbx, rbx\n'
+				code += '    mov     rbx, [rax]\n'
+
+			elif word.op == 'STORE64':
+				code += '\n    ;; -- STORE64 -- ;;\n'
+				code += '    pop     rbx\n'
+				code += '    pop     rax\n'
+				code += '    mov     [rax], rbx\n'
 				
 			elif word.op == 'SYSCALL1':
 				code += '\n    ;; -- SYSCALL1 -- ;;\n'
