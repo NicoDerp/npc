@@ -205,6 +205,9 @@ def parse_token(tok):
 	elif tok.token == '=':
 		return Word('EQU', tok)
 
+	elif tok.token == '!=':
+		return Word('NOT_EQU', tok)
+
 	elif tok.token == 'dup':
 		return Word('DUP', tok)
 
@@ -683,6 +686,17 @@ def typecheck_program(words):
 				
 				stack.append(('BOOL', word))
 
+			elif word.op == 'NOT_EQU':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				# if a_type != b_type:
+				
+				stack.append(('BOOL', word))
+
 			elif word.op == 'GREATER_THAN':
 				if len(stack) < 2:
 					not_enough_arguments(word)
@@ -990,6 +1004,16 @@ dump:
 				code += '    pop     rcx\n'
 				code += '    cmp     rax, rcx\n'
 				code += '    cmove   rdx, rbx\n'
+				code += '    push    rdx\n'
+
+			elif word.op == 'NOT_EQU':
+				code += '\n    ;; NOT_EQU -- ;;\n'
+				code += '    xor     rdx, rdx\n'
+				code += '    mov     rbx, 1\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    cmp     rax, rcx\n'
+				code += '    cmovne  rdx, rbx\n'
 				code += '    push    rdx\n'
 				
 			elif word.op == 'DUP':
