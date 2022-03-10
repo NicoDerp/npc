@@ -1,14 +1,12 @@
+include "std.polar"
 
 
 macro OP_PUSH_INT 1 end
 macro OP_PLUS     2 end
 macro OP_DUMP     3 end
 
-macro op-count mem	    end
+macro op-count mem          end
 macro op-start op-count 8 + end
-
-macro puts  1 1 syscall3  end
-macro exit  60   syscall1 end
 
 macro sizeof(Op) 16 end
 
@@ -120,15 +118,26 @@ macro compile_ops
     drop
     1 +
   end drop
-  "\n    ret\n"    puts
-  "\nsegment .bss\n" puts
-  "mem:\n"         puts
-  "    resb    "   puts MEM_CAPACITY dump "\n" puts
+  "\n    ret\n"		puts
+  "\nsegment .bss\n"	puts
+  "mem:\n"		puts
+  "    resb    "	puts MEM_CAPACITY dump "\n" puts
 end
 
+// ... argv[1] argv[0] argc
 
-OP_PUSH_INT 34 push_op
-OP_PUSH_INT 35 push_op
+drop
+
+while dup 0 > do
+  swap dup strlen swap puts
+  "\n" puts
+  1 -
+end
+
+0 exit
+
+OP_PUSH_INT 127 push_op
+OP_PUSH_INT 127 push_op
 OP_PLUS     0  push_op
 OP_DUMP     0  push_op
 
