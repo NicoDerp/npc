@@ -252,6 +252,15 @@ def parse_token(tok):
 	
 	elif tok.token == 'syscall3':
 		return Word('SYSCALL3', tok)
+
+	elif tok.token == 'cast(int)':
+		return Word('CAST_INT', tok)
+
+	elif tok.token == 'cast(ptr)':
+		return Word('CAST_PTR', tok)
+
+	elif tok.token == 'cast(bool)':
+		return Word('CAST_BOOL', tok)
 	
 	elif tok.token == 'fun':
 		return Keyword('FUNCTION', tok)
@@ -736,6 +745,41 @@ def typecheck_program(words):
 					
 			elif word.op == 'MEM':
 				stack.append(('PTR', word))
+
+			elif word.op == 'CAST_INT':
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				stack.append(('INT', word))
+				continue
+
+			elif word.op == 'CAST_PTR':
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+
+				if a_type == 'BOOL':
+					invalid_arguments(word, '`INT` or `PTR`', 'BOOL')
+				
+				stack.append(('PTR', word))
+				continue
+
+			elif word.op == 'CAST_BOOL':
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+
+				if a_type == 'PTR':
+					invalid_arguments(word, '`INT` or `BOOL`', 'PTR')
+
+				stack.append(('BOOL', word))
+				continue
+
+			else:
+				program_error(word, f"unknown word operation {word.op}")
 				
 		elif word.type == 'KEYWORD':
 			if word.op == 'IF':
@@ -1125,6 +1169,15 @@ dump:
 				code += '    pop rsi\n'
 				code += '    pop rdx\n'
 				code += '    syscall\n'
+
+			elif word.op == 'CAST_INT':
+				program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
+				
+			elif word.op == 'CAST_PTR':
+				program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
+				
+			elif word.op == 'CAST_BOOL':
+				program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
 				
 			else:
 				program_error(word, f"unreckognized word '{word.op}'")

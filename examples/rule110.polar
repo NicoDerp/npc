@@ -12,7 +12,7 @@ macro rule110
   
   0 while dup width 2 - < do
     0 while dup width < do
-      dup mem + , 1 = if
+      dup mem + , cast(bool) if
         dup mem + width + '*' .
         // Write '*' to stdout
         //1 mem 102 + 1 1 syscall3
