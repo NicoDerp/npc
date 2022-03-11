@@ -448,15 +448,6 @@ def not_enough_arguments(word):
 def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
-def format_stack(stack):
-	for typ, word in stack:
-		if word.type == 'CONST':
-			yield f'{word.pos()}: `{typ}` from `pushing {word.value}`'
-		elif word.type == 'WORD':
-			yield f'{word.pos()}: `{typ}` from word `{word.op}`'
-		else:
-			print('unknown')
-
 def typecheck_program(words):
 	stack: List[Tuple[String, Word]] = []
 	block_stack: List[Tuple[List[Tuple[String, Word]], Keyword]] = []
@@ -827,6 +818,11 @@ def typecheck_program(words):
 						program_note(word, f'actual types: {actual_types}')
 						exit(1)
 
+				else:
+					program_error_(word, 'invalid previous block type')
+					program_note(block_type, 'located here')
+					exit(1)
+
 			elif word.op == 'MACRO':
 				program_error(word, f"there shouldn't be a macro keyword here. It's probably a bug in the preprocessing")
 
@@ -843,8 +839,16 @@ def typecheck_program(words):
 			
 	if len(stack) != 0:
 		program_error_(word, "unhandled data on the stack")
-		program_note(word, 'Stack at end of code:')
-		[print(x) for x in format_stack(stack)]
+		program_note(word, "Stack at end of code:")
+		for typ, word in stack:
+			program_note(word, typ)
+		exit(1)
+
+	if len(block_stack) != 0:
+		program_error_(word, "unhandled data on the block_stack")
+		program_note(word, "Block_stack at end of code:")
+		for s, word in block_stack:
+			program_note(word, "...")
 		exit(1)
 
 def generate_program(words):
