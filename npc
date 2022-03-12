@@ -193,6 +193,12 @@ def parse_token(tok):
 	elif tok.token == 'band':
 		return Word('BINARY_AND', tok)
 
+	elif tok.token == 'lor':
+		return Word('LOGICAL_OR', tok)
+
+	elif tok.token == 'land':
+		return Word('LOGICAL_AND', tok)
+
 	elif tok.token == 'shl':
 		return Word('SHIFT_LEFT', tok)
 
@@ -575,10 +581,10 @@ def typecheck_program(words):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				if a_type != 'INT' or b_type != 'INT':
+				if a_type == 'INT' and b_type == 'INT':
+					stack.append(('INT', word))
+				else:
 					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
-				
-				stack.append(('INT', word))
 
 			elif word.op == 'BINARY_AND':
 				if len(stack) < 2:
@@ -587,11 +593,30 @@ def typecheck_program(words):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				if a_type != 'INT' or b_type != 'INT':
-					invalid_arguments(word, '`INT` and `INT`', '`{a_type}` and `{b_type}`')
-									  
-				stack.append(('INT', word))
+				if a_type == 'INT' and b_type == 'INT':
+					stack.append(('INT', word))
+				else:
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
 
+			elif word.op == 'LOGICAL_OR':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				stack.append(('BOOL', word))
+
+			
+			elif word.op == 'LOGICAL_AND':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				stack.append(('BOOL', word))
+				
 			elif word.op == 'SHIFT_LEFT':
 				if len(stack) < 2:
 					not_enough_arguments(word)
@@ -643,8 +668,8 @@ def typecheck_program(words):
 
 				a_type, a_loc = stack.pop()
 
-				if a_type != 'INT':
-					invalid_arguments(word, '`INT`', f'`{a_type}`')
+				#if a_type != 'INT':
+				#	invalid_arguments(word, '`INT`', f'`{a_type}`')
 
 			elif word.op == 'DROP':
 				if len(stack) < 1:
@@ -771,7 +796,7 @@ def typecheck_program(words):
 					not_enough_arguments(word)
 
 				a_type, a_loc = stack.pop()
-
+				
 				if a_type == 'PTR':
 					invalid_arguments(word, '`INT` or `BOOL`', 'PTR')
 
@@ -1024,6 +1049,38 @@ dump:
 				code += '    pop     rbx\n'
 				code += '    and     rbx, rax\n'
 				code += '    push    rbx\n'
+
+			elif word.op == 'LOGICAL_OR':
+				code += '\n    ;; -- LOGICAL_OR -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rbx\n'
+				code += '    xor     rcx, rcx\n'
+				code += '    mov     rdx, 1\n'
+				code += '    cmp     rax, 0\n'
+				code += '    cmovne  rcx, rdx\n'
+				code += '    cmp     rbx, 0\n'
+				code += '    cmovne  rcx, rdx\n'
+				code += '    push    rcx\n'
+
+			elif word.op == 'LOGICAL_AND':
+				while len(depthCounters) <= labelDepth:
+					depthCounters.append(Depth(labelDepth))
+
+				label1 = depthCounters[labelDepth].nextLabel()
+				label2 = depthCounters[labelDepth].nextLabel()
+				code +=  '\n    ;; -- LOGICAL_AND -- ;;\n'
+				code +=  '    pop     rax\n'
+				code +=  '    pop     rbx\n'
+				code +=  '    test    rax, rax\n'
+				code += f'    jnz     {label1}\n'
+				code +=  '    push    0\n'
+				code += f'    jmp     {label2}\n'
+				code += f'{label1}:\n'
+				code +=  '    mov     rcx, 1\n'
+				code +=  '    test    rbx, rbx\n'
+				code +=  '    cmovne  rdx, rcx\n'
+				code +=  '    push    rdx\n'
+				code += f'{label2}:\n'
 				
 			elif word.op == 'SHIFT_LEFT':
 				code += '\n    ;; -- SHIFT_LEFT -- ;;\n'
@@ -1225,6 +1282,7 @@ dump:
 				label = depthCounters[labelDepth].label()
 				code += '\n;; -- END -- ;;\n'
 				if depthCounters[labelDepth].loop:
+					depthCounters[labelDepth].loop = False
 					depthCounters[labelDepth].counter -= 2
 					while_label = depthCounters[labelDepth].label()
 					depthCounters[labelDepth].counter += 2
