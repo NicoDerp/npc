@@ -126,6 +126,10 @@ end
 
 // ... argv[1] argv[0] argc
 
+//dump dump dump dump dump
+
+//0 exit
+
 //drop
 
 //while dup 0 > do
@@ -134,12 +138,8 @@ end
 //  1 -
 //end
 
-6 25 land dump
-
-0 exit
-
-OP_PUSH_INT 127 push_op
-OP_PUSH_INT 127 push_op
+OP_PUSH_INT 48 push_op
+OP_PUSH_INT 12 push_op
 OP_PLUS     0  push_op
 OP_DUMP     0  push_op
 

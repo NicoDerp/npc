@@ -294,6 +294,9 @@ def parse_token(tok):
 
 	elif tok.token == 'macro':
 		return Keyword('MACRO', tok)
+
+	elif tok.token == 'memory':
+		return Keyword('MEMORY', tok)
 	
 	else:
 		if '\'' in tok.token or '\"' in tok.token:
@@ -383,7 +386,7 @@ def pretty_print_word(word):
 	else:
 		print(f'Unknown {word.type}')
 	
-def preprocess(words, args, includes=0, expansions=0, macros={}):
+def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}):
 	while True:
 		try:
 			word = next(words)
@@ -420,6 +423,10 @@ def preprocess(words, args, includes=0, expansions=0, macros={}):
 				program_note(macros[name.name][1], f"the first definition is located here")
 				exit(1)
 
+			if name.name in memories.keys():
+				program_error_(word, f"redefinition of already existing memory `{name.name}`")
+				program_note(memory[name.name][1], f"the first definition is located here")
+				exit(1)
 				
 			while True:
 				try:
@@ -443,16 +450,96 @@ def preprocess(words, args, includes=0, expansions=0, macros={}):
 			macros[name.name] = (body, word)
 			
 		elif word.type == 'MACRO_CALL':
-			if word.name not in macros.keys():
+			if word.name in macros.keys():
+				for w in macros[word.name][0]:
+					yield w
+
+			elif word.name in memories.keys():
+				#yield memories[word.name][0]
+				yield Const("MEMORY_OFFSET", memories[word.name][0], word)
+			
+			else:
 				program_error_(word, f"macro `{word.name}` does not exist or is used inside it's definition")
 				exit(1)
 				
-			for w in macros[word.name][0]:
-				yield w
-				
-			# Sneaky hack. Insert macro words first
-			#words = (x for x in (macros[word.name].body + list(words)))
+		elif word.type == 'KEYWORD' and word.op == 'MEMORY':
+			try:
+				name = next(words)
+			except StopIteration:
+				program_error(word, "memory definition is missing end")
 
+			if name.type != 'MACRO_CALL':
+				program_error(name, f"wrong type for memory name. Expected `MACRO_CALL`, but got `{name.type}")
+			
+			if name.name in memories.keys():
+				program_error_(word, f"redefinition of already existing memory `{name.name}`")
+				program_note(memories[name.name][1], f"the first definition is located here")
+				exit(1)
+
+			if name.name in macros.keys():
+				program_error_(word, f"redefinition of already existing macro `{name.name}`")
+				program_note(macros[name.name][1], f"the first definition is located here")
+				exit(1)
+
+			stack = []
+				
+			while True:
+				try:
+					w = next(words)
+				except StopIteration:
+					program_error(word, "memory is missing end")
+					
+				if w.type == 'KEYWORD':
+					if w.op == 'END':
+						break
+					else:
+						program_error_(w, "keywords are not allowed in memory reservation")
+						program_note(word, "memory definition")
+						exit(1)
+				elif w.type == 'CONST':
+					if w.value_type == 'INT':
+						stack.append(w.value)
+					elif w.value_type == 'STRING':
+						program_error_(w, "strings are not allowed in memory reservation")
+						program_note(word, "memory definition")
+						exit(1)
+					elif w.value_type == 'CHARACTER':
+						program_error_(w, "characters are not allowed in memory reservation")
+						program_note(word, "memory definition")
+						exit(1)
+					else:
+						program_error(w, "shouldn't get here??")
+				elif w.type == 'WORD':
+					if w.op == 'ADD':
+						if len(stack) < 2:
+							not_enough_arguments(w)
+						a = stack.pop()
+						b = stack.pop()
+						stack.append(a+b)
+					elif w.op == 'MULT':
+						if len(stack) < 2:
+							not_enough_arguments(w)
+						a = stack.pop()
+						b = stack.pop()
+						stack.append(a*b)
+					else:
+						program_error_(w, "only addition and multiplication are allowed in memory reservation")
+						program_note(word, "memory definition")
+						exit(1)
+				else:
+					program_error_(w, "{w.type} is not allowed in memory reservation")
+					program_note(word, "memory definition")
+					exit(1)
+					
+			if len(stack) > 1:
+				program_error(word, "more than one number in stack")
+
+			if len(stack) == 0:
+				program_error(word, "no size spesified")
+
+			#print("Memory size reserved:", stack[0])
+
+			memories[name.name] = [stack[0], word]
 			
 		else:
 			yield word
@@ -484,6 +571,9 @@ def typecheck_program(words):
 			elif word.value_type == 'CHAR':
 				stack.append(('INT', word))
 
+			elif word.value_type == 'MEMORY_OFFSET':
+				stack.append(('PTR', word))
+				
 			else:
 				program_error(word, f"unknown const type `{word.value_type}`")
 
@@ -1025,6 +1115,12 @@ dump:
 				code +=  '\n    ;; -- CONST CHAR -- ;;\n'
 				code += f'    push    {word.value}\n'
 
+			elif word.value_type == 'MEMORY_OFFSET':
+				code +=  '\n    ;; -- CONST MEMORY PTR -- ;;\n'
+				code += f'    mov     rax, mem\n'
+				code += f'    add     rax, {word.value}\n'
+				code +=  '    push    rax\n'
+				
 			else:
 				program_error(word, f"unknown const type '{word.value_type}'")
 				
@@ -1330,7 +1426,7 @@ dump:
 	code += '\nsection .text\n'
 	
 	for data in dataLabels:
-		data_bytes = ','.join(map(hex, bytes(data['data'], 'utf-8')))
+		data_bytes = ','.join(map(hex, bytes(data['data'], 'utf-8')))	
 		code += f'{data["label"]}:\n'
 		code += f'    db      {data_bytes}\n'
 	

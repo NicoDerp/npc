@@ -11,10 +11,18 @@ macro puts
   STDIO write
 end
 
+// ptr i
 macro strlen
   0 while 2dup + , 0 > do
     1 +
-  end swap drop
+  end
+  // swap
+  // drop
+end
+
+// ptr
+macro cstr-to-str
+  strlen swap
 end
 
 // ptr2 ptr1
