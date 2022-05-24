@@ -126,13 +126,15 @@ end
 
 // ... argv[1] argv[0] argc
 
-drop
+//drop
 
-while dup 0 > do
-  swap dup strlen swap puts
-  "\n" puts
-  1 -
-end
+//while dup 0 > do
+//  swap dup strlen swap puts
+//  "\n" puts
+//  1 -
+//end
+
+6 25 land dump
 
 0 exit
 
@@ -145,3 +147,4 @@ OP_DUMP     0  push_op
 dump_ops
 "Assembly:\n\n" puts
 compile_ops
+
