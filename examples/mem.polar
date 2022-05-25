@@ -1,10 +1,17 @@
 
-mem 0 + 97 .
-mem 1 + 98 .
-mem 2 + 99 .
+// Reserve 1 byte for a, b and c
+memory a 1 end
+memory b 1 end
+memory c 1 end
 
-mem 0 + , dump
-mem 1 + , dump
-mem 2 + , dump
+// Write 79, 60 and 255 to a, b and c
+a 79 .
+b 60 .
+c 255 .
+
+// Read the values and print them one by one
+a , dump
+b , dump
+c , dump
 
 

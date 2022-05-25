@@ -1,16 +1,31 @@
 
-// Write 'abc' into the memory
-mem 0 + 97 .
-mem 1 + 98 .
-mem 2 + 99 .
+// Reserve space for 3 characters
+memory txt 3 end
 
-3 mem 1 1 syscall3 // Write to stdout
+// Write 'abc' into the memory (97, 98, 99)
+txt 0 + 97 .
+txt 1 + 98 .
+txt 2 + 99 .
 
-// Add all characters with 1: bcd
-mem 0 + mem 0 + , 1 + .
-mem 1 + mem 1 + , 1 + .
-mem 2 + mem 2 + , 1 + .
-  
-3 mem 1 1 syscall3 // Write to stdout
+// Newline at the end
+txt 3 + 10 .
 
-0 60 syscall1 // Exit (not actually needed)
+4 txt 1 1 syscall3 // Write to stdout
+
+// Add 1 to all characters
+0 while dup 3 < do
+  // Duplicate txt+index to save one for later
+  dup txt + dup
+
+  // Read the character and increment it
+  , 1 +
+
+  // Store it
+  .
+
+  // Increment the index
+  1 +
+end drop // Drop the index
+
+4 txt 1 1 syscall3 // Write to stdout
+
