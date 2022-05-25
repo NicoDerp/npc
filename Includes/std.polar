@@ -7,6 +7,10 @@ macro exit  60   syscall1 end
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
 
+memory memcpy_src 8 end
+memory memcpy_dst 8 end
+memory memcpy_size 8 end
+
 macro puts
   STDIO write
 end

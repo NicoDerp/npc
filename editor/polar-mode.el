@@ -42,7 +42,7 @@
 
 (eval-and-compile
   (defconst polar-keywords
-    '("if" "else" "while" "do" "include" "macro" "end" "in")))
+    '("if" "else" "while" "do" "include" "macro" "end" "in" "memory")))
 
 (defconst polar-highlights
   `((,(regexp-opt polar-keywords 'symbols) . font-lock-keyword-face)))

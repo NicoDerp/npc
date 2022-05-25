@@ -1,45 +1,46 @@
 // [                    ] [                    ]
 //        0 - 99                100 - 200
 
-macro width 300 end
+macro width 500 end
+
+memory nums width end
+memory chars width end
 
 macro rule110
   // Write '\n' to mem 200
-  mem width width + + '\n' .
+  chars width + '\n' .
   
   // Start with a single dot
-  mem width 2 - + 1 .
+  nums width + 2 - 1 .
   
   0 while dup width 2 - < do
     0 while dup width < do
-      dup mem + , cast(bool) if
-        dup mem + width + '*' .
-        // Write '*' to stdout
-        //1 mem 102 + 1 1 syscall3
+      dup nums + , cast(bool) if
+        dup chars + '*' .
       else
-        dup mem + width + ' ' .
-        // Write ' ' to stdout
-        //1 mem 101 + 1 1 syscall3
+        dup chars + ' ' .
       end
       1 +
     end drop
-  
+
     // Write all characters to stdout, the last is '\n'
-    width 1 + mem width +
+    // count   ptr
+    width 1 + chars
     1 1 syscall3
-  
+
     // (*mem << 1) | (*(mem + 1))
     // pattern
-    mem , 1 shl mem 1 + , bor
+    nums , 1 shl nums 1 + , bor
     // (pattern stuff) j (mem + j) (110 >> (((pattern << 1) & 7) | *(mem + j + 1)))
+
+    // j (pattern-stuff) (nums+j)
     1 while dup width 2 - < do
       swap
       1 shl 7 band
-      swap over mem + 1 + , bor
-      over
-      swap over mem + swap
-      110 swap shr 1 band .
-      1 +
+      over nums + 1 + , bor
+      over nums +
+      over 110 swap shr 1 band .
+      swap 1 +
     end drop drop
     1 +
   end drop

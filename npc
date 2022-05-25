@@ -459,8 +459,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 				yield Const("MEMORY_OFFSET", memories[word.name], word)
 			
 			else:
-				program_error_(word, f"macro `{word.name}` does not exist or is used inside it's definition")
-				exit(1)
+				program_error(word, f"macro or memory `{word.name}` does not exist or is used inside it's definition")
 				
 		elif word.type == 'KEYWORD' and word.op == 'MEMORY':
 			try:
@@ -509,6 +508,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 						exit(1)
 					else:
 						program_error(w, "shouldn't get here??")
+
 				elif w.type == 'WORD':
 					if w.op == 'ADD':
 						if len(stack) < 2:
@@ -526,11 +526,32 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 						program_error_(w, "only addition and multiplication are allowed in memory reservation")
 						program_note(word, "memory definition")
 						exit(1)
+
+				elif w.type == 'MACRO_CALL':
+					if w.name in macros.keys():
+						# TODO: preprocess maybe
+						m = macros[w.name]
+						if len(m[0]) != 1:
+							program_error_(w, "only macros with an integer constant are currently allowed inside a memory reservation")
+							program_note(m[1], "macro definition")
+							exit(1)
+						o = m[0][0]
+						if o.type != 'CONST' or o.type == 'CONST' and o.value_type != 'INT':
+							program_error_(w, "only macros with an integer constant are currently allowed inside a memory reservation")
+							program_note(m[1], "macro definition")
+							program_note(o, "not const")
+							exit(1)
+						stack.append(o.value)
+					elif w.name in memories.keys():
+						stack.append(memories[w.name][0])
+					else:
+						program_error(word, f"macro or memory `{word.name}` does not exist or is used inside it's definition")
+						
 				else:
-					program_error_(w, "{w.type} is not allowed in memory reservation")
+					program_error_(w, "illegal type in memery reservation")
 					program_note(word, "memory definition")
 					exit(1)
-					
+						
 			if len(stack) > 1:
 				program_error(word, "more than one number in stack")
 
@@ -976,6 +997,8 @@ def typecheck_program(words):
 				block_stack.append((stack.copy(), word))
 				
 			elif word.op == 'END':
+				if len(block_stack) == 0:
+					program_error(word, 'end has no block')
 				expected_stack, block_type = block_stack.pop()
 				expected_types = list(map(lambda x: x[0], expected_stack))
 				actual_types = list(map(lambda x: x[0], stack))
