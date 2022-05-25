@@ -386,7 +386,7 @@ def pretty_print_word(word):
 	else:
 		print(f'Unknown {word.type}')
 	
-def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}):
+def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=0):
 	while True:
 		try:
 			word = next(words)
@@ -404,7 +404,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}):
 			if not os.path.exists(fileName):
 				program_error(inc, f"couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 			
-			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes+1, expansions, macros):
+			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes+1, expansions, macros, memories, memOffset):
 				yield w
 
 		elif word.type == 'KEYWORD' and word.op == 'MACRO':
@@ -445,7 +445,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}):
 
 				body.append(w)
 
-			body = list(preprocess((x for x in body), args, includes, expansions+1, macros))
+			body = list(preprocess((x for x in body), args, includes, expansions+1, macros, memories, memOffset))
 				
 			macros[name.name] = (body, word)
 			
@@ -456,7 +456,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}):
 
 			elif word.name in memories.keys():
 				#yield memories[word.name][0]
-				yield Const("MEMORY_OFFSET", memories[word.name][0], word)
+				yield Const("MEMORY_OFFSET", memories[word.name], word)
 			
 			else:
 				program_error_(word, f"macro `{word.name}` does not exist or is used inside it's definition")
@@ -538,8 +538,10 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}):
 				program_error(word, "no size spesified")
 
 			#print("Memory size reserved:", stack[0])
-
-			memories[name.name] = [stack[0], word]
+			
+			size = stack.pop()
+			memories[name.name] = [size, memOffset]
+			memOffset += size
 			
 		else:
 			yield word
@@ -911,8 +913,8 @@ def typecheck_program(words):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				if a_type != 'INT' or b_type != 'PTR':
-					invalid_arguments(word, '`INT` and `PTR`', f'`{a_type}` and `{b_type}`')
+				if b_type != 'PTR':
+					invalid_arguments(word, '`?` and `PTR`', f'`{a_type}` and `{b_type}`')
 				
 			
 			else:
@@ -1090,6 +1092,7 @@ dump:
 	# depth: 2
 	depthCounters = []
 	labelDepth = 0
+	memReserved = 0
 	while True:
 		try:
 			word = next(words)
@@ -1104,7 +1107,7 @@ dump:
 				#code +=  '    push    rax\n'
 
 			elif word.value_type == 'STR':
-				label = 'D' + str(len(dataLabels))
+				label = 'str_' + str(len(dataLabels))
 				dataLabels.append({'label': label, 'data': word.value})
 				size = len(word.value)
 				code +=  '\n    ;; -- CONST STR -- ;;\n'
@@ -1116,10 +1119,14 @@ dump:
 				code += f'    push    {word.value}\n'
 
 			elif word.value_type == 'MEMORY_OFFSET':
+				size = word.value[0]
+				offset = word.value[1]
 				code +=  '\n    ;; -- CONST MEMORY PTR -- ;;\n'
 				code += f'    mov     rax, mem\n'
-				code += f'    add     rax, {word.value}\n'
+				code += f'    add     rax, {offset}\n'
 				code +=  '    push    rax\n'
+				memReserved = max(memReserved, size+offset)
+				# mems[name] = size
 				
 			else:
 				program_error(word, f"unknown const type '{word.value_type}'")
@@ -1261,9 +1268,9 @@ dump:
 				code += '\n    ;; -- OVER -- ;;\n'
 				code += '    pop     rax\n'
 				code += '    pop     rcx\n'
-				code += '    push    rax\n'
 				code += '    push    rcx\n'
 				code += '    push    rax\n'
+				code += '    push    rcx\n'
 
 			elif word.op == 'ROT':
 				code += '\n    ;; -- ROT -- ;;\n'
@@ -1419,17 +1426,17 @@ dump:
 
 	code += '    ret\n'
 	
-	code += '\nsection .bss\n'
-	code += 'mem:\n'
-	code += '    resb    4096\n'
-
-	code += '\nsection .text\n'
+	code += '\nsegment .data\n'
 	
 	for data in dataLabels:
 		data_bytes = ','.join(map(hex, bytes(data['data'], 'utf-8')))	
 		code += f'{data["label"]}:\n'
 		code += f'    db      {data_bytes}\n'
-	
+
+	code +=  'segment .bss\n'
+	code +=  'mem:\n'
+	code += f'    resb    {memReserved}\n'
+		
 	return code
 		
 def main():

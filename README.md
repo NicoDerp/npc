@@ -17,8 +17,8 @@ Polar is planned to
 - [x] Have better type-checking
 
 ## Features
-- [x] Support strings and characters
 - [x] Inline functions or macros
+- [x] Support strings and characters
 - [x] Support includes
 
 ## Examples
@@ -111,6 +111,7 @@ Newlines inside strings are not allowed. Special characters (like newlines) are 
 - `\\` - backslash
 - `\"` - double quote
 - `\'` - single quote
+- '\0' - a zero number
 
 When the compiler encounters a string:
 1. The size of the string is pushed onto the stack
@@ -148,12 +149,12 @@ This program will write the integer `69` to stdout. This is because the ASCII co
 
 | Name | Signature | Description |
 |------|:----------|-------------|
-| `dup`  | `a -- a a`     | duplicate the top element of the stack |
-| `swap` | `a b -- b a`   | swap the top two elements of the stack |
-| `drop` | `a b -- a`     | drops the top element of the stack     |
-| `dump` | `a b -- a`     | write the top element of the stack to stdout |
-| `over` | `a b -- a b a` | duplicated the second element of the stack |
-| `rot`  | `a b c -- b c a` | rotates the top three elements of the stacj |
+| `dup`  | `a -- a a`       | duplicate the top element of the stack        |
+| `swap` | `a b -- b a`     | swap the top two elements of the stack        |
+| `drop` | `a b -- a`       | drops the top element of the stack            |
+| `dump` | `a b -- a`       | write the top element of the stack to stdout  |
+| `over` | `a b -- a b a`   | duplicated the second element of the stack    |
+| `rot`  | `a b c -- b c a` | rotates the top three elements of the stack   |
 
 #### Comparison
 
@@ -174,18 +175,18 @@ This program will write the integer `69` to stdout. This is because the ASCII co
 
 #### Bitwise
 
-| Name | Signature | Description |
-|------|:----------|-------------|
+|  Name  | Signature | Description |
+|--------|:----------|-------------|
 | `shr`  | `[a: int] [b: int] -- [a >> b: int]` | right unsigned bit shift |
-| `shl` | `[a: int] [b: int] -- [a << b: int]`  | left unsigned bit shift |
-| `bor` | `[a: int] [b: int] -- [a | b: int]`   | bit `or` |
+| `shl`  | `[a: int] [b: int] -- [a << b: int]` | left unsigned bit shift |
+| `bor`  | `[a: int] [b: int] -- [a | b: int]`  | bit `or` |
 | `band` | `[a: int] [b: int] -- [a & b: int]`  | bit `and` |
 
 #### Memory
 
 | Name | Signature | Description |
 |------|:----------|-------------|
-| `mem`| `-- [mem: int]`              | pushes memory location on top of the stack     |
+| `mem`| `-- [mem: ptr]`              | pushes memory location on top of the stack     |
 | `,`  | `[loc: int] -- [byte: int]`  | read a byte from location in memory            |
 | `.`  | `[loc: int] [byte: int] --`  | store byte into location in memory             |
 | `,64`| `[loc: int] -- [byte: int]`  | read an 8-byte word from a location in memory  |

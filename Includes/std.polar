@@ -46,3 +46,27 @@ macro cstreq
   // If they both are zero they are the same
   , swap , land
 end
+
+// count ptr num
+macro format
+  rot rot
+  puts dump
+end
+
+// size src dst
+macro memcpy
+  memcpy_dst swap .64
+  memcpy_src swap .64
+  memcpy_size swap .64
+
+  // i (i+*mem_dst) *(i+*src)
+  0 while dup memcpy_size ,64 < do
+    dup memcpy_dst ,64 + cast(ptr)
+    over memcpy_src ,64 + cast(ptr) ,
+    .
+    1 +
+    //memcpy_size ,64 dump
+  end drop
+end
+
+
