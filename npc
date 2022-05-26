@@ -1,10 +1,10 @@
 #!/usr/bin/python3
 
-# rework branch
-
 import sys, os, re
 import subprocess
 import time
+import warnings
+
 
 # Help message
 help_message ="""\
@@ -18,6 +18,8 @@ Options:
   --unsafe     Disable type-checking
   --help       Display this information and exit"""
 
+# To catch DeprecationWarning
+warnings.filterwarnings("error")
 
 class Arguments:
 	def __init__(self):
@@ -136,7 +138,7 @@ def lex_file(source_file):
 	with open(source_file, 'r') as infile:
 		# Comments!
 		lines = [line.split('//', 1)[0] for line in infile.readlines()]
-		matches = [((token.start(), token.group()) for token in re.finditer(r"\"(.+?)\"|'(.+?)'|\S+", line)) for line in lines]
+		matches = [((token.start(), token.group()) for token in re.finditer(r"\"((.|\")+)\"|'(.+?)'|\S+", line)) for line in lines]
 		
 	for row, i in enumerate(matches):
 		for col, tok in i:
@@ -152,18 +154,21 @@ def parse_string(tok):
 	# Not a quote (shouldn't occur)
 	if not quote in '\'"':
 		program_error(tok, f"unclosed string literal `{tok.token}`")
-
+		
 	# Two different quotes
 	if quote != tok.token[-1]:
 		program_error(tok, f"unclosed string literal `{tok.token}`")
 	
 	# Remove quotes
 	s = tok.token[1:-1]
-
+	
 	# For escaped stuff, convert to bytes, then back again
 	bytes_string = bytes(s, 'utf-8')
-	s = bytes_string.decode('unicode_escape')
-
+	try:
+		s = bytes_string.decode('unicode_escape')
+	except (UnicodeDecodeError, DeprecationWarning):
+		program_error(tok, "invalid escape sequence in string")
+		
 	# String
 	if quote == '"':
 		return Const('STR', s, tok)
