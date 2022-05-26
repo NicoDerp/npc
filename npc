@@ -138,7 +138,7 @@ def lex_file(source_file):
 	with open(source_file, 'r') as infile:
 		# Comments!
 		lines = [line.split('//', 1)[0] for line in infile.readlines()]
-		matches = [((token.start(), token.group()) for token in re.finditer(r"\"((.|\")+)\"|'(.+?)'|\S+", line)) for line in lines]
+		matches = [((token.start(), token.group()) for token in re.finditer(r"\"((.|\\.)+?)\"|'(.+?)'|\S+", line)) for line in lines]
 		
 	for row, i in enumerate(matches):
 		for col, tok in i:
@@ -161,6 +161,9 @@ def parse_string(tok):
 	
 	# Remove quotes
 	s = tok.token[1:-1]
+
+	print(tok.token)
+	print(s)
 	
 	# For escaped stuff, convert to bytes, then back again
 	bytes_string = bytes(s, 'utf-8')
