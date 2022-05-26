@@ -400,7 +400,9 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			break
 
 		if word.type == 'KEYWORD' and word.op == 'PROC':
-			insideProc = True
+			insideProc = 1
+		if insideProc == 2 and word.type == 'KEYWORD' and word.op == 'END':
+			insideProc = 0
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			if includes >= 5:
 				program_error(next(words), f"recursive include limit reached: `{includes}`")
@@ -419,7 +421,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			if expansions >= 5:
 				program_error(next(words), f"recursive expansions limit reached: `{expansions}`")
 
-			if insideProc:
+			if insideProc == 2:
 				program_error(word, "macro definition is not allowed inside procedure")
 
 			body = []
@@ -462,7 +464,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			
 		elif word.type == 'MACRO_CALL':
 			if insideProc == 1:
-				insideProc == 2
+				insideProc = 2
 				yield word
 				continue
 			
@@ -473,9 +475,9 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			elif word.name in memories.keys():
 				#yield memories[word.name][0]
 				yield Const("MEMORY_OFFSET", memories[word.name], word)
-			
 			else:
-				program_error(word, f"macro or memory `{word.name}` does not exist or is used inside it's definition")
+				yield word
+				continue
 				
 		elif word.type == 'KEYWORD' and word.op == 'MEMORY':
 			try:
@@ -1501,12 +1503,28 @@ dump:
 			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
 
 		elif word.type == 'MACRO_CALL':
-			program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
+			if word.name not in procs.keys():
+				program_error(word, "procedure doesn't exist")
+			code +=  '\n;; -- PROCEDURE -- ;;\n'
+			code += f'    call proc_{word.name}'
+			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 			
 		else:
 			program_error(word, f"unreckognized word type: '{word.type}'")
 
 	code += '    ret\n'
+
+	# TODO:
+	# How to generate body??
+	# Can't really call generate_program again
+	# It will be recursive and add so much
+	# other stuff that I can't have there
+	# Maybe move word code generation to another function??
+	# Like generate_ops(words)
+	# Could def work
+	for name in procs:
+		body, w = procs[name]
+		assert False, "under construction"
 	
 	code += '\nsegment .data\n'
 	
@@ -1559,7 +1577,7 @@ def main():
 	start_compile = time.time()
 	
 	# Compiling
-	code = generate_program(words)
+	code = generate_program(words, procs)
 
 	end_compile = time.time()
 
