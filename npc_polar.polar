@@ -121,7 +121,7 @@ macro compile_ops
   "\n    ret\n"		puts
   "\nsegment .bss\n"	puts
   "mem:\n"		puts
-  "    resb    "	puts MEM_CAPACITY dump "aa" puts
+  "    resb    "	puts MEM_CAPACITY dump
 end
 
 // ... argv[1] argv[0] argc

@@ -161,9 +161,6 @@ def parse_string(tok):
 	
 	# Remove quotes
 	s = tok.token[1:-1]
-
-	print(tok.token)
-	print(s)
 	
 	# For escaped stuff, convert to bytes, then back again
 	bytes_string = bytes(s, 'utf-8')
