@@ -5,8 +5,8 @@ macro OP_PUSH_INT 1 end
 macro OP_PLUS     2 end
 macro OP_DUMP     3 end
 
-macro op-count mem          end
-macro op-start op-count 8 + end
+memory op-count 8 end
+memory op-start 256 end
 
 macro sizeof(Op) 16 end
 
@@ -16,6 +16,7 @@ macro sizeof(Op) 16 end
 
 macro inc64 dup , 1 + . end
 
+// n op (count*size)
 macro push_op
   swap
   op-count , sizeof(Op) * op-start +
@@ -119,6 +120,8 @@ macro compile_ops
     1 +
   end drop
   "\n    ret\n"		puts
+  "\nsegment .data\n"   puts
+  // strings here
   "\nsegment .bss\n"	puts
   "mem:\n"		puts
   "    resb    "	puts MEM_CAPACITY dump
