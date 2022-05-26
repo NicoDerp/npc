@@ -178,144 +178,144 @@ def parse_string(tok):
 		program_error(tok, f"only a single byte is allowed inside a character literal")
 
 	return Const('CHAR', hex(ord(s)), tok)
-
-def parse_token(tok):	
-	if tok.token == '+':
-		return Word('ADD', tok)
-
-	elif tok.token == '-':
-		return Word('SUB', tok)
-
-	elif tok.token == '*':
-		return Word('MULT', tok)
-
-	elif tok.token == '/':
-		return Word('DIV', tok)
-
-	elif tok.token == 'bor':
-		return Word('BINARY_OR', tok)
-
-	elif tok.token == 'band':
-		return Word('BINARY_AND', tok)
-
-	elif tok.token == 'lor':
-		return Word('LOGICAL_OR', tok)
-
-	elif tok.token == 'land':
-		return Word('LOGICAL_AND', tok)
-
-	elif tok.token == 'shl':
-		return Word('SHIFT_LEFT', tok)
-
-	elif tok.token == 'shr':
-		return Word('SHIFT_RIGHT', tok)
-	
-	elif tok.token == 'dump':
-		return Word('DUMP', tok)
-
-	elif tok.token == '=':
-		return Word('EQU', tok)
-
-	elif tok.token == '!=':
-		return Word('NOT_EQU', tok)
-
-	elif tok.token == 'dup':
-		return Word('DUP', tok)
-
-	elif tok.token == '2dup':
-		return Word('2DUP', tok)
-	
-	elif tok.token == 'swap':
-		return Word('SWAP', tok)
-
-	elif tok.token == 'drop':
-		return Word('DROP', tok)
-
-	elif tok.token == 'over':
-		return Word('OVER', tok)
-
-	elif tok.token == 'rot':
-		return Word('ROT', tok)
-	
-	elif tok.token == '>':
-		return Word('GREATER_THAN', tok)
-
-	elif tok.token == '<':
-		return Word('LESS_THAN', tok)
-
-	elif tok.token == 'mem':
-		return Word('MEM', tok)
-
-	elif tok.token == ',':
-		return Word('LOAD', tok)
-
-	elif tok.token == '.':
-		return Word('STORE', tok)
-
-	elif tok.token == ',64':
-		return Word('LOAD64', tok)
-	
-	elif tok.token == '.64':
-		return Word('STORE64', tok)
-
-	elif tok.token == 'syscall1':
-		return Word('SYSCALL1', tok)
-	
-	elif tok.token == 'syscall3':
-		return Word('SYSCALL3', tok)
-
-	elif tok.token == 'cast(int)':
-		return Word('CAST_INT', tok)
-
-	elif tok.token == 'cast(ptr)':
-		return Word('CAST_PTR', tok)
-
-	elif tok.token == 'cast(bool)':
-		return Word('CAST_BOOL', tok)
-	
-	elif tok.token == 'fun':
-		return Keyword('FUNCTION', tok)
-
-	elif tok.token == 'in':
-		return Keyword('IN', tok)
-	
-	elif tok.token == 'if':
-		return Keyword('IF', tok)
-
-	elif tok.token == 'else':
-		return Keyword('ELSE', tok)
-
-	elif tok.token == 'end':
-		return Keyword('END', tok)
-	
-	elif tok.token == 'while':
-		return Keyword('WHILE', tok)
-
-	elif tok.token == 'do':
-		return Keyword('DO', tok)
-
-	elif tok.token == 'include':
-		return Keyword('INCLUDE', tok)
-
-	elif tok.token == 'macro':
-		return Keyword('MACRO', tok)
-
-	elif tok.token == 'memory':
-		return Keyword('MEMORY', tok)
-	
-	else:
-		if '\'' in tok.token or '\"' in tok.token:
-			return parse_string(tok)
-		
-		try:
-			return Const('INT', int(tok.token), tok)
-		except ValueError as err:
-			return MacroCall(tok)
-			#program_error(tok, err)
 			
 def parse(tokens):
-	for tok in tokens:
-		yield parse_token(tok)
+	while True:
+		try:
+			tok = next(tokens)
+		except StopIteration:
+			break
+		
+		if tok.token == '+':
+			yield Word('ADD', tok)
+
+		elif tok.token == '-':
+			yield Word('SUB', tok)
+
+		elif tok.token == '*':
+			yield Word('MULT', tok)
+
+		elif tok.token == '/':
+			yield Word('DIV', tok)
+
+		elif tok.token == 'bor':
+			yield Word('BINARY_OR', tok)
+
+		elif tok.token == 'band':
+			yield Word('BINARY_AND', tok)
+
+		elif tok.token == 'lor':
+			yield Word('LOGICAL_OR', tok)
+
+		elif tok.token == 'land':
+			yield Word('LOGICAL_AND', tok)
+
+		elif tok.token == 'shl':
+			yield Word('SHIFT_LEFT', tok)
+
+		elif tok.token == 'shr':
+			yield Word('SHIFT_RIGHT', tok)
+
+		elif tok.token == 'dump':
+			yield Word('DUMP', tok)
+
+		elif tok.token == '=':
+			yield Word('EQU', tok)
+
+		elif tok.token == '!=':
+			yield Word('NOT_EQU', tok)
+
+		elif tok.token == 'dup':
+			yield Word('DUP', tok)
+
+		elif tok.token == '2dup':
+			yield Word('2DUP', tok)
+
+		elif tok.token == 'swap':
+			yield Word('SWAP', tok)
+
+		elif tok.token == 'drop':
+			yield Word('DROP', tok)
+
+		elif tok.token == 'over':
+			yield Word('OVER', tok)
+
+		elif tok.token == 'rot':
+			yield Word('ROT', tok)
+
+		elif tok.token == '>':
+			yield Word('GREATER_THAN', tok)
+
+		elif tok.token == '<':
+			yield Word('LESS_THAN', tok)
+
+		elif tok.token == 'mem':
+			yield Word('MEM', tok)
+
+		elif tok.token == ',':
+			yield Word('LOAD', tok)
+
+		elif tok.token == '.':
+			yield Word('STORE', tok)
+
+		elif tok.token == ',64':
+			yield Word('LOAD64', tok)
+
+		elif tok.token == '.64':
+			yield Word('STORE64', tok)
+
+		elif tok.token == 'syscall1':
+			yield Word('SYSCALL1', tok)
+
+		elif tok.token == 'syscall3':
+			yield Word('SYSCALL3', tok)
+
+		elif tok.token == 'cast(int)':
+			yield Word('CAST_INT', tok)
+
+		elif tok.token == 'cast(ptr)':
+			yield Word('CAST_PTR', tok)
+
+		elif tok.token == 'cast(bool)':
+			yield Word('CAST_BOOL', tok)
+
+		elif tok.token == 'proc':
+			yield Keyword('PROC', tok)
+
+		elif tok.token == 'if':
+			yield Keyword('IF', tok)
+
+		elif tok.token == 'else':
+			yield Keyword('ELSE', tok)
+
+		elif tok.token == 'end':
+			yield Keyword('END', tok)
+
+		elif tok.token == 'while':
+			yield Keyword('WHILE', tok)
+
+		elif tok.token == 'do':
+			yield Keyword('DO', tok)
+
+		elif tok.token == 'include':
+			yield Keyword('INCLUDE', tok)
+
+		elif tok.token == 'macro':
+			yield Keyword('MACRO', tok)
+
+		elif tok.token == 'memory':
+			yield Keyword('MEMORY', tok)
+
+		else:
+			if '\'' in tok.token or '\"' in tok.token:
+				yield parse_string(tok)
+			else:
+				try:
+					yield Const('INT', int(tok.token), tok)
+				except ValueError as err:
+					yield MacroCall(tok)
+			#program_error(tok, err)
+
 	
 def parse_args():
 	argv = (x for x in sys.argv)
@@ -392,13 +392,15 @@ def pretty_print_word(word):
 	else:
 		print(f'Unknown {word.type}')
 	
-def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=0):
+def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=0, insideProc=0):
 	while True:
 		try:
 			word = next(words)
 		except StopIteration:
 			break
-	
+
+		if word.type == 'KEYWORD' and word.op == 'PROC':
+			insideProc = True
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			if includes >= 5:
 				program_error(next(words), f"recursive include limit reached: `{includes}`")
@@ -410,12 +412,15 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			if not os.path.exists(fileName):
 				program_error(inc, f"couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 			
-			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes+1, expansions, macros, memories, memOffset):
+			for w in preprocess((parse(lex_file(fileName))), args, includes+1, expansions, macros, memories, memOffset):
 				yield w
 
 		elif word.type == 'KEYWORD' and word.op == 'MACRO':
 			if expansions >= 5:
 				program_error(next(words), f"recursive expansions limit reached: `{expansions}`")
+
+			if insideProc:
+				program_error(word, "macro definition is not allowed inside procedure")
 
 			body = []
 			depth = 1
@@ -456,6 +461,11 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			macros[name.name] = (body, word)
 			
 		elif word.type == 'MACRO_CALL':
+			if insideProc == 1:
+				insideProc == 2
+				yield word
+				continue
+			
 			if word.name in macros.keys():
 				for w in macros[word.name][0]:
 					yield w
@@ -493,7 +503,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 					w = next(words)
 				except StopIteration:
 					program_error(word, "memory is missing end")
-					
+
 				if w.type == 'KEYWORD':
 					if w.op == 'END':
 						break
@@ -579,10 +589,9 @@ def not_enough_arguments(word):
 def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
-def typecheck_program(words):
+def typecheck_program(words, procs):
 	stack: List[Tuple[String, Word]] = []
 	block_stack: List[Tuple[List[Tuple[String, Word]], Keyword]] = []
-	
 	while True:
 		try:
 			word = next(words)
@@ -1063,7 +1072,50 @@ def typecheck_program(words):
 			program_note(word, "...")
 		exit(1)
 
-def generate_program(words):
+def parseProcedures(words):
+	words_return = []
+	proc_words = []
+	procs = {}
+	while True:
+		try:
+			word = next(words)
+		except StopIteration:
+			break
+
+		if word.type == 'KEYWORD' and word.op == 'PROC':
+			name = next(words)
+			if name.type != 'MACRO_CALL':
+				program_error(name, "procedure name is wrong type")
+			if name.name in procs.keys():
+				program_error_(word, f"redefinition of already existing procedure `{name.name}`")
+				program_note(procs[name.name][1], f"the first definition is located here")
+				exit(1)
+				
+			depth = 1
+			while True:
+				try:
+					w = next(words)
+				except StopIteration:
+					program_error(word, "procedure has no end")
+				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
+			   		depth += 1
+					
+				if w.type == 'KEYWORD' and w.op == 'END':
+					depth -= 1
+
+				if w.type == 'KEYWORD' and w.op == 'PROC':
+					assert False, "local procedures not supported yet"
+					
+				if depth == 0:
+					break
+
+				proc_words.append(w)
+			procs[name.name] = (iter(proc_words), word)
+		else:
+			words_return.append(word)
+	return iter(words_return), procs
+
+def generate_program(words, procs):
 	code =  'section .text\n'
 	code += 'global _start\n'
 
@@ -1493,6 +1545,9 @@ def main():
 	
 	# Preprocess (includes and macro expansion)
 	words = preprocess(words, arguments)
+
+	# Procedures
+	words, procs = parseProcedures(words)
 	
 	# Typechecking
 	if not arguments.unsafe:
