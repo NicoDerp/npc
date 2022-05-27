@@ -398,7 +398,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			word = next(words)
 		except StopIteration:
 			break
-
+		
 		if word.type == 'KEYWORD' and word.op == 'PROC':
 			insideProc = 1
 		if insideProc == 2 and word.type == 'KEYWORD' and word.op == 'END':
@@ -447,7 +447,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 				except StopIteration:
 					program_error(word, '`macro` word is missing `end`')
 				
-				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
+				if w.type == 'KEYWORD' and w.op in ['IF', 'WHILE', 'PROC']:
 					depth += 1
 					
 				if w.type == 'KEYWORD' and w.op == 'END':
@@ -1074,7 +1074,7 @@ def typecheck_program(words, procs):
 			program_note(word, "...")
 		exit(1)
 
-def parseProcedures(words):
+def parse_procs(words):
 	words_return = []
 	proc_words = []
 	procs = {}
@@ -1083,7 +1083,6 @@ def parseProcedures(words):
 			word = next(words)
 		except StopIteration:
 			break
-
 		if word.type == 'KEYWORD' and word.op == 'PROC':
 			name = next(words)
 			if name.type != 'MACRO_CALL':
@@ -1099,6 +1098,7 @@ def parseProcedures(words):
 					w = next(words)
 				except StopIteration:
 					program_error(word, "procedure has no end")
+				
 				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
 			   		depth += 1
 					
@@ -1113,69 +1113,24 @@ def parseProcedures(words):
 
 				proc_words.append(w)
 			procs[name.name] = (iter(proc_words), word)
+		elif word.type == 'MACRO_CALL':
+			if word.name not in procs.keys():
+				program_error(word, "procedure doesn't exist")
+			words_return.append(word)
 		else:
 			words_return.append(word)
 	return iter(words_return), procs
 
-def generate_program(words, procs):
-	code =  'section .text\n'
-	code += 'global _start\n'
-
-	code += f"""\
-BITS 64
-dump:
-    mov     r9, -3689348814741910323
-    sub     rsp, 40
-    mov     BYTE [rsp+31], 10
-    lea     rcx, [rsp+30]
-.L1:
-    mov     rax, rdi
-    lea     r8, [rsp+32]
-    mul     r9
-    mov     rax, rdi
-    sub     r8, rcx
-    shr     rdx, 3
-    lea     rsi, [rdx+rdx*4]
-    add     rsi, rsi
-    sub     rax, rsi
-    add     eax, 48
-    mov     BYTE [rcx], al
-    mov     rax, rdi
-    mov     rdi, rdx
-    mov     rdx, rcx
-    sub     rcx, 1
-    cmp     rax, 9
-    ja      .L1
-    lea     rax, [rsp+32]
-    mov     edi, 1
-    sub     rdx, rax
-    xor     eax, eax
-    lea     rsi, [rsp+32+rdx]
-    mov     rdx, r8
-    mov     rax, 1
-    syscall
-    add     rsp, 40
-    ret
-"""
-	code += '_start:\n'
-
-	# If there is a main function (if there isn't there's a bunch of unused code)
-	#if list(filter(lambda x: x.id == 'main', prog.functions)) == []:
-	#	compilationError("'main' procedure does not exist")
-		
-	code += '    call    _main_\n'
-
-	code += '    xor     rdi, rdi\n'
-	code += '    mov     rax, 60\n'
-	code += '    syscall\n'
-	code += '_main_:\n'
-
+def generate_words(words):
 	dataLabels = []
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
 	# depth: 2
 	depthCounters = []
 	labelDepth = 0
 	memReserved = 0
+
+	code = ""
+	
 	while True:
 		try:
 			word = next(words)
@@ -1503,28 +1458,85 @@ dump:
 			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
 
 		elif word.type == 'MACRO_CALL':
-			if word.name not in procs.keys():
-				program_error(word, "procedure doesn't exist")
+			# Checking if the procedure exists is done
+			# in parse_procs
 			code +=  '\n;; -- PROCEDURE -- ;;\n'
-			code += f'    call proc_{word.name}'
+			code += f'    call proc_{word.name}\n'
 			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 			
 		else:
 			program_error(word, f"unreckognized word type: '{word.type}'")
 
+	return code, dataLabels, memReserved
+
+
+def generate_program(words, procs):
+	code =  'section .text\n'
+	code += 'global _start\n'
+
+	code += f"""\
+BITS 64
+dump:
+    mov     r9, -3689348814741910323
+    sub     rsp, 40
+    mov     BYTE [rsp+31], 10
+    lea     rcx, [rsp+30]
+.L1:
+    mov     rax, rdi
+    lea     r8, [rsp+32]
+    mul     r9
+    mov     rax, rdi
+    sub     r8, rcx
+    shr     rdx, 3
+    lea     rsi, [rdx+rdx*4]
+    add     rsi, rsi
+    sub     rax, rsi
+    add     eax, 48
+    mov     BYTE [rcx], al
+    mov     rax, rdi
+    mov     rdi, rdx
+    mov     rdx, rcx
+    sub     rcx, 1
+    cmp     rax, 9
+    ja      .L1
+    lea     rax, [rsp+32]
+    mov     edi, 1
+    sub     rdx, rax
+    xor     eax, eax
+    lea     rsi, [rsp+32+rdx]
+    mov     rdx, r8
+    mov     rax, 1
+    syscall
+    add     rsp, 40
+    ret
+"""
+	code += '_start:\n'
+
+	code += '    call    _main_\n'
+
+	code += '    xor     rdi, rdi\n'
+	code += '    mov     rax, 60\n'
+	code += '    syscall\n'
+	code += '_main_:\n'
+
+	c, dataLabels, memReserved = generate_words(words)
+	code += c
+	
 	code += '    ret\n'
 
 	# TODO:
-	# How to generate body??
-	# Can't really call generate_program again
-	# It will be recursive and add so much
-	# other stuff that I can't have there
-	# Maybe move word code generation to another function??
-	# Like generate_ops(words)
-	# Could def work
+	# The return address is on top of the stack.
+	# So that means the procedure can't alter the stack.
+	# Therefore all return addresses must be saved in
+	# some memory
 	for name in procs:
-		body, w = procs[name]
-		assert False, "under construction"
+		body, t = procs[name]
+		c, labs, mem = generate_words(body)
+		code += f'\nproc_{name}:\n'
+		code += c
+		code += '\n    ret\n'
+		memReserved += mem
+		dataLabels += labs
 	
 	code += '\nsegment .data\n'
 	
@@ -1565,7 +1577,7 @@ def main():
 	words = preprocess(words, arguments)
 
 	# Procedures
-	words, procs = parseProcedures(words)
+	words, procs = parse_procs(words)
 	
 	# Typechecking
 	if not arguments.unsafe:
