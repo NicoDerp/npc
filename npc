@@ -1115,7 +1115,9 @@ def parse_procs(words):
 			procs[name.name] = (iter(proc_words), word)
 		elif word.type == 'MACRO_CALL':
 			if word.name not in procs.keys():
-				program_error(word, "procedure doesn't exist")
+				program_error_(word, f"procedure `{word.name}` doesn't exist")
+				program_note(word, "did you mean WORK IN PROGRESS")
+				exit(1)
 			words_return.append(word)
 		else:
 			words_return.append(word)
