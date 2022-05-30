@@ -1076,7 +1076,6 @@ def typecheck_program(words, procs):
 
 def parse_procs(words):
 	words_return = []
-	proc_words = []
 	procs = {}
 	while True:
 		try:
@@ -1091,7 +1090,8 @@ def parse_procs(words):
 				program_error_(word, f"redefinition of already existing procedure `{name.name}`")
 				program_note(procs[name.name][1], f"the first definition is located here")
 				exit(1)
-				
+
+			proc_words = []
 			depth = 1
 			while True:
 				try:
@@ -1121,8 +1121,7 @@ def parse_procs(words):
 			words_return.append(word)
 	return iter(words_return), procs
 
-def generate_words(words):
-	dataLabels = []
+def generate_words(words, dataLabels):
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
 	# depth: 2
 	depthCounters = []
@@ -1467,7 +1466,7 @@ def generate_words(words):
 		else:
 			program_error(word, f"unreckognized word type: '{word.type}'")
 
-	return code, dataLabels, memReserved
+	return code, memReserved
 
 
 def generate_program(words, procs):
@@ -1511,7 +1510,7 @@ dump:
     ret
 """
 	code += '_start:\n'
-
+	code += '    mov     r10, ret_stack\n'
 	code += '    call    _main_\n'
 
 	code += '    xor     rdi, rdi\n'
@@ -1519,7 +1518,8 @@ dump:
 	code += '    syscall\n'
 	code += '_main_:\n'
 
-	c, dataLabels, memReserved = generate_words(words)
+	dataLabels = []
+	c, memReserved = generate_words(words, dataLabels)
 	code += c
 	
 	code += '    ret\n'
@@ -1531,12 +1531,17 @@ dump:
 	# some memory
 	for name in procs:
 		body, t = procs[name]
-		c, labs, mem = generate_words(body)
+		c, mem = generate_words(body, dataLabels)
 		code += f'\nproc_{name}:\n'
+		code += '    pop     r11\n'
+		code += '    mov     [r10], r11\n'
+		code += '    add     r10, 8\n'
 		code += c
-		code += '\n    ret\n'
+		code += '\n;; -- Return stack magic -- ;;\n'
+		code += '    sub     r10, 8\n'
+		code += '    mov     r11, [r10]\n'
+		code += '    jmp     r11\n'
 		memReserved += mem
-		dataLabels += labs
 	
 	code += '\nsegment .data\n'
 	
@@ -1548,6 +1553,8 @@ dump:
 	code +=  'segment .bss\n'
 	code +=  'mem:\n'
 	code += f'    resb    {memReserved}\n'
+	code +=  'ret_stack:\n'
+	code +=  '    resb    4096\n'
 		
 	return code
 		

@@ -1,19 +1,18 @@
 
-// Print 'Hello world!' 3 times
-macro helloworld
-  3 while dup 0 > do
-     "Hello World!\n" 1 1 syscall3
-     1 -
-  end drop
+macro puts 1 1 syscall3 end
+
+
+proc push_1
+  "Changed stack" puts
+  1
 end
 
-macro helloworld2
-  helloworld
-  "-----------\n" 1 1 syscall3
-  helloworld
+proc hello
+  "Hello world!\n" puts
+  push_1
+  dump
 end
 
-helloworld2
-idah
 
+hello
 
