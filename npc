@@ -178,144 +178,144 @@ def parse_string(tok):
 		program_error(tok, f"only a single byte is allowed inside a character literal")
 
 	return Const('CHAR', hex(ord(s)), tok)
-
-def parse_token(tok):	
-	if tok.token == '+':
-		return Word('ADD', tok)
-
-	elif tok.token == '-':
-		return Word('SUB', tok)
-
-	elif tok.token == '*':
-		return Word('MULT', tok)
-
-	elif tok.token == '/':
-		return Word('DIV', tok)
-
-	elif tok.token == 'bor':
-		return Word('BINARY_OR', tok)
-
-	elif tok.token == 'band':
-		return Word('BINARY_AND', tok)
-
-	elif tok.token == 'lor':
-		return Word('LOGICAL_OR', tok)
-
-	elif tok.token == 'land':
-		return Word('LOGICAL_AND', tok)
-
-	elif tok.token == 'shl':
-		return Word('SHIFT_LEFT', tok)
-
-	elif tok.token == 'shr':
-		return Word('SHIFT_RIGHT', tok)
-	
-	elif tok.token == 'dump':
-		return Word('DUMP', tok)
-
-	elif tok.token == '=':
-		return Word('EQU', tok)
-
-	elif tok.token == '!=':
-		return Word('NOT_EQU', tok)
-
-	elif tok.token == 'dup':
-		return Word('DUP', tok)
-
-	elif tok.token == '2dup':
-		return Word('2DUP', tok)
-	
-	elif tok.token == 'swap':
-		return Word('SWAP', tok)
-
-	elif tok.token == 'drop':
-		return Word('DROP', tok)
-
-	elif tok.token == 'over':
-		return Word('OVER', tok)
-
-	elif tok.token == 'rot':
-		return Word('ROT', tok)
-	
-	elif tok.token == '>':
-		return Word('GREATER_THAN', tok)
-
-	elif tok.token == '<':
-		return Word('LESS_THAN', tok)
-
-	elif tok.token == 'mem':
-		return Word('MEM', tok)
-
-	elif tok.token == ',':
-		return Word('LOAD', tok)
-
-	elif tok.token == '.':
-		return Word('STORE', tok)
-
-	elif tok.token == ',64':
-		return Word('LOAD64', tok)
-	
-	elif tok.token == '.64':
-		return Word('STORE64', tok)
-
-	elif tok.token == 'syscall1':
-		return Word('SYSCALL1', tok)
-	
-	elif tok.token == 'syscall3':
-		return Word('SYSCALL3', tok)
-
-	elif tok.token == 'cast(int)':
-		return Word('CAST_INT', tok)
-
-	elif tok.token == 'cast(ptr)':
-		return Word('CAST_PTR', tok)
-
-	elif tok.token == 'cast(bool)':
-		return Word('CAST_BOOL', tok)
-	
-	elif tok.token == 'fun':
-		return Keyword('FUNCTION', tok)
-
-	elif tok.token == 'in':
-		return Keyword('IN', tok)
-	
-	elif tok.token == 'if':
-		return Keyword('IF', tok)
-
-	elif tok.token == 'else':
-		return Keyword('ELSE', tok)
-
-	elif tok.token == 'end':
-		return Keyword('END', tok)
-	
-	elif tok.token == 'while':
-		return Keyword('WHILE', tok)
-
-	elif tok.token == 'do':
-		return Keyword('DO', tok)
-
-	elif tok.token == 'include':
-		return Keyword('INCLUDE', tok)
-
-	elif tok.token == 'macro':
-		return Keyword('MACRO', tok)
-
-	elif tok.token == 'memory':
-		return Keyword('MEMORY', tok)
-	
-	else:
-		if '\'' in tok.token or '\"' in tok.token:
-			return parse_string(tok)
-		
-		try:
-			return Const('INT', int(tok.token), tok)
-		except ValueError as err:
-			return MacroCall(tok)
-			#program_error(tok, err)
 			
 def parse(tokens):
-	for tok in tokens:
-		yield parse_token(tok)
+	while True:
+		try:
+			tok = next(tokens)
+		except StopIteration:
+			break
+		
+		if tok.token == '+':
+			yield Word('ADD', tok)
+
+		elif tok.token == '-':
+			yield Word('SUB', tok)
+
+		elif tok.token == '*':
+			yield Word('MULT', tok)
+
+		elif tok.token == '/':
+			yield Word('DIV', tok)
+
+		elif tok.token == 'bor':
+			yield Word('BINARY_OR', tok)
+
+		elif tok.token == 'band':
+			yield Word('BINARY_AND', tok)
+
+		elif tok.token == 'lor':
+			yield Word('LOGICAL_OR', tok)
+
+		elif tok.token == 'land':
+			yield Word('LOGICAL_AND', tok)
+
+		elif tok.token == 'shl':
+			yield Word('SHIFT_LEFT', tok)
+
+		elif tok.token == 'shr':
+			yield Word('SHIFT_RIGHT', tok)
+
+		elif tok.token == 'dump':
+			yield Word('DUMP', tok)
+
+		elif tok.token == '=':
+			yield Word('EQU', tok)
+
+		elif tok.token == '!=':
+			yield Word('NOT_EQU', tok)
+
+		elif tok.token == 'dup':
+			yield Word('DUP', tok)
+
+		elif tok.token == '2dup':
+			yield Word('2DUP', tok)
+
+		elif tok.token == 'swap':
+			yield Word('SWAP', tok)
+
+		elif tok.token == 'drop':
+			yield Word('DROP', tok)
+
+		elif tok.token == 'over':
+			yield Word('OVER', tok)
+
+		elif tok.token == 'rot':
+			yield Word('ROT', tok)
+
+		elif tok.token == '>':
+			yield Word('GREATER_THAN', tok)
+
+		elif tok.token == '<':
+			yield Word('LESS_THAN', tok)
+
+		elif tok.token == 'mem':
+			yield Word('MEM', tok)
+
+		elif tok.token == ',':
+			yield Word('LOAD', tok)
+
+		elif tok.token == '.':
+			yield Word('STORE', tok)
+
+		elif tok.token == ',64':
+			yield Word('LOAD64', tok)
+
+		elif tok.token == '.64':
+			yield Word('STORE64', tok)
+
+		elif tok.token == 'syscall1':
+			yield Word('SYSCALL1', tok)
+
+		elif tok.token == 'syscall3':
+			yield Word('SYSCALL3', tok)
+
+		elif tok.token == 'cast(int)':
+			yield Word('CAST_INT', tok)
+
+		elif tok.token == 'cast(ptr)':
+			yield Word('CAST_PTR', tok)
+
+		elif tok.token == 'cast(bool)':
+			yield Word('CAST_BOOL', tok)
+
+		elif tok.token == 'proc':
+			yield Keyword('PROC', tok)
+
+		elif tok.token == 'if':
+			yield Keyword('IF', tok)
+
+		elif tok.token == 'else':
+			yield Keyword('ELSE', tok)
+
+		elif tok.token == 'end':
+			yield Keyword('END', tok)
+
+		elif tok.token == 'while':
+			yield Keyword('WHILE', tok)
+
+		elif tok.token == 'do':
+			yield Keyword('DO', tok)
+
+		elif tok.token == 'include':
+			yield Keyword('INCLUDE', tok)
+
+		elif tok.token == 'macro':
+			yield Keyword('MACRO', tok)
+
+		elif tok.token == 'memory':
+			yield Keyword('MEMORY', tok)
+
+		else:
+			if '\'' in tok.token or '\"' in tok.token:
+				yield parse_string(tok)
+			else:
+				try:
+					yield Const('INT', int(tok.token), tok)
+				except ValueError as err:
+					yield MacroCall(tok)
+			#program_error(tok, err)
+
 	
 def parse_args():
 	argv = (x for x in sys.argv)
@@ -392,13 +392,23 @@ def pretty_print_word(word):
 	else:
 		print(f'Unknown {word.type}')
 	
-def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=0):
+def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=0, insideProc=0):
 	while True:
 		try:
 			word = next(words)
 		except StopIteration:
 			break
-	
+		
+		if word.type == 'KEYWORD' and word.op == 'PROC':
+			insideProc = 1
+
+		if insideProc == 2 and word.type == 'KEYWORD' and word.op == 'END':
+			insideProc = 0
+
+		if insideProc != 0 and word.type == 'KEYWORD' and word.op == 'END':
+			insideProc -= 1
+		if insideProc != 0 and word.type == 'KEYWORD' and word.op in ["IF", "WHILE"]:
+			insideProc += 1
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			if includes >= 5:
 				program_error(next(words), f"recursive include limit reached: `{includes}`")
@@ -410,12 +420,15 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			if not os.path.exists(fileName):
 				program_error(inc, f"couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
 			
-			for w in preprocess((parse_token(x) for x in lex_file(fileName)), args, includes+1, expansions, macros, memories, memOffset):
+			for w in preprocess((parse(lex_file(fileName))), args, includes+1, expansions, macros, memories, memOffset):
 				yield w
 
 		elif word.type == 'KEYWORD' and word.op == 'MACRO':
 			if expansions >= 5:
 				program_error(next(words), f"recursive expansions limit reached: `{expansions}`")
+
+			if insideProc >= 2:
+				program_error(word, "macro definition is not allowed inside procedure")
 
 			body = []
 			depth = 1
@@ -440,7 +453,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 				except StopIteration:
 					program_error(word, '`macro` word is missing `end`')
 				
-				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
+				if w.type == 'KEYWORD' and w.op in ['IF', 'WHILE', 'PROC']:
 					depth += 1
 					
 				if w.type == 'KEYWORD' and w.op == 'END':
@@ -456,6 +469,11 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			macros[name.name] = (body, word)
 			
 		elif word.type == 'MACRO_CALL':
+			if insideProc == 1:
+				insideProc = 2
+				yield word
+				continue
+			
 			if word.name in macros.keys():
 				for w in macros[word.name][0]:
 					yield w
@@ -463,9 +481,9 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			elif word.name in memories.keys():
 				#yield memories[word.name][0]
 				yield Const("MEMORY_OFFSET", memories[word.name], word)
-			
 			else:
-				program_error(word, f"macro or memory `{word.name}` does not exist or is used inside it's definition")
+				yield word
+				continue
 				
 		elif word.type == 'KEYWORD' and word.op == 'MEMORY':
 			try:
@@ -493,7 +511,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 					w = next(words)
 				except StopIteration:
 					program_error(word, "memory is missing end")
-					
+
 				if w.type == 'KEYWORD':
 					if w.op == 'END':
 						break
@@ -579,16 +597,12 @@ def not_enough_arguments(word):
 def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
-def typecheck_program(words):
+def typecheck_program(words, procs):
+	assert procs == {}, "Not implemented"
+	
 	stack: List[Tuple[String, Word]] = []
 	block_stack: List[Tuple[List[Tuple[String, Word]], Keyword]] = []
-	
-	while True:
-		try:
-			word = next(words)
-		except StopIteration:
-			break
-		
+	for word in words:
 		if word.type == 'CONST':
 			if word.value_type == 'INT':
 				stack.append(('INT', word))
@@ -1046,8 +1060,6 @@ def typecheck_program(words):
 						
 		else:
 			program_error(word, f'unknown word type `{word.type}`')
-
-		yield word
 			
 	if len(stack) != 0:
 		program_error_(word, "unhandled data on the stack")
@@ -1062,72 +1074,75 @@ def typecheck_program(words):
 		for s, word in block_stack:
 			program_note(word, "...")
 		exit(1)
-
-def generate_program(words):
-	code =  'section .text\n'
-	code += 'global _start\n'
-
-	code += f"""\
-BITS 64
-dump:
-    mov     r9, -3689348814741910323
-    sub     rsp, 40
-    mov     BYTE [rsp+31], 10
-    lea     rcx, [rsp+30]
-.L1:
-    mov     rax, rdi
-    lea     r8, [rsp+32]
-    mul     r9
-    mov     rax, rdi
-    sub     r8, rcx
-    shr     rdx, 3
-    lea     rsi, [rdx+rdx*4]
-    add     rsi, rsi
-    sub     rax, rsi
-    add     eax, 48
-    mov     BYTE [rcx], al
-    mov     rax, rdi
-    mov     rdi, rdx
-    mov     rdx, rcx
-    sub     rcx, 1
-    cmp     rax, 9
-    ja      .L1
-    lea     rax, [rsp+32]
-    mov     edi, 1
-    sub     rdx, rax
-    xor     eax, eax
-    lea     rsi, [rsp+32+rdx]
-    mov     rdx, r8
-    mov     rax, 1
-    syscall
-    add     rsp, 40
-    ret
-"""
-	code += '_start:\n'
-
-	# If there is a main function (if there isn't there's a bunch of unused code)
-	#if list(filter(lambda x: x.id == 'main', prog.functions)) == []:
-	#	compilationError("'main' procedure does not exist")
 		
-	code += '    call    _main_\n'
+	return iter(words_bak)
 
-	code += '    xor     rdi, rdi\n'
-	code += '    mov     rax, 60\n'
-	code += '    syscall\n'
-	code += '_main_:\n'
-
-	dataLabels = []
-	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
-	# depth: 2
-	depthCounters = []
-	labelDepth = 0
-	memReserved = 0
+def parse_procs(words):
+	words_return = []
+	#words_typecheck = []
+	procs = {}
 	while True:
 		try:
 			word = next(words)
 		except StopIteration:
 			break
-		
+		if word.type == 'KEYWORD' and word.op == 'PROC':
+			name = next(words)
+			if name.type != 'MACRO_CALL':
+				program_error(name, "procedure name is wrong type")
+			if name.name in procs.keys():
+				program_error_(word, f"redefinition of already existing procedure `{name.name}`")
+				program_note(procs[name.name][1], f"the first definition is located here")
+				exit(1)
+
+			proc_words = []
+			depth = 1
+			while True:
+				try:
+					w = next(words)
+				except StopIteration:
+					program_error(word, "procedure has no end")
+				
+				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
+			   		depth += 1
+					
+				if w.type == 'KEYWORD' and w.op == 'END':
+					depth -= 1
+
+				if w.type == 'KEYWORD' and w.op == 'PROC':
+					assert False, "local procedures not supported yet"
+				if w.type == 'MACRO_CALL':
+					if w.name not in procs.keys() and w.name != name.name:
+						program_error(w, f"procedure `{w.name}` does not exist")
+				
+				if depth == 0:
+					break
+
+				proc_words.append(w)
+				#words_typecheck.append(w)
+			procs[name.name] = (iter(proc_words), word)
+		elif word.type == 'MACRO_CALL':
+			if word.name not in procs.keys():
+				program_error_(word, f"procedure `{word.name}` doesn't exist")
+				program_note(word, "did you mean WORK IN PROGRESS")
+				exit(1)
+			words_return.append(word)
+		else:
+			words_return.append(word)
+			#words_typecheck.append(word)
+	#return iter(words_return), iter(words_typecheck), procs
+	return iter(words_return), procs
+	
+def generate_words(words, dataLabels):
+	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
+	# depth: 2
+	depthCounters = []
+	labelDepth = 0
+	memReserved = 0
+
+	code = ""
+	
+	for word in words:
 		if word.type == 'CONST':
 			if word.value_type == 'INT':
 				code +=  '\n    ;; -- CONST INT -- ;;\n'
@@ -1449,12 +1464,91 @@ dump:
 			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
 
 		elif word.type == 'MACRO_CALL':
-			program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
+			# Checking if the procedure exists is done
+			# in parse_procs
+			code +=  '\n;; -- PROCEDURE -- ;;\n'
+			code += f'    call proc_{word.name}\n'
+			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 			
 		else:
 			program_error(word, f"unreckognized word type: '{word.type}'")
 
+	return code, memReserved
+
+
+def generate_program(words, procs):
+	code =  'section .text\n'
+	code += 'global _start\n'
+
+	code += f"""\
+BITS 64
+dump:
+    mov     r9, -3689348814741910323
+    sub     rsp, 40
+    mov     BYTE [rsp+31], 10
+    lea     rcx, [rsp+30]
+.L1:
+    mov     rax, rdi
+    lea     r8, [rsp+32]
+    mul     r9
+    mov     rax, rdi
+    sub     r8, rcx
+    shr     rdx, 3
+    lea     rsi, [rdx+rdx*4]
+    add     rsi, rsi
+    sub     rax, rsi
+    add     eax, 48
+    mov     BYTE [rcx], al
+    mov     rax, rdi
+    mov     rdi, rdx
+    mov     rdx, rcx
+    sub     rcx, 1
+    cmp     rax, 9
+    ja      .L1
+    lea     rax, [rsp+32]
+    mov     edi, 1
+    sub     rdx, rax
+    xor     eax, eax
+    lea     rsi, [rsp+32+rdx]
+    mov     rdx, r8
+    mov     rax, 1
+    syscall
+    add     rsp, 40
+    ret
+"""
+	code += '_start:\n'
+	code += '    mov     r10, ret_stack\n'
+	code += '    call    _main_\n'
+
+	code += '    xor     rdi, rdi\n'
+	code += '    mov     rax, 60\n'
+	code += '    syscall\n'
+	code += '_main_:\n'
+
+	dataLabels = []
+	c, memReserved = generate_words(words, dataLabels)
+	code += c
+	
 	code += '    ret\n'
+
+	# TODO:
+	# The return address is on top of the stack.
+	# So that means the procedure can't alter the stack.
+	# Therefore all return addresses must be saved in
+	# some memory
+	for name in procs:
+		body, t = procs[name]
+		c, mem = generate_words(body, dataLabels)
+		code += f'\nproc_{name}:\n'
+		code += '    pop     r11\n'
+		code += '    mov     [r10], r11\n'
+		code += '    add     r10, 8\n'
+		code += c
+		code += '\n;; -- Return stack magic -- ;;\n'
+		code += '    sub     r10, 8\n'
+		code += '    mov     r11, [r10]\n'
+		code += '    jmp     r11\n'
+		memReserved += mem
 	
 	code += '\nsegment .data\n'
 	
@@ -1466,6 +1560,8 @@ dump:
 	code +=  'segment .bss\n'
 	code +=  'mem:\n'
 	code += f'    resb    {memReserved}\n'
+	code +=  'ret_stack:\n'
+	code +=  '    resb    4096\n'
 		
 	return code
 		
@@ -1493,18 +1589,21 @@ def main():
 	
 	# Preprocess (includes and macro expansion)
 	words = preprocess(words, arguments)
+
+	# Procedures
+	words, procs = parse_procs(words)
 	
 	# Typechecking
 	if not arguments.unsafe:
 		start_typecheck = time.time()
-		words = (w for w in list(typecheck_program(words)))
+		words = typecheck_program(words, procs)
 		end_typecheck = time.time()
 		print(f'[INFO] Typechecking took {end_typecheck-start_typecheck:0.5f}s')
 	
 	start_compile = time.time()
 	
 	# Compiling
-	code = generate_program(words)
+	code = generate_program(words, procs)
 
 	end_compile = time.time()
 

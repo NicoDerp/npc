@@ -1,19 +1,21 @@
 
-// Print 'Hello world!' 3 times
-macro helloworld
-  3 while dup 0 > do
-     "Hello World!\n" 1 1 syscall3
-     1 -
-  end drop
+macro puts 1 1 syscall3 end
+
+proc test
+  3 = if
+    "Yas" puts
+  else
+    "Nas" puts
+  end
 end
 
-macro helloworld2
-  helloworld
-  "-----------\n" 1 1 syscall3
-  helloworld
-end
+3 test
 
-helloworld2
-idah
-
+// n*(n-1)!
+//proc factorial
+//  dup 1 -
+//  factorial * dump
+//end
+//
+//5 factorial
 
