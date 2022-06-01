@@ -17,7 +17,7 @@ macro sizeof(Op) 16 end
 macro inc64 dup , 1 + . end
 
 // n op (count*size)
-macro push_op
+proc push_op
   swap
   op-count , sizeof(Op) * op-start +
 
@@ -29,7 +29,7 @@ macro push_op
 end
 
 // ptr
-macro dump_ops
+proc dump_ops
   "------------\nop-count: "
   puts op-count , dump
   "------------\n" puts
@@ -50,7 +50,7 @@ macro Unreachable    "Unreachable"    puts 0 exit end
 macro MEM_CAPACITY 4096 end
 
 // ptr type
-macro compile_ops
+proc compile_ops
   "section .text\n"				puts
   "global _start\n"				puts
   "BITS 64\n"					puts

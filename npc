@@ -1466,6 +1466,7 @@ def generate_words(words, dataLabels):
 		elif word.type == 'MACRO_CALL':
 			# Checking if the procedure exists is done
 			# in parse_procs
+			name = word.name.replace("-", "_")
 			code +=  '\n;; -- PROCEDURE -- ;;\n'
 			code += f'    call proc_{word.name}\n'
 			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
@@ -1531,14 +1532,10 @@ dump:
 	
 	code += '    ret\n'
 
-	# TODO:
-	# The return address is on top of the stack.
-	# So that means the procedure can't alter the stack.
-	# Therefore all return addresses must be saved in
-	# some memory
 	for name in procs:
 		body, t = procs[name]
 		c, mem = generate_words(body, dataLabels)
+		name = name.replace("-", "_")
 		code += f'\nproc_{name}:\n'
 		code += '    pop     r11\n'
 		code += '    mov     [r10], r11\n'
