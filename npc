@@ -12,7 +12,6 @@ Usage: npc <file> [options]
 
 Options:
   -o <file>    Place the output into file
-  -p           Pretty-print the AST of the program
   -S           Do not assemble, output is assembly code
   -r           Run the program after a succesful compilation
   --unsafe     Disable type-checking
@@ -395,8 +394,7 @@ def parse_args():
 			
 		# Unreckgnised argument
 		else:
-			print(f"unreckognized argument '{arg}'")
-			exit(1)
+			compiler_error(f"ERROR: unreckognized argument '{arg}'")
 
 	return arguments
 
@@ -1603,11 +1601,11 @@ def main():
 
 	# No input file
 	if not arguments.infn:
-		fail('no input files supplied')
+		compiler_error('ERROR: no input files supplied')
 
 	# Infile doesn't exist
 	if not os.path.isfile(arguments.infn):
-		fail(f"{arguments.infn}: No such file or directory")
+		compiler_error(f"ERROR: {arguments.infn}: No such file or directory")
 
 	# Lexing
 	tokens = lex_file(arguments.infn)
@@ -1679,7 +1677,7 @@ def main():
 		fn_to_run = './' + arguments.outfn
 		print(f"Running '{fn_to_run}'\n")
 		# Segmentation fault show show?
-		process = subprocess.Popen([fn_to_run])
+		process = subprocess.Popen([fn_to_run, "bob", "morra di"])
 		process.communicate()
 
 		if process.returncode == 0:
