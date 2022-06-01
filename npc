@@ -433,6 +433,9 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 		if word.type == 'KEYWORD' and word.op == 'INCLUDE':
 			if includes >= 5:
 				program_error(next(words), f"recursive include limit reached: `{includes}`")
+
+			if insideProc >= 2:
+				program_error(word, "includes are not allowed inside procedures")
 	
 			inc = next(words)
 			if inc.type != 'CONST' or inc.value_type != 'STR':
@@ -449,7 +452,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 				program_error(next(words), f"recursive expansions limit reached: `{expansions}`")
 
 			if insideProc >= 2:
-				program_error(word, "macro definition is not allowed inside procedure")
+				program_error(word, "macro definition is not allowed inside procedures")
 
 			body = []
 			depth = 1
