@@ -1075,7 +1075,7 @@ def typecheck_program(words, procs):
 			program_note(word, "...")
 		exit(1)
 		
-	return iter(words_bak)
+	return words
 
 def parse_procs(words):
 	words_return = []
@@ -1131,7 +1131,7 @@ def parse_procs(words):
 			words_return.append(word)
 			#words_typecheck.append(word)
 	#return iter(words_return), iter(words_typecheck), procs
-	return iter(words_return), procs
+	return words_return, procs
 	
 def generate_words(words, dataLabels):
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
@@ -1390,17 +1390,17 @@ def generate_words(words, dataLabels):
 				code += '    pop rdx\n'
 				code += '    syscall\n'
 
-			elif word.op == 'CAST_INT':
-				program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
-				
-			elif word.op == 'CAST_PTR':
-				program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
-				
-			elif word.op == 'CAST_BOOL':
-				program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
-				
-			else:
-				program_error(word, f"unreckognized word '{word.op}'")
+			#elif word.op == 'CAST_INT':
+			#	program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
+			#	
+			#elif word.op == 'CAST_PTR':
+			#	program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
+			#	
+			#elif word.op == 'CAST_BOOL':
+			#	program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
+			#	
+			#else:
+			#	program_error(word, f"unreckognized word '{word.op}'")
 				
 		elif word.type == 'KEYWORD':
 			#print(f"Generating KEYWORD operation {word.op}")
