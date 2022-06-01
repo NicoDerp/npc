@@ -598,6 +598,8 @@ def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
 def typecheck_program(words, procs):
+	assert procs == {}, "Not implemented"
+	
 	stack: List[Tuple[String, Word]] = []
 	block_stack: List[Tuple[List[Tuple[String, Word]], Keyword]] = []
 	for word in words:
@@ -1077,7 +1079,7 @@ def typecheck_program(words, procs):
 
 def parse_procs(words):
 	words_return = []
-	words_typecheck = []
+	#words_typecheck = []
 	procs = {}
 	while True:
 		try:
@@ -1117,7 +1119,7 @@ def parse_procs(words):
 					break
 
 				proc_words.append(w)
-				words_typecheck.append(w)
+				#words_typecheck.append(w)
 			procs[name.name] = (iter(proc_words), word)
 		elif word.type == 'MACRO_CALL':
 			if word.name not in procs.keys():
@@ -1127,9 +1129,10 @@ def parse_procs(words):
 			words_return.append(word)
 		else:
 			words_return.append(word)
-			words_typecheck.append(word)
-	return iter(words_return), iter(words_typecheck), procs
-
+			#words_typecheck.append(word)
+	#return iter(words_return), iter(words_typecheck), procs
+	return iter(words_return), procs
+	
 def generate_words(words, dataLabels):
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
 	# depth: 2
@@ -1139,12 +1142,7 @@ def generate_words(words, dataLabels):
 
 	code = ""
 	
-	while True:
-		try:
-			word = next(words)
-		except StopIteration:
-			break
-		
+	for word in words:
 		if word.type == 'CONST':
 			if word.value_type == 'INT':
 				code +=  '\n    ;; -- CONST INT -- ;;\n'
@@ -1593,12 +1591,12 @@ def main():
 	words = preprocess(words, arguments)
 
 	# Procedures
-	words, typecheck_words, procs = parse_procs(words)
+	words, procs = parse_procs(words)
 	
 	# Typechecking
 	if not arguments.unsafe:
 		start_typecheck = time.time()
-		words = typecheck_program(typecheck_words, procs)
+		words = typecheck_program(words, procs)
 		end_typecheck = time.time()
 		print(f'[INFO] Typechecking took {end_typecheck-start_typecheck:0.5f}s')
 	
