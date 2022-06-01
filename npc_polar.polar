@@ -6,7 +6,7 @@ macro OP_PLUS     2 end
 macro OP_DUMP     3 end
 
 memory op-count 8 end
-memory op-start 256 end
+memory op-start 1024 end
 
 macro sizeof(Op) 16 end
 
