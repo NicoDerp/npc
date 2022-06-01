@@ -141,7 +141,7 @@ def did_you_mean(s, l):
 		for c1, c2 in zip(s, match):
 			if c1 != c2:
 				changes += 1
-		print(f"Final changes for {match} is {changes}")
+		# Substitute
 		if len(ml) == 0:
 			ml.append((changes, match))
 		elif len(ml) >= 1:
