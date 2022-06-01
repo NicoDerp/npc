@@ -133,6 +133,27 @@ def compiler_error(err):
 	print(err)
 	exit(1)
 
+def did_you_mean(s, l):
+	ml = []
+	for match in l:
+		# Insert
+		changes = abs(len(match) - len(s))
+		for c1, c2 in zip(s, match):
+			if c1 != c2:
+				changes += 1
+		print(f"Final changes for {match} is {changes}")
+		if len(ml) == 0:
+			ml.append((changes, match))
+		elif len(ml) >= 1:
+			for c, m in ml:
+				if changes < c:
+					ml = [(changes, match)]
+					break
+				elif changes == c:
+					ml.append((changes, match))
+					break
+	return ml
+
 def lex_file(source_file):
 	# Read and get tokens (not including comments)
 	with open(source_file, 'r') as infile:
@@ -598,8 +619,9 @@ def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
 def typecheck_program(words, procs):
-	assert procs == {}, "Not implemented"
-	
+	if procs != {}:
+		compiler_error("ERROR: Procedures are currently not supported in typechecking. Disable typechecking at your on risk with the `--unsafe` flag")
+
 	stack: List[Tuple[String, Word]] = []
 	block_stack: List[Tuple[List[Tuple[String, Word]], Keyword]] = []
 	for word in words:
@@ -1123,9 +1145,15 @@ def parse_procs(words):
 			procs[name.name] = (iter(proc_words), word)
 		elif word.type == 'MACRO_CALL':
 			if word.name not in procs.keys():
-				program_error_(word, f"procedure `{word.name}` doesn't exist")
-				program_note(word, "did you mean WORK IN PROGRESS")
-				exit(1)
+				matches = did_you_mean(word.name, procs.keys())
+				if len(matches) >= 1:
+					program_error_(word, f"procedure `{word.name}` doesn't exist")
+					for c, match in matches:
+						proc_word = procs[match][1]
+						program_note(proc_word, f"did you mean `{match}`?")
+					exit(1)
+				else:
+					program_error(word, f"procedure `{word.name}` doesn't exist")
 			words_return.append(word)
 		else:
 			words_return.append(word)
