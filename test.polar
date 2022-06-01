@@ -1,18 +1,21 @@
 
 macro puts 1 1 syscall3 end
 
-
-proc push_1
-  "Changed stack" puts
-  1
+proc test
+  3 = if
+    "Yas" puts
+  else
+    "Nas" puts
+  end
 end
 
-proc hello
-  "Hello world!\n" puts
-  push_1
-  dump
-end
+3 test
 
-
-hello
+// n*(n-1)!
+//proc factorial
+//  dup 1 -
+//  factorial * dump
+//end
+//
+//5 factorial
 
