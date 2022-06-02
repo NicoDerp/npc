@@ -624,10 +624,17 @@ def not_enough_arguments(word):
 def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
+def typecheck_procs(procs):
+	for name in procs:
+		proc = procs[name]
+		stack = list(proc['in'])
+	
 def typecheck_program(words, procs):
-	if procs != {}:
-		compiler_error("ERROR: Procedures are currently not supported in typechecking. Disable typechecking at your on risk with the `--unsafe` flag")
+	#if procs != {}:
+	#	compiler_error("ERROR: Procedures are currently not supported in typechecking. Disable typechecking at your on risk with the `--unsafe` flag")
 
+	typecheck_procs(procs)
+	
 	stack: List[Tuple[String, Word]] = []
 	block_stack: List[Tuple[List[Tuple[String, Word]], Keyword]] = []
 	for word in words:
@@ -1084,7 +1091,23 @@ def typecheck_program(words, procs):
 			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
 
 		elif word.type == 'MACRO_CALL':
-			program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
+			proc = procs[word.name]
+			if len(stack) < len(proc['in']):
+				stack_types = list(map(lambda a:a[0], stack))
+				program_error_(word, f"not enough arguments to call procedure `{word.name}`. Expected top of stack to be {proc['in']} but found {stack_types}")
+				program_note(proc['word'], "procedure definition")
+				exit(1)
+
+			for i in proc['in']:
+				stack.pop()
+
+			for typ, w in proc['out']:
+				stack.append((typ, w))
+			
+			# TODO: check if top of stack matches proc['in']
+			# If it matches remove those and push proc['out']
+			# Else throw an error
+			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 						
 		else:
 			program_error(word, f'unknown word type `{word.type}`')
@@ -1138,7 +1161,7 @@ def parse_procs(words):
 					if arg.op in ['PROC_INT', 'PROC_PTR', 'PROC_BOOL']:
 						op = arg.op.replace('PROC_','')
 						if dirOut:
-							args_out.append(op)
+							args_out.append((op, word))
 						else:
 							args_in.append(op)
 					elif arg.op == 'PROC_BAR':
@@ -1596,7 +1619,8 @@ dump:
 	code += '    ret\n'
 
 	for name in procs:
-		body, t = procs[name]
+		proc = procs[name]
+		body = proc['body']
 		c, mem = generate_words(body, dataLabels)
 		name = name.replace("-", "_")
 		code += f'\nproc_{name}:\n'
