@@ -36,22 +36,12 @@ class Classified:
 	def __init__(self, type):
 		self.type = type
 
-class Function(Classified):
-	def __init__(self, id, words): # params
-		super().__init__("FUNCTION")
-		self.id = id
-		self.words = words
-
-class Program(Classified):
-	def __init__(self, functions):
-		super().__init__("PROGRAM")
-		self.functions = functions
-
 class Position():
 	def __init__(self, tok):
 		self.row = tok.row
 		self.col = tok.col
 		self.filepath = tok.filepath
+		self.tok = tok
 
 	def pos(self):
 		row = self.row
@@ -302,6 +292,21 @@ def parse(tokens):
 		elif tok.token == 'proc':
 			yield Keyword('PROC', tok)
 
+		elif tok.token == '--':
+			yield Keyword('PROC_BAR', tok)
+
+		elif tok.token == 'in':
+			yield Keyword('PROC_IN', tok)
+
+		elif tok.token == 'int':
+			yield Keyword('PROC_INT', tok)
+
+		elif tok.token == 'ptr':
+			yield Keyword('PROC_PTR', tok)
+
+		elif tok.token == 'bool':
+			yield Keyword('PROC_BOOL', tok)
+		
 		elif tok.token == 'if':
 			yield Keyword('IF', tok)
 
@@ -1110,7 +1115,10 @@ def parse_procs(words):
 		except StopIteration:
 			break
 		if word.type == 'KEYWORD' and word.op == 'PROC':
-			name = next(words)
+			try:
+				name = next(words)
+			except StopIteration:
+				program_error(word, "expected procedure name but found none")
 			if name.type != 'MACRO_CALL':
 				program_error(name, "procedure name is wrong type")
 			if name.name in procs.keys():
@@ -1118,6 +1126,32 @@ def parse_procs(words):
 				program_note(procs[name.name][1], f"the first definition is located here")
 				exit(1)
 
+			args_in = []
+			args_out = []
+			dirOut = False
+			while True:
+				try:
+					arg = next(words)
+				except StopIteration:
+					program_error(word, "expected `in` and `end` but found nothing")
+				if arg.type == 'KEYWORD':
+					if arg.op in ['PROC_INT', 'PROC_PTR', 'PROC_BOOL']:
+						op = arg.op.replace('PROC_','')
+						if dirOut:
+							args_out.append(op)
+						else:
+							args_in.append(op)
+					elif arg.op == 'PROC_BAR':
+						if dirOut:
+							program_error(arg, 'multiple seperation bars in proc header')
+						dirOut = True
+					elif arg.op == 'PROC_IN':
+						break
+					else:
+						program_error(arg, f"`{arg.op}` is not supported inside procedure headers")
+				else:
+					program_error(arg, f"`{arg.type}` is not supported inside procedure headers")
+					
 			proc_words = []
 			depth = 1
 			while True:
@@ -1143,14 +1177,14 @@ def parse_procs(words):
 
 				proc_words.append(w)
 				#words_typecheck.append(w)
-			procs[name.name] = (iter(proc_words), word)
+			procs[name.name] = {'body': iter(proc_words), 'word': word, 'in': args_in, 'out': args_out}
 		elif word.type == 'MACRO_CALL':
 			if word.name not in procs.keys():
 				matches = did_you_mean(word.name, procs.keys())
 				if len(matches) >= 1:
 					program_error_(word, f"procedure `{word.name}` doesn't exist")
 					for c, match in matches:
-						proc_word = procs[match][1]
+						proc_word = procs[match]['word']
 						program_note(proc_word, f"did you mean `{match}`?")
 					exit(1)
 				else:
