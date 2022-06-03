@@ -1086,13 +1086,13 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				program_error_(word, f"not enough arguments to call procedure `{word.name}`. Expected top of stack to be {proc['in']} but found {stack_types}")
 				program_note(proc['word'], "procedure definition")
 				exit(1)
-
+			
 			for i in proc['in']:
 				stack.pop()
-
+				
 			for typ, w in proc['out']:
 				stack.append((typ, w))
-			
+				
 			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 						
 		else:
@@ -1117,7 +1117,7 @@ def typecheck_procs(procs):
 	for name in procs:
 		proc = procs[name]
 		stack = proc['in'].copy()
-		typecheck_words(proc['body'], stack, procs={}, checkingProc=True)
+		typecheck_words(proc['body'], stack, procs, checkingProc=True)
 		stack_types = list(map(lambda a:a[0], stack))
 		out_types = list(map(lambda a:a[0], proc['out']))
 		if stack_types != out_types:
