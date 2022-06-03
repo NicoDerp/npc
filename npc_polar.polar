@@ -17,7 +17,7 @@ macro sizeof(Op) 16 end
 macro inc64 dup , 1 + . end
 
 // n op (count*size)
-proc push_op
+proc push_op int int -- in
   swap
   op-count , sizeof(Op) * op-start +
 
@@ -29,7 +29,7 @@ proc push_op
 end
 
 // ptr
-proc dump_ops
+proc dump_ops in
   "------------\nop-count: "
   puts op-count , dump
   "------------\n" puts
@@ -49,8 +49,11 @@ macro NotImplemented "NotImplemented" puts 0 exit end
 macro Unreachable    "Unreachable"    puts 0 exit end
 macro MEM_CAPACITY 4096 end
 
+proc PRINT_STACK in
+end
+
 // ptr type
-proc compile_ops
+proc compile_ops in
   "section .text\n"				puts
   "global _start\n"				puts
   "BITS 64\n"					puts
@@ -92,7 +95,8 @@ proc compile_ops
   "    xor     rdi, rdi\n"	puts
   "    mov     rax, 60\n"	puts
   "    syscall\n"		puts
-  "_main_:"			puts
+  "_main_:\n"			puts
+
   0 while dup op-count , < do
     dup sizeof(Op) * op-start +
 
@@ -121,7 +125,6 @@ proc compile_ops
   end drop
   "\n    ret\n"		puts
   "\nsegment .data\n"   puts
-  // strings here
   "\nsegment .bss\n"	puts
   "mem:\n"		puts
   "    resb    "	puts MEM_CAPACITY dump
