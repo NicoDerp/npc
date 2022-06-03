@@ -1093,8 +1093,8 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 			for typ, w in proc['out']:
 				stack.append((typ, w))
 
-			if word.name == 'PRINT_STACK':
-				print("stack:", stack)
+			#if word.name == 'PRINT_STACK':
+			#	print("stack:", stack)
 				
 			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 						

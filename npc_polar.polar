@@ -97,8 +97,6 @@ proc compile_ops in
   "    syscall\n"		puts
   "_main_:\n"			puts
 
-  //PRINT_STACK
-
   0 while dup op-count , < do
     dup sizeof(Op) * op-start +
 
@@ -127,11 +125,9 @@ proc compile_ops in
   end drop
   "\n    ret\n"		puts
   "\nsegment .data\n"   puts
-  // strings here
   "\nsegment .bss\n"	puts
   "mem:\n"		puts
   "    resb    "	puts MEM_CAPACITY dump
-  //PRINT_STACK
 end
 
 // ... argv[1] argv[0] argc
