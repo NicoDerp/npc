@@ -16,7 +16,7 @@ macro puts
 end
 
 // ptr i
-proc strlen
+proc strlen ptr -- ptr int in
   0 while 2dup + , 0 > do
     1 +
   end
@@ -25,19 +25,19 @@ proc strlen
 end
 
 // ptr
-proc cstr-to-str
+proc cstr-to-str ptr -- int ptr in
   strlen swap
 end
 
 // ptr2 ptr1
-proc cstreq
+proc cstreq ptr ptr -- bool in
   while
-    2dup , 0 != cast(int) swap , 0 != cast(int) band cast(bool)
+    2dup , 0 != swap , 0 != land
     if
       // Both of the characters aren't zero
       // Checks if they are equal
       2dup , swap , =
-      dup
+      //dup
     else
       // Both of the characters are zero
       false
@@ -52,13 +52,13 @@ proc cstreq
 end
 
 // count ptr num
-proc format
+proc format int ptr int in
   rot rot
   puts dump
 end
 
 // size src dst
-proc memcpy
+proc memcpy int ptr ptr in
   memcpy_dst swap .64
   memcpy_src swap .64
   memcpy_size swap .64

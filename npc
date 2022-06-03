@@ -1092,6 +1092,9 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				
 			for typ, w in proc['out']:
 				stack.append((typ, w))
+
+			if word.name == 'PRINT_STACK':
+				print("stack:", stack)
 				
 			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 						
@@ -1113,20 +1116,31 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 			program_note(word, "...")
 		exit(1)
 
+	return stack
+
 def typecheck_procs(procs):
 	for name in procs:
 		proc = procs[name]
 		stack = proc['in'].copy()
-		typecheck_words(proc['body'], stack, procs, checkingProc=True)
+		stack = typecheck_words(proc['body'], stack, procs, checkingProc=True)
+		#print(name, stack, proc['in'], proc['out'])
 		stack_types = list(map(lambda a:a[0], stack))
 		out_types = list(map(lambda a:a[0], proc['out']))
 		if stack_types != out_types:
-			stack_types = list(map(lambda a:a[0], stack))
-			program_error_(proc['word'], f"expected end of procedure to be {out_types}")
-			print("Stack at end of code:")
-			for typ, word in stack:
-				program_note(word, typ)
-			exit(1)
+			if len(stack_types) == 0:
+				program_error(proc['word'], f"expected end of procedure to be {out_types}, but found nothing")
+			elif len(out_types) == 0:
+				program_error_(proc['word'], f"expected end of procedure to be nothing")
+				print("Stack at end of code:")
+				for typ, word in stack:
+					program_note(word, typ)
+				exit(1)
+			else:
+				program_error_(proc['word'], f"expected end of procedure to be {out_types}")
+				print("Stack at end of code:")
+				for typ, word in stack:
+					program_note(word, typ)
+					exit(1)
 			
 def typecheck_program(words, procs):
 	#if procs != {}:
