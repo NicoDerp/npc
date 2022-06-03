@@ -11,14 +11,14 @@ Inspired by [Alexey Kutepov's Porth compiler](https://gitlab.com/tsoding/porth/)
 
 Polar is planned to
 - [x] Be Turing-complete
-- [ ] Have a standard library
+- [ ] Have a complete standard library
 - [ ] Be self-hosted
 - [ ] Be optimized
-- [x] Have better type-checking
+- [x] Have advanced type-checking
 
 ## Features
-- [x] Inline functions or macros
-- [x] Support strings and characters
+- [x] Procedures and macros
+- [ ] C-style strings
 - [x] Support includes
 
 ## Examples
@@ -26,23 +26,25 @@ Polar is planned to
 Hello world:
 
 ```
-"Hello world!\n" 1 1 syscall3
+include "std.polar"
+
+"Hello world!\n" puts
 ```
 
 Simple program that prints the numbers from 0 to 99 in ascending order:
 
 ```
-100 0 while 2dup > do
+0 while dup 100 < do
   dup dump
   1 +
-end drop drop
+end drop
 ```
 
 More examples are located at ./examples folder.
 
 ## Quick start
 
-Pretty sure it only works on linux.
+Only works on linux
 First, make sure you have [nasm](https://www.nasm.us/) installed and that it is available in `$PATH`.
 
 Then you can clone this repository:
@@ -75,7 +77,6 @@ Usage: npc <file> [options]
 
 Options:
   -o <file>    Place the output into file
-  -p           Pretty-print the AST of the program
   -S           Do not assemble, output is assembly code
   -r           Run the program after a succesful compilation
   --unsafe     Disable type-checking
@@ -179,14 +180,20 @@ This program will write the integer `69` to stdout. This is because the ASCII co
 |--------|:----------|-------------|
 | `shr`  | `[a: int] [b: int] -- [a >> b: int]` | right unsigned bit shift |
 | `shl`  | `[a: int] [b: int] -- [a << b: int]` | left unsigned bit shift |
-| `bor`  | `[a: int] [b: int] -- [a | b: int]`  | bit `or` |
-| `band` | `[a: int] [b: int] -- [a & b: int]`  | bit `and` |
+| `bor`  | `[a: int] [b: int] -- [a | b: int]`  | bitwise or |
+| `band` | `[a: int] [b: int] -- [a & b: int]`  | bitwise and |
+
+#### Logical
+
+|  Name  | Signature | Description |
+|--------|:----------|-------------|
+| `lor`  | `[a: int] [b: int] -- [a || b: int]`  | logical or |
+| `land`  | `[a: int] [b: int] -- [a && b: int]` | logical and |
 
 #### Memory
 
 | Name | Signature | Description |
 |------|:----------|-------------|
-| `mem`| `-- [mem: ptr]`              | pushes memory location on top of the stack     |
 | `,`  | `[loc: int] -- [byte: int]`  | read a byte from location in memory            |
 | `.`  | `[loc: int] [byte: int] --`  | store byte into location in memory             |
 | `,64`| `[loc: int] -- [byte: int]`  | read an 8-byte word from a location in memory  |
@@ -202,9 +209,9 @@ Lastly `syscall` is called.
 
 ### Control flow
 
-#### If condition
+#### If and else
 
-The else is optional.
+The else is optional. Else ifs are currently not supported.
 ```
 <condition> if
   <body>
@@ -222,16 +229,28 @@ end
 ```
 ### Memory
 
-Each program has reserved 4kb of memory. You can access the memory with the `,` (read) and `.` (write) operations. The pointer will be `mem` + an offset.
 
-Example:
-```
-mem 0 + 72 .
-mem 1 + 105 .
+You can reserve memory by using the `memory` keyword. 
+Inside you spesify the amount of bytes you want.
+Memory reservation supports simple compile-time evauluation.
 
 ```
+macro name_size 16 end
+memory names name_size 32 * end
+```
 
-This write "Hi" from the memory offsets zero to one.
+This simple program will reserve 32*16 bytes, which is 512 bytes.
+To access the memory, simple write the name of the memory and a pointer with it's address will be pushed onto the stack.
+
+```
+number 123 .
+number , dump
+```
+
+The result:
+```
+123
+```
 
 ### Macros
 
@@ -252,3 +271,14 @@ include "file.polar"
 ```
 
 This will copy a file's contents to where that include was written.
+
+### Procedures
+
+```
+proc <id> <args_in> -- <args_out> in
+  <body>
+end
+```
+
+If you have no <args_out> then you can drop the `--`.
+
