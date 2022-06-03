@@ -1628,19 +1628,20 @@ dump:
 """
 	code += '_start:\n'
 	code += '    mov     r10, ret_stack\n'
-	code += '    call    _main_\n'
+	#code += '    call    _main_\n'
 
-	code += '    xor     rdi, rdi\n'
-	code += '    mov     rax, 60\n'
-	code += '    syscall\n'
-	code += '_main_:\n'
+	#code += '_main_:\n'
 
 	dataLabels = []
 	c, memReserved = generate_words(words, dataLabels)
 	code += c
 	
-	code += '    ret\n'
+	#code += '    ret\n'
 
+	code += '    xor     rdi, rdi\n'
+	code += '    mov     rax, 60\n'
+	code += '    syscall\n'
+	
 	for name in procs:
 		proc = procs[name]
 		body = proc['body']

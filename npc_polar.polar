@@ -52,7 +52,6 @@ macro MEM_CAPACITY 4096 end
 proc PRINT_STACK in
 end
 
-// ptr type
 proc compile_ops in
   "section .text\n"				puts
   "global _start\n"				puts
@@ -132,17 +131,15 @@ end
 
 // ... argv[1] argv[0] argc
 
-//dump dump dump dump dump
-
-//0 exit
-
-//drop
+//dump
 
 //while dup 0 > do
 //  swap dup strlen swap puts
 //  "\n" puts
 //  1 -
 //end
+
+//0 exit
 
 OP_PUSH_INT 48 push_op
 OP_PUSH_INT 12 push_op
