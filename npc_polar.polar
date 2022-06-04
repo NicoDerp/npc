@@ -8,15 +8,35 @@ macro OP_DUMP     3 end
 macro sizeof(Op) 16 end
 memory op-count 8 end
 memory op-start sizeof(Op) 256 * end
+memory argc 1 end
+
+macro sizeof(input_fn) 1024 end
+memory input_fn sizeof(input_fn) 1 - end
+
+macro sizeof(input_buf) 4096 end
+memory input_buf sizeof(input_buf) 1 - end
+memory input_fd 8 end
+
+proc print_help in
+  "Usage: npc <file> [options]\n\n"					puts
+  "Options:\n"								puts
+  "  -o <file>    Place the output into file\n"				puts
+  "  -S           Do not assemble, output is assembly code\n"		puts
+  "  -r           Run the program after a succesful compilation\n"	puts
+  "  --unsafe     Disable type-checking\n"				puts
+  "  --help       Display this information and exit\n"			puts
+end
 
 // [                                                 ]
 //   op-count  op-type op-value  op-type op-value ...
 //             0       8         16      24
 
-macro inc64 dup , 1 + . end
-
 // n op (count*size)
-proc push_op int int -- in
+proc push_op
+    int // op_type
+    int // op_value
+  in
+  
   swap
   op-count , sizeof(Op) * op-start +
 
@@ -49,6 +69,35 @@ macro Unreachable    "Unreachable"    puts 0 exit end
 macro MEM_CAPACITY 4096 end
 
 proc compile_ops in
+  0 while dup op-count , < do
+    dup sizeof(Op) * op-start +
+
+    dup , OP_PUSH_INT = if
+      "\n;; -- OP_PUSH_INT -- ;;\n" puts
+      "    push    " puts dup 8 + , dump "\n" puts
+    else
+      dup , OP_PLUS = if
+        "\n;; -- OP_PLUS -- ;;\n" puts
+	"    pop     rcx\n"       puts
+	"    pop     rax\n"       puts
+	"    add     rax, rcx\n"  puts
+	"    push    rax\n"       puts
+      else
+        dup , OP_DUMP = if
+	  "\n;; -- OP_DUMP -- ;;\n" puts
+	  "    pop     rdi\n"       puts
+	  "    call    dump\n"      puts
+	else
+	  Unreachable
+	end
+      end
+    end
+    drop
+    1 +
+  end drop
+end
+
+proc compile_program in
   "section .text\n"				puts
   "global _start\n"				puts
   "BITS 64\n"					puts
@@ -85,57 +134,76 @@ proc compile_ops in
   "    syscall\n"				puts
   "    add     rsp, 40\n"			puts
   "    ret\n"					puts
-  "_start:\n"			puts	
-  "    call    _main_\n"	puts
+  "_start:\n"					puts
+  
+  compile_ops
+  
   "    xor     rdi, rdi\n"	puts
   "    mov     rax, 60\n"	puts
   "    syscall\n"		puts
-  "_main_:\n"			puts
-
-  0 while dup op-count , < do
-    dup sizeof(Op) * op-start +
-
-    dup , OP_PUSH_INT = if
-      "\n;; -- OP_PUSH_INT -- ;;\n" puts
-      "    push    " puts dup 8 + , dump "\n" puts
-    else
-      dup , OP_PLUS = if
-        "\n;; -- OP_PLUS -- ;;\n" puts
-	"    pop     rcx\n"       puts
-	"    pop     rax\n"       puts
-	"    add     rax, rcx\n"  puts
-	"    push    rax\n"       puts
-      else
-        dup , OP_DUMP = if
-	  "\n;; -- OP_DUMP -- ;;\n" puts
-	  "    pop     rdi\n"       puts
-	  "    call    dump\n"      puts
-	else
-	  Unreachable
-	end
-      end
-    end
-    drop
-    1 +
-  end drop
-  "\n    ret\n"		puts
+  
   "\nsegment .data\n"   puts
+  // Strings
   "\nsegment .bss\n"	puts
   "mem:\n"		puts
   "    resb    "	puts MEM_CAPACITY dump
 end
 
-// ... argv[1] argv[0] argc
-
-//dump
-
-//while dup 0 > do
-//  swap dup strlen swap puts
-//  "\n" puts
-//  1 -
+//proc lex_file in
+//  0 
 //end
 
-//0 exit
+argc swap .
+
+argc , 1 = if
+  print_help 0 exit
+end
+
+// Dont care about the first arg
+argc dec
+drop
+
+// If the first is '--help'
+dup "--help\0" str_to_cstr cstreq if
+  print_help 0 exit
+end
+
+// Copy the second argument to a buffer (the filename to compile)
+sizeof(input_fn) swap input_fn memcpy
+argc dec
+
+// Print the filename
+"'" puts input_fn cstr_to_str puts "'\n" puts
+
+// Loop over args and do stuff
+while argc , 0 > do
+  cstr_to_str puts '\n' putc
+  argc dec
+end
+
+// Open file
+O_READONLY_OWNER input_fn f_open
+
+// Save file descriptor
+input_fd swap .64
+
+// Check for errors (-4095 < fd < -1)
+input_fd ,64 -1 <
+input_fd ,64 -4095 >
+land
+if
+  "[ERROR] failed to open file\n" puts 0 exit
+else
+  // Read
+  sizeof(input_buf) input_buf input_fd ,64 f_read
+  
+  // Close
+  input_fd ,64 f_close
+  
+  input_buf cstr_to_str puts
+end
+
+0 exit
 
 OP_PUSH_INT 48 push_op
 OP_PUSH_INT 12 push_op
@@ -145,5 +213,5 @@ OP_DUMP     0  push_op
 "Program:\n" puts
 dump_ops
 "Assembly:\n\n" puts
-compile_ops
+compile_program
 

@@ -567,6 +567,12 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 						a = stack.pop()
 						b = stack.pop()
 						stack.append(a+b)
+					elif w.op == 'SUB':
+						if len(stack) < 2:
+							not_enough_arguments(w)
+						a = stack.pop()
+						b = stack.pop()
+						stack.append(b-a)
 					elif w.op == 'MULT':
 						if len(stack) < 2:
 							not_enough_arguments(w)
@@ -574,7 +580,8 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 						b = stack.pop()
 						stack.append(a*b)
 					else:
-						program_error_(w, "only addition and multiplication are allowed in memory reservation")
+						print(w.op)
+						program_error_(w, "only addition, subtraction and multiplication are allowed in memory reservation")
 						program_note(word, "memory definition")
 						exit(1)
 
@@ -612,6 +619,8 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			#print("Memory size reserved:", stack[0])
 			
 			size = stack.pop()
+			if size <= 0:
+				program_error(word, "no numbers less than 1 allowed in memory reservation")
 			memories[name.name] = [size, memOffset]
 			memOffset += size
 			
@@ -1171,7 +1180,7 @@ def parse_procs(words):
 				program_error(name, "procedure name is wrong type")
 			if name.name in procs.keys():
 				program_error_(word, f"redefinition of already existing procedure `{name.name}`")
-				program_note(procs[name.name][1], f"the first definition is located here")
+				program_note(procs[name.name]['word'], f"the first definition is located here")
 				exit(1)
 
 			args_in = []
@@ -1762,7 +1771,7 @@ def main():
 		fn_to_run = './' + arguments.outfn
 		print(f"Running '{fn_to_run}'\n")
 		# Segmentation fault show show?
-		process = subprocess.Popen([fn_to_run, "bob", "morra di"])
+		process = subprocess.Popen([fn_to_run, "./test3.polar"])
 		process.communicate()
 
 		if process.returncode == 0:
