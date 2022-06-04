@@ -924,6 +924,8 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 				if a_type != 'INT':
 					invalid_arguments(word, '`INT`', f'`{a_type}`')
+
+				stack.append(('INT', word))
 					
 			elif word.op == 'MEM':
 				stack.append(('PTR', word))
@@ -1493,11 +1495,12 @@ def generate_words(words, dataLabels):
 				
 			elif word.op == 'SYSCALL3':
 				code += '\n    ;; -- SYSCALL3 -- ;;\n'
-				code += '    pop rax\n'
-				code += '    pop rdi\n'
-				code += '    pop rsi\n'
-				code += '    pop rdx\n'
+				code += '    pop     rax\n'
+				code += '    pop     rdi\n'
+				code += '    pop     rsi\n'
+				code += '    pop     rdx\n'
 				code += '    syscall\n'
+				code += '    push    rax\n'
 
 			#elif word.op == 'CAST_INT':
 			#	program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
@@ -1577,7 +1580,7 @@ def generate_words(words, dataLabels):
 			# in parse_procs
 			name = word.name.replace("-", "_")
 			code +=  '\n;; -- PROCEDURE -- ;;\n'
-			code += f'    call proc_{word.name}\n'
+			code += f'    call proc_{name}\n'
 			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 			
 		else:

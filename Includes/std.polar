@@ -11,8 +11,15 @@ memory memcpy_src 8 end
 memory memcpy_dst 8 end
 memory memcpy_size 8 end
 
-macro puts
-  STDIO write
+memory putc_char 1 end
+
+proc puts int ptr -- in
+  STDIO write drop
+end
+
+proc putc int -- in
+  putc_char swap .
+  1 putc_char puts
 end
 
 // ptr i
@@ -27,6 +34,10 @@ end
 // ptr
 proc cstr-to-str ptr -- int ptr in
   strlen swap
+end
+
+proc str-to-cstr int ptr -- ptr in
+  swap drop
 end
 
 // ptr2 ptr1

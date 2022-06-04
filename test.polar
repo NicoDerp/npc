@@ -4,15 +4,8 @@ include "std.polar"
 
 memory argv 8 end
 memory argc 1 end
-memory putc_char 1 end
 
-// c
-proc putc
-  putc_char swap .
-  1 putc_char puts
-end
-
-drop
+//drop
 
 argc swap .
 

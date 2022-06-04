@@ -5,10 +5,9 @@ macro OP_PUSH_INT 1 end
 macro OP_PLUS     2 end
 macro OP_DUMP     3 end
 
-memory op-count 8 end
-memory op-start 1024 end
-
 macro sizeof(Op) 16 end
+memory op-count 8 end
+memory op-start sizeof(Op) 256 * end
 
 // [                                                 ]
 //   op-count  op-type op-value  op-type op-value ...
@@ -48,9 +47,6 @@ end
 macro NotImplemented "NotImplemented" puts 0 exit end
 macro Unreachable    "Unreachable"    puts 0 exit end
 macro MEM_CAPACITY 4096 end
-
-proc PRINT_STACK in
-end
 
 proc compile_ops in
   "section .text\n"				puts
