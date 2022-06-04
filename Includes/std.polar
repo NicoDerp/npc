@@ -1,17 +1,46 @@
 
 macro STDIO 1 end
 
-macro write 1 syscall3 end
-macro exit  60   syscall1 end
+macro write 1  syscall3 end
+macro exit  60 syscall1 end
 
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
+macro O_READONLY_OWNER 400 0 end
 
 memory memcpy_src 8 end
 memory memcpy_dst 8 end
 memory memcpy_size 8 end
 
 memory putc_char 1 end
+
+proc f_open
+    int // Permissions
+    int // Flags
+    ptr // String
+    --
+    int // Fd / error-code
+  in
+
+  2 syscall3
+end
+
+proc f_read
+    int // Count
+    ptr // Buf
+    int // Fd
+    --
+  in
+  
+  0 syscall3 drop
+end
+
+proc f_close
+    int // Fd
+  in
+
+  3 syscall1 //drop
+end
 
 proc puts int ptr -- in
   STDIO write drop
