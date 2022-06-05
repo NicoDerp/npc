@@ -4,7 +4,8 @@ include "std.polar"
 
 macro OP_PUSH_INT 1 end
 macro OP_PLUS     2 end
-macro OP_DUMP     3 end
+macro OP_SUB      3 end
+macro OP_DUMP     4 end
 
 macro sizeof(Op) 16 end
 memory op-count 8 end
@@ -90,12 +91,20 @@ proc compile_ops in
 	"    add     rax, rcx\n"  puts
 	"    push    rax\n"       puts
       else
-        dup , OP_DUMP = if
-	  "\n;; -- OP_DUMP -- ;;\n" puts
-	  "    pop     rdi\n"       puts
-	  "    call    dump\n"      puts
+	dup , OP_SUB = if
+          "\n    ;; -- SUB -- ;;\n"	puts
+          "    pop     rax\n"		puts
+          "    pop     rcx\n"		puts
+          "    sub     rcx, rax\n"	puts
+          "    push    rcx\n"		puts
 	else
-	  Unreachable
+          dup , OP_DUMP = if
+	    "\n;; -- OP_DUMP -- ;;\n" puts
+	    "    pop     rdi\n"       puts
+	    "    call    dump\n"      puts
+	  else
+            Unreachable
+          end
 	end
       end
     end
@@ -160,15 +169,19 @@ proc parse_word in
   lex_buf "+\0" str_to_cstr cstreq if
     OP_PLUS 0 push_op
   else
-    lex_buf "dump\0" str_to_cstr cstreq if
-      OP_DUMP 0 push_op
+    lex_buf "-\0" str_to_cstr cstreq if
+      OP_SUB 0 push_op
     else
-      lex_buf cstr_to_int
-      dup -1 = if
-        "Unable to parse word '" puts lex_buf cstr_to_str puts "'\n" puts
-        0 exit
+      lex_buf "dump\0" str_to_cstr cstreq if
+        OP_DUMP 0 push_op
+      else
+        lex_buf cstr_to_int
+        dup -1 = if
+          "Unable to parse word '" puts lex_buf cstr_to_str puts "'\n" puts
+          0 exit
+        end
+        OP_PUSH_INT swap push_op
       end
-      OP_PUSH_INT swap push_op
     end
   end
 end
