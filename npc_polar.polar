@@ -1,3 +1,4 @@
+
 include "std.polar"
 
 
@@ -10,16 +11,17 @@ memory op-count 8 end
 memory op-start sizeof(Op) 256 * end
 memory argc 1 end
 
-macro sizeof(input_fn) 1024 end
+macro sizeof(input_fn) 128 end
 memory input_fn sizeof(input_fn) 1 - end
 
 macro sizeof(input_buf) 4096 end
 memory input_buf sizeof(input_buf) 1 - end
 memory input_fd 8 end
 
-// Max word-size is 64 characters
-macro sizeof(lex_buf) 64 end
-memory lex_buf sizeof(lex_buf) end
+// Max word-size is 32 characters
+macro sizeof(word) 32 end
+
+memory lex_buf sizeof(word) end
 memory lex_i 1 end
 
 proc print_help in
@@ -79,7 +81,7 @@ proc compile_ops in
 
     dup , OP_PUSH_INT = if
       "\n;; -- OP_PUSH_INT -- ;;\n" puts
-      "    push    " puts dup 8 + , dump "\n" puts
+      "    push    " puts dup 8 + , dump
     else
       dup , OP_PLUS = if
         "\n;; -- OP_PLUS -- ;;\n" puts
@@ -154,7 +156,24 @@ proc compile_program in
   "    resb    "	puts MEM_CAPACITY dump
 end
 
-proc lex_file in
+proc parse_word in
+  lex_buf "+\0" str_to_cstr cstreq if
+    OP_PLUS 0 push_op
+  else
+    lex_buf "dump\0" str_to_cstr cstreq if
+      OP_DUMP 0 push_op
+    else
+      lex_buf cstr_to_int
+      dup -1 = if
+        "Unable to parse word '" puts lex_buf cstr_to_str puts "'\n" puts
+        0 exit
+      end
+      OP_PUSH_INT swap push_op
+    end
+  end
+end
+
+proc parse_file in
   // buf_size i
   input_buf strlen 0 while 2dup > do
     dup input_buf + ,
@@ -163,12 +182,17 @@ proc lex_file in
     over 0 = lor
     if
       drop // Drop the character
-      // Print the contents of the buffer
-      lex_buf cstr_to_str puts '\n' putc
 
-      // Reset stuff
-      lex_i 0 .
-      sizeof(lex_buf) lex_buf 0 memset
+      // Check if the buffer is only whitespace
+      lex_i , 0 != if
+        // Print the contents of the buffer
+        lex_buf cstr_to_str puts '\n' putc
+        parse_word
+  
+        // Reset stuff
+        lex_i 0 .
+        sizeof(word) lex_buf 0 memset
+      end
     else
       // Append character
       lex_buf lex_i , + swap .
@@ -227,15 +251,15 @@ else
   input_fd ,64 f_close
   
   //input_buf cstr_to_str puts
-  lex_file
+  parse_file
 end
 
-0 exit
+//0 exit
 
-OP_PUSH_INT 48 push_op
-OP_PUSH_INT 12 push_op
-OP_PLUS     0  push_op
-OP_DUMP     0  push_op
+//OP_PUSH_INT 48 push_op
+//OP_PUSH_INT 12 push_op
+//OP_PLUS     0  push_op
+//OP_DUMP     0  push_op
 
 "Program:\n" puts
 dump_ops

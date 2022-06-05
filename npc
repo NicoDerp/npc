@@ -637,6 +637,20 @@ def not_enough_arguments(word):
 def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
+def expected_vs_actual(end, expected, actual):
+	program_note(end, "end block\n")
+	program_note(end, "Expected types:")
+	for typ, word in expected:
+		program_note(word, typ)
+
+	print()
+	
+	program_note(end, "Actual types:")
+	for typ, word in actual:
+		program_note(word, typ)
+
+	exit(1)
+
 def typecheck_words(words, stack, procs={}, checkingProc=False):
 	block_stack: List[Tuple[List[Tuple[String, Word]], Keyword]] = []
 	for word in words:
@@ -1064,24 +1078,27 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				
 				if block_type.op == 'IF':
 					if expected_types != actual_types:
-						program_error_(word, 'else-less if block is not allowed to alter types on the stack')
-						program_note(word, f'expected types: {expected_types}')
-						program_note(word, f'actual types: {actual_types}')
-						exit(1)
+						program_error_(block_type, 'else-less if block is not allowed to alter types on the stack')
+						expected_vs_actual(word, expected_stack, stack)
+						#program_note(word, f'expected types: {expected_types}')
+						#program_note(word, f'actual types: {actual_types}')
+						#exit(1)
 
 				elif block_type.op == 'ELSE':
 					if expected_types != actual_types:
-						program_error_(word, 'both if and else blocks must produce the same types on the stack')
-						program_note(word, f'expected types: {expected_types}')
-						program_note(word, f'actual types: {actual_types}')
-						exit(1)
+						program_error_(block_type, 'both if and else blocks must produce the same types on the stack')
+						expected_vs_actual(word, expected_stack, stack)
+						#program_note(word, f'expected types: {expected_types}')
+						#program_note(word, f'actual types: {actual_types}')
+						#exit(1)
 
 				elif block_type.op == 'DO':
 					if expected_types != actual_types:
-						program_error_(word, 'while block is not allowed to alter the types on the stack')
-						program_note(word, f'expected types: {expected_types}')
-						program_note(word, f'actual types: {actual_types}')
-						exit(1)
+						program_error_(block_type, 'while block is not allowed to alter the types on the stack')
+						expected_vs_actual(word, expected_stack, stack)
+						#program_note(word, f'expected types: {expected_types}')
+						#program_note(word, f'actual types: {actual_types}')
+						#exit(1)
 
 				else:
 					program_error_(word, 'invalid previous block type')
@@ -1107,7 +1124,7 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				stack.pop()
 				
 			for typ, w in proc['out']:
-				stack.append((typ, w))
+				stack.append((typ, word))
 
 			#if word.name == 'PRINT_STACK':
 			#	print("stack:", stack)

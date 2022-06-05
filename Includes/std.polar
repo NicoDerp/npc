@@ -15,6 +15,9 @@ memory memset_val 1 end
 
 memory putc_char 1 end
 
+memory cstr_to_int_out 8 end
+memory cstr_to_int_str 8 end
+
 proc exit int in
   60 syscall1
 end
@@ -97,9 +100,9 @@ end
 // ptr2 ptr1
 proc cstreq ptr ptr -- bool in
   while
+    // Check if both of the characters aren't zero
     2dup , 0 != swap , 0 != land
     if
-      // Both of the characters aren't zero
       // Checks if they are equal
       2dup , swap , =
       //dup
@@ -159,4 +162,57 @@ proc memset
     1 +
   end drop
 end
+
+proc cstr_to_int
+     ptr // Cstr
+     --
+     int // int(cstr)
+  in
+
+  cstr_to_int_str swap .64
+  cstr_to_int_out 0 .64
+
+  // strlen 0 digit
+  cstr_to_int_str ,64 strlen swap drop
+  0 while 2dup > do
+    dup cstr_to_int_str ,64 + cast(ptr) ,
+
+    dup '0' <
+    over '9' >
+    lor if
+      // Basically break
+      // Since index == strlen
+      drop drop dup
+      // And create 'error'
+      cstr_to_int_out -1 .64
+    else
+      '0' -
+      cstr_to_int_out ,64 10 * + cstr_to_int_out swap .64
+      1 +
+    end
+
+
+  end drop drop
+  
+  cstr_to_int_out ,64
+end
+
+proc power
+    int // a
+    int // b
+    --
+    int // a^b
+  in
+
+  over swap
+  
+  while dup 1 > do
+    rot rot
+    swap over *
+    swap rot
+    1 -
+  end
+  drop drop
+end
+
 
