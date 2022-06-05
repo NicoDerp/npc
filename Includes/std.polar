@@ -9,6 +9,10 @@ memory memcpy_src 8 end
 memory memcpy_dst 8 end
 memory memcpy_size 8 end
 
+memory memset_size 8 end
+memory memset_dst 8 end
+memory memset_val 1 end
+
 memory putc_char 1 end
 
 proc exit int in
@@ -109,16 +113,13 @@ proc cstreq ptr ptr -- bool in
   end
 
   // If they both are zero they are the same
-  , swap , land 1 -
+  , 0 = swap , 0 = land
 end
 
-// count ptr num
-proc format int ptr int in
-  rot rot
+proc format ptr int ptr in
   puts dump
 end
 
-// size src dst
 proc memcpy
     int // Size
     ptr // Src
@@ -129,14 +130,33 @@ proc memcpy
   memcpy_src swap .64
   memcpy_size swap .64
 
-  // i (i+*mem_dst) *(i+*src)
+  //memcpy_src "Src: " format
+  //memcpy_src ,64 "*Src: " format "\n" puts
+
+  // i i *dst
   0 while dup memcpy_size ,64 < do
+    //memcpy_dst ,64 "*Dst: " format
     dup memcpy_dst ,64 + cast(ptr)
     over memcpy_src ,64 + cast(ptr) ,
+    //drop drop
     .
     1 +
-    //memcpy_size ,64 dump
   end drop
 end
 
+proc memset
+     int // Size
+     ptr // Dst
+     int // Val
+   in
+
+  memset_val swap .
+  memset_dst swap .64
+  memset_size swap .64
+
+  0 while dup memset_size ,64 < do
+    dup memset_dst ,64 cast(ptr) + memset_val , .
+    1 +
+  end drop
+end
 

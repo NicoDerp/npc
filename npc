@@ -416,7 +416,8 @@ def pretty_print_word(word):
 	else:
 		print(f'Unknown {word.type}')
 	
-def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=0, insideProc=0):
+def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=[0], insideProc=0):
+	#print("Preprocessing with memOffset:", memOffset)
 	while True:
 		try:
 			word = next(words)
@@ -446,8 +447,9 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			fileName = os.path.join(args.include_path, inc.value)
 			if not os.path.exists(fileName):
 				program_error(inc, f"couldn't include file `{fileName}` because it does not exist! Double check the name and include paths.")
-			
-			for w in preprocess((parse(lex_file(fileName))), args, includes+1, expansions, macros, memories, memOffset):
+
+			#print("include: Calling preprocess with memoffset", memOffset)
+			for w in preprocess((parse(lex_file(fileName))), args=args, includes=includes+1, expansions=expansions, macros=macros, memories=memories, memOffset=memOffset, insideProc=insideProc):
 				yield w
 
 		elif word.type == 'KEYWORD' and word.op == 'MACRO':
@@ -491,8 +493,9 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 
 				body.append(w)
 
-			body = list(preprocess((x for x in body), args, includes, expansions+1, macros, memories, memOffset))
-				
+			#print("expansions: Calling preprocess with memoffset", memOffset)
+			body = list(preprocess((x for x in body), args=args, includes=includes, expansions=expansions+1, macros=macros, memories=memories, memOffset=memOffset, insideProc=insideProc))
+			
 			macros[name.name] = (body, word)
 			
 		elif word.type == 'MACRO_CALL':
@@ -621,8 +624,9 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, me
 			size = stack.pop()
 			if size <= 0:
 				program_error(word, "no numbers less than 1 allowed in memory reservation")
-			memories[name.name] = [size, memOffset]
-			memOffset += size
+			memories[name.name] = [size, memOffset[0]]
+			#print("Assignign offset", memOffset[0], "to", name.name)
+			memOffset[0] += size
 			
 		else:
 			yield word
@@ -1094,7 +1098,8 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 			proc = procs[word.name]
 			if len(stack) < len(proc['in']):
 				stack_types = list(map(lambda a:a[0], stack))
-				program_error_(word, f"not enough arguments to call procedure `{word.name}`. Expected top of stack to be {proc['in']} but found {stack_types}")
+				in_types = list(map(lambda a:a[0], proc['in']))
+				program_error_(word, f"not enough arguments to call procedure `{word.name}`. Expected top of stack to be {in_types} but found {stack_types}")
 				program_note(proc['word'], "procedure definition")
 				exit(1)
 			

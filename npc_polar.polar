@@ -17,6 +17,11 @@ macro sizeof(input_buf) 4096 end
 memory input_buf sizeof(input_buf) 1 - end
 memory input_fd 8 end
 
+// Max word-size is 64 characters
+macro sizeof(lex_buf) 64 end
+memory lex_buf sizeof(lex_buf) end
+memory lex_i 1 end
+
 proc print_help in
   "Usage: npc <file> [options]\n\n"					puts
   "Options:\n"								puts
@@ -35,7 +40,7 @@ end
 proc push_op
     int // op_type
     int // op_value
-  in
+in
   
   swap
   op-count , sizeof(Op) * op-start +
@@ -149,9 +154,30 @@ proc compile_program in
   "    resb    "	puts MEM_CAPACITY dump
 end
 
-//proc lex_file in
-//  0 
-//end
+proc lex_file in
+  // buf_size i
+  input_buf strlen 0 while 2dup > do
+    dup input_buf + ,
+    dup ' ' =
+    over '\n' = lor
+    over 0 = lor
+    if
+      drop // Drop the character
+      // Print the contents of the buffer
+      lex_buf cstr_to_str puts '\n' putc
+
+      // Reset stuff
+      lex_i 0 .
+      sizeof(lex_buf) lex_buf 0 memset
+    else
+      // Append character
+      lex_buf lex_i , + swap .
+      // Increment index
+      lex_i inc
+    end
+    1 +
+  end drop drop drop
+end
 
 argc swap .
 
@@ -200,7 +226,8 @@ else
   // Close
   input_fd ,64 f_close
   
-  input_buf cstr_to_str puts
+  //input_buf cstr_to_str puts
+  lex_file
 end
 
 0 exit
