@@ -406,18 +406,18 @@ def parse_args():
 
 	return arguments
 
-def pretty_print_word(word):
+def format_word(word):
 	if word.type == 'KEYWORD':
-		print(f"KEYWORD: `{word.op}`")
+		return f"keyword {word.op}"
 
 	elif word.type == 'WORD':
-		print(f"WORD: `{word.op}`")
+		return f"word {word.op}"
 
 	elif word.type == 'CONST':
-		print(f"CONST: `[{word.value_type}: {word.value}]`")
+		return f"const {word.value}"
 
 	else:
-		print(f'Unknown {word.type}')
+		return f'unknown {word.type}'
 	
 def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=[0], insideProc=0):
 	#print("Preprocessing with memOffset:", memOffset)
@@ -641,16 +641,13 @@ def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
 def expected_vs_actual(end, expected, actual):
-	program_note(end, "end block\n")
-	program_note(end, "Expected types:")
+	print("\nExpected types:")
 	for typ, word in expected:
-		program_note(word, typ)
-
-	print()
+		program_note(word, f"{typ} from {format_word(word)}")
 	
-	program_note(end, "Actual types:")
+	print("\nActual types:")
 	for typ, word in actual:
-		program_note(word, typ)
+		program_note(word, f"{typ} from {format_word(word)}")
 
 	exit(1)
 
@@ -734,32 +731,32 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				if len(stack) < 1:
 					not_enough_arguments(word)
 
-				a = stack.pop()
-					
-				stack.append(a)
-				stack.append(a)
+				a_type, a_loc = stack.pop()
+				
+				stack.append((a_type, a_loc))
+				stack.append((a_type, word))
 
 			elif word.op == 'SWAP':
 				if len(stack) < 2:
 					not_enough_arguments(word)
 
-				a = stack.pop()
-				b = stack.pop()
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
 
-				stack.append(a)
-				stack.append(b)
+				stack.append((a_type, a_loc))
+				stack.append((b_type, b_loc))
 
 			elif word.op == '2DUP':
 				if len(stack) < 2:
 					not_enough_arguments(word)
 
-				a = stack.pop()
-				b = stack.pop()
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
 
-				stack.append(b)
-				stack.append(a)
-				stack.append(b)
-				stack.append(a)
+				stack.append((b_type, b_loc))
+				stack.append((a_type, a_loc))
+				stack.append((b_type, word))
+				stack.append((a_type, word))
 
 			elif word.op == 'BINARY_OR':
 				if len(stack) < 2:
@@ -1031,7 +1028,7 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 			elif word.op == 'ELIF':
 				if len(block_stack) < 1:
-					program_error(word, 'elif keyword is missing previous if block!')
+					program_error(word, 'elif keyword is missing previous else block!')
 
 				if len(stack) < 1:
 					not_enough_arguments(word)
@@ -1041,13 +1038,19 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				if a_type != 'BOOL':
 					invalid_arguments(word, '`BOOL`', f'`{a_type}`')
 				
-				stack_snapshot, block_type = block_stack.pop()
-
+				expected_stack, block_type = block_stack.pop()
+				expected_types = list(map(lambda x: x[0], expected_stack))
+				actual_types = list(map(lambda x: x[0], stack))
+				
+				if expected_types != actual_types:
+					#print(expected_types, actual_types)
+					program_error_(block_type, 'else to elif block is not allowed to alter types on the stack')
+					expected_vs_actual(word, expected_stack, stack)
+				
 				if block_type.op != 'ELSE':
 					program_error(word, 'elif keyword is missing previous else block!')
 
-				block_stack.append((stack.copy(), word))
-				stack = stack_snapshot
+				block_stack.append((expected_stack.copy(), word))
 			
 			elif word.op == 'ELSE':
 				if len(block_stack) < 1:
@@ -1086,9 +1089,10 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 				if expected_types != actual_types:
 					program_error_(word, 'do block is not allowed to alter the types on the stack')
-					program_note(word, f'expected types: {expected_types}')
-					program_note(word, f'actual types: {actual_types}')
-					exit(1)
+					expected_vs_actual(word, expected_stack, stack)
+					#program_note(word, f'expected types: {expected_types}')
+					#program_note(word, f'actual types: {actual_types}')
+					#exit(1)
 
 				block_stack.append((stack.copy(), word))
 				
