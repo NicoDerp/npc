@@ -1,27 +1,40 @@
 
 include "std.polar"
 
+//macro puts 1 1 syscall3 end
 
-memory buf 64 end
-
-"abd" buf memcpy
-
-buf cstr_to_int dump
-
-//3 2 power dump
-
-//memory buf 64 end
-//memory out 8 end
-//
-//"842194" buf memcpy
-//
-//// strlen i n
-//buf strlen swap drop
-//0 while 2dup > do
-//  dup buf + , '0' -
-//  out ,64 10 * + out swap .64
+// n i b
+//2 0 while dup 5 = if swap dup 2 = rot rot swap rot else dup 10 < end do
+//  dup dump
 //  1 +
-//end drop drop
+//end
+
+//2
+//dup 1 = if
+//  "One" puts
+//else dup 2 = elif
+//  "Two" puts
+//else dup 3 = elif
+//  "Three" puts
+//else
+//  drop
+//  "Unknown" puts
+//end
+
+//include "std.polar"
 //
-//out ,64 1 dump
+//
+"Hola\0" str_to_cstr
+
+dup "Hei\0" str_to_cstr cstreq if
+  "Hei"
+else dup "Hallo\0" str_to_cstr cstreq elif
+  "Hei"
+else dup "Bonojour\0" str_to_cstr cstreq elif
+  "Bonojour"
+else dup "Hola\0" str_to_cstr cstreq elif
+  "Hola"
+else
+  "Nein"
+end puts
 

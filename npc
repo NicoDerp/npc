@@ -310,6 +310,9 @@ def parse(tokens):
 		elif tok.token == 'if':
 			yield Keyword('IF', tok)
 
+		elif tok.token == 'elif':
+			yield Keyword('ELIF', tok)
+		
 		elif tok.token == 'else':
 			yield Keyword('ELSE', tok)
 
@@ -1282,6 +1285,16 @@ def generate_words(words, dataLabels):
 	labelDepth = 0
 	memReserved = 0
 
+	def updateLabels():
+		if len(depthCounters) == 0:
+			depthCounters.append(Depth(0))
+
+		x = depthCounters[-1].depth
+		#print("Last depth is", depthCounters[-1].depth)
+		while len(depthCounters) <= labelDepth:
+			x += 1
+			depthCounters.append(Depth(x))
+	
 	code = ""
 	
 	for word in words:
@@ -1548,54 +1561,58 @@ def generate_words(words, dataLabels):
 		elif word.type == 'KEYWORD':
 			#print(f"Generating KEYWORD operation {word.op}")
 			if word.op == 'WHILE':
-				labelDepth += 1
-				while len(depthCounters) <= labelDepth:
-					depthCounters.append(Depth(labelDepth))
+				updateLabels()
 				depthCounters[labelDepth].loop = True
 				while_label = depthCounters[labelDepth].nextLabel()
+				labelDepth += 1
+				updateLabels()
 				code += '\n;; -- WHILE -- ;;\n'
 				code += f'{while_label}:\n'
 				
 			elif word.op == 'DO':
-				do_label = depthCounters[labelDepth].nextLabel()
-				end_label = depthCounters[labelDepth].nextLabel()
+				end_label = depthCounters[labelDepth-1].nextLabel()
 				code += '\n;; -- DO -- ;;\n'
-				code += f'{do_label}:\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
 				code += f'    jz      {end_label}\n'
 				
 			elif word.op == 'IF':
 				labelDepth += 1
-				while len(depthCounters) <= labelDepth:
-					depthCounters.append(Depth(labelDepth))
+				#while len(depthCounters) <= labelDepth:
+				#	depthCounters.append(Depth(labelDepth))
+				updateLabels()
 				label = depthCounters[labelDepth].nextLabel()
 				code +=  '\n    ;; -- IF -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
 				code += f'    jz      {label}\n'
-				code +=  '    ;; --- If body goes here --- ;;\n'
-				
+
+			elif word.op == 'ELIF':
+				label = depthCounters[labelDepth].nextLabel()
+				code +=  '\n;; -- ELIF -- ;;\n'
+				code +=  '    pop     rax\n'
+				code +=  '    test    rax, rax\n'
+				code += f'    jz      {label}\n'
+			
 			elif word.op == 'ELSE':
 				else_label = depthCounters[labelDepth].label()
-				tmp_label = depthCounters[labelDepth].nextLabel()
-				end_label = depthCounters[labelDepth].nextLabel()
+				end_label = depthCounters[labelDepth-1].label()
 				code +=  '\n;; -- ELSE -- ;;\n'
-				code += f'{tmp_label}:\n'
 				code += f'    jmp {end_label}\n'
 				code += f'{else_label}:\n'
 				
 			elif word.op == 'END':
+				labelDepth -= 1
 				label = depthCounters[labelDepth].label()
 				code += '\n;; -- END -- ;;\n'
 				if depthCounters[labelDepth].loop:
 					depthCounters[labelDepth].loop = False
-					depthCounters[labelDepth].counter -= 2
+					depthCounters[labelDepth].counter -= 1
 					while_label = depthCounters[labelDepth].label()
-					depthCounters[labelDepth].counter += 2
+					depthCounters[labelDepth].counter += 1
 					code += f'    jmp     {while_label}\n'
+				depthCounters[labelDepth].depth += 1
 				code += f'{label}: ; end_label\n'
-				labelDepth -= 1
 
 			elif word.op == 'INCLUDE':
 				program_error(word, f"there shouldn't be an `include` here! It's probably a bug in the preprocessing")
