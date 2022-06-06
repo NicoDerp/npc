@@ -83,30 +83,24 @@ proc compile_ops in
     dup , OP_PUSH_INT = if
       "\n;; -- OP_PUSH_INT -- ;;\n" puts
       "    push    " puts dup 8 + , dump
-    else
-      dup , OP_PLUS = if
+    else dup , OP_PLUS = elif
         "\n;; -- OP_PLUS -- ;;\n" puts
 	"    pop     rcx\n"       puts
 	"    pop     rax\n"       puts
 	"    add     rax, rcx\n"  puts
 	"    push    rax\n"       puts
-      else
-	dup , OP_SUB = if
-          "\n    ;; -- SUB -- ;;\n"	puts
-          "    pop     rax\n"		puts
-          "    pop     rcx\n"		puts
-          "    sub     rcx, rax\n"	puts
-          "    push    rcx\n"		puts
-	else
-          dup , OP_DUMP = if
-	    "\n;; -- OP_DUMP -- ;;\n" puts
-	    "    pop     rdi\n"       puts
-	    "    call    dump\n"      puts
-	  else
-            Unreachable
-          end
-	end
-      end
+    else dup , OP_SUB = elif
+        "\n    ;; -- SUB -- ;;\n"	puts
+        "    pop     rax\n"		puts
+        "    pop     rcx\n"		puts
+        "    sub     rcx, rax\n"	puts
+        "    push    rcx\n"		puts
+    else dup , OP_DUMP = elif
+      "\n;; -- OP_DUMP -- ;;\n" puts
+      "    pop     rdi\n"       puts
+      "    call    dump\n"      puts
+    else
+       Unreachable
     end
     drop
     1 +
@@ -168,21 +162,19 @@ end
 proc parse_word in
   lex_buf "+\0" str_to_cstr cstreq if
     OP_PLUS 0 push_op
-  else
-    lex_buf "-\0" str_to_cstr cstreq if
+  else lex_buf "-\0" str_to_cstr cstreq elif
       OP_SUB 0 push_op
-    else
-      lex_buf "dump\0" str_to_cstr cstreq if
-        OP_DUMP 0 push_op
-      else
-        lex_buf cstr_to_int
-        dup -1 = if
-          "Unable to parse word '" puts lex_buf cstr_to_str puts "'\n" puts
-          0 exit
-        end
-        OP_PUSH_INT swap push_op
-      end
+  else
+    lex_buf "dump\0" str_to_cstr cstreq elif
+      OP_DUMP 0 push_op
+  else
+    lex_buf cstr_to_int
+    dup -1 = if
+      "Unable to parse word '" puts lex_buf cstr_to_str puts "'\n" puts
+      0 exit
     end
+    
+    OP_PUSH_INT swap push_op
   end
 end
 
