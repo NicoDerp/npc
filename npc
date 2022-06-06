@@ -1029,13 +1029,33 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 				block_stack.append((stack.copy(), word))
 
+			elif word.op == 'ELIF':
+				if len(block_stack) < 1:
+					program_error(word, 'elif keyword is missing previous if block!')
+
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+
+				if a_type != 'BOOL':
+					invalid_arguments(word, '`BOOL`', f'`{a_type}`')
+				
+				stack_snapshot, block_type = block_stack.pop()
+
+				if block_type.op != 'ELSE':
+					program_error(word, 'elif keyword is missing previous else block!')
+
+				block_stack.append((stack.copy(), word))
+				stack = stack_snapshot
+			
 			elif word.op == 'ELSE':
 				if len(block_stack) < 1:
 					program_error(word, 'else keyword is missing previous if block!')
 				
 				stack_snapshot, block_type = block_stack.pop()
 
-				if block_type.op != 'IF':
+				if block_type.op != 'ELIF' and block_type.op != 'IF':
 					program_error(word, 'else keyword is missing previous if block!')
 
 				block_stack.append((stack.copy(), word))
