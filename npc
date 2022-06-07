@@ -414,7 +414,10 @@ def format_word(word):
 		return f"word {word.op}"
 
 	elif word.type == 'CONST':
-		return f"const {word.value}"
+		return f"const '{word.value}'"
+
+	elif word.type == 'MACRO_CALL':
+		return f"proc {word.name}"
 
 	else:
 		return f'unknown {word.type}'
@@ -1039,30 +1042,41 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 					invalid_arguments(word, '`BOOL`', f'`{a_type}`')
 				
 				expected_stack, block_type = block_stack.pop()
-				expected_types = list(map(lambda x: x[0], expected_stack))
-				actual_types = list(map(lambda x: x[0], stack))
-				
-				if expected_types != actual_types:
-					#print(expected_types, actual_types)
-					program_error_(block_type, 'else to elif block is not allowed to alter types on the stack')
-					expected_vs_actual(word, expected_stack, stack)
+				#expected_types = list(map(lambda x: x[0], expected_stack))
+				#actual_types = list(map(lambda x: x[0], stack))
 				
 				if block_type.op != 'ELSE':
 					program_error(word, 'elif keyword is missing previous else block!')
+				
+				#if expected_types != actual_types:
+				#	program_error_(block_type, 'else to elif block is not allowed to alter types on the stack')
+				#	expected_vs_actual(word, expected_stack, stack)
 
-				block_stack.append((expected_stack.copy(), word))
+				block_stack.append((stack.copy(), word))
+				#block_stack.append((actual_stack.copy(), word))
 			
 			elif word.op == 'ELSE':
 				if len(block_stack) < 1:
 					program_error(word, 'else keyword is missing previous if block!')
 				
 				stack_snapshot, block_type = block_stack.pop()
+				
+				if block_type.op == 'ELIF':
+					expected_types = list(map(lambda x: x[0], stack_snapshot))
+					actual_types = list(map(lambda x: x[0], stack))
+					if expected_types != actual_types:
+						program_error_(block_type, 'this elif to else block\'s stack is not the same as the previous block\'s stack')
+						expected_vs_actual(word, expected_stack, stack)
+					block_stack.append((stack_snapshot.copy(), word))
+					#stack = stack_snapshot
 
-				if block_type.op != 'ELIF' and block_type.op != 'IF':
+				elif block_type.op == 'IF':
+					#print("Stack: ", stack)
+					block_stack.append((stack.copy(), word))
+					stack = stack_snapshot
+
+				else:
 					program_error(word, 'else keyword is missing previous if block!')
-
-				block_stack.append((stack.copy(), word))
-				stack = stack_snapshot
 
 			elif word.op == 'WHILE':
 				block_stack.append((stack.copy(), word))
