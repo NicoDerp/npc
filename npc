@@ -1646,6 +1646,8 @@ def generate_words(words, dataLabels):
 				code += f'    jz      {label}\n'
 
 			elif word.op == 'ELIF':
+				# TODO: currently if's inside if's doesn't work.
+				# Or If without else I think
 				label = depthCounters[labelDepth].nextLabel()
 				code +=  '\n;; -- ELIF -- ;;\n'
 				code +=  '    pop     rax\n'

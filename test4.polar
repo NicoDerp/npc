@@ -6,6 +6,14 @@ macro puts 1 1 syscall3 drop end
 0 while dup 8 < do
   dup 1 = if
     "One\n"
+    1 2 = if
+      "123" puts
+    end
+    //else 2 3 = elif
+    //  "234" puts
+    //else
+    //  "345" puts
+    //end
   else dup 2 = elif
     "Two\n"
   else dup 1 = elif
