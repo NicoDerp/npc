@@ -406,18 +406,18 @@ def parse_args():
 
 	return arguments
 
-def format_word(word):
+def format_word(typ, word):
 	if word.type == 'KEYWORD':
-		return f"keyword {word.op}"
+		return f"{typ} from keyword {word.op}"
 
 	elif word.type == 'WORD':
-		return f"word {word.op}"
+		return f"{typ} from word {word.op}"
 
 	elif word.type == 'CONST':
-		return f"const '{word.value}'"
+		return f"{typ} from const"
 
 	elif word.type == 'MACRO_CALL':
-		return f"proc {word.name}"
+		return f"{typ} from proc {word.name}"
 
 	else:
 		return f'unknown {word.type}'
@@ -646,11 +646,11 @@ def invalid_arguments(word, expected, got):
 def expected_vs_actual(end, expected, actual):
 	print("\nExpected types:")
 	for typ, word in expected:
-		program_note(word, f"{typ} from {format_word(word)}")
+		program_note(word, format_word(typ, word))
 	
 	print("\nActual types:")
 	for typ, word in actual:
-		program_note(word, f"{typ} from {format_word(word)}")
+		program_note(word, format_word(typ, word))
 
 	exit(1)
 
@@ -1041,42 +1041,49 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				if a_type != 'BOOL':
 					invalid_arguments(word, '`BOOL`', f'`{a_type}`')
 				
-				expected_stack, block_type = block_stack.pop()
-				#expected_types = list(map(lambda x: x[0], expected_stack))
-				#actual_types = list(map(lambda x: x[0], stack))
+				expected_stack, block_type, backup_stack = block_stack.pop()
+				expected_types = list(map(lambda x: x[0], expected_stack))
+				actual_types = list(map(lambda x: x[0], stack))
 				
 				if block_type.op != 'ELSE':
 					program_error(word, 'elif keyword is missing previous else block!')
 				
-				#if expected_types != actual_types:
-				#	program_error_(block_type, 'else to elif block is not allowed to alter types on the stack')
-				#	expected_vs_actual(word, expected_stack, stack)
+				if expected_types != actual_types:
+					program_error_(block_type, 'else to elif block is not allowed to alter types on the stack')
+					expected_vs_actual(word, expected_stack, stack)
 
-				block_stack.append((stack.copy(), word))
+				block_stack.append((stack_snapshot.copy(), word, backup_stack))
 				#block_stack.append((actual_stack.copy(), word))
 			
 			elif word.op == 'ELSE':
 				if len(block_stack) < 1:
 					program_error(word, 'else keyword is missing previous if block!')
-				
-				stack_snapshot, block_type = block_stack.pop()
+
+				prev = block_stack.pop()
+				if len(prev) == 2:
+					stack_snapshot, block_type = prev
+				else:
+					stack_snapshot, block_type, prev_stack = prev
 				
 				if block_type.op == 'ELIF':
-					expected_types = list(map(lambda x: x[0], stack_snapshot))
+					expected_types = list(map(lambda x: x[0], prev_stack))
 					actual_types = list(map(lambda x: x[0], stack))
+					#print("x:", expected_types, "a:", actual_types)
 					if expected_types != actual_types:
-						program_error_(block_type, 'this elif to else block\'s stack is not the same as the previous block\'s stack')
-						expected_vs_actual(word, expected_stack, stack)
-					block_stack.append((stack_snapshot.copy(), word))
+						program_error_(block_type, 'this block\'s stack is not the same as the previous elif block stack')
+						expected_vs_actual(word, prev_stack, stack)
+					#block_stack.append((stack_snapshot.copy(), word))
 					#stack = stack_snapshot
 
-				elif block_type.op == 'IF':
-					#print("Stack: ", stack)
-					block_stack.append((stack.copy(), word))
-					stack = stack_snapshot
+				#elif block_type.op == 'IF':
+				#	#print("Stack: ", stack)
+				#	block_stack.append((stack.copy(), word))
+				#	stack = stack_snapshot
+				block_stack.append((stack_snapshot.copy(), word, stack.copy()))
+				stack = stack_snapshot
 
-				else:
-					program_error(word, 'else keyword is missing previous if block!')
+				#else:
+				#	program_error(word, 'else keyword is missing previous if block!')
 
 			elif word.op == 'WHILE':
 				block_stack.append((stack.copy(), word))
@@ -1113,7 +1120,12 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 			elif word.op == 'END':
 				if len(block_stack) == 0:
 					program_error(word, 'end has no block')
-				expected_stack, block_type = block_stack.pop()
+				block = block_stack.pop()
+				if len(block) == 2:
+					expected_stack, block_type = block
+				else:
+					expected_stack, block_type, prev_stack = block
+				
 				expected_types = list(map(lambda x: x[0], expected_stack))
 				actual_types = list(map(lambda x: x[0], stack))
 				
@@ -1126,6 +1138,7 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 						#exit(1)
 
 				elif block_type.op == 'ELSE':
+					expected_types = list(map(lambda x: x[0], prev_stack))
 					if expected_types != actual_types:
 						program_error_(block_type, 'both if and else blocks must produce the same types on the stack')
 						expected_vs_actual(word, expected_stack, stack)
@@ -1619,7 +1632,14 @@ def generate_words(words, dataLabels):
 				#while len(depthCounters) <= labelDepth:
 				#	depthCounters.append(Depth(labelDepth))
 				updateLabels()
+				#print("Curr1:")
+				#for c in depthCounters:
+				#	print(c.label())
 				label = depthCounters[labelDepth].nextLabel()
+				#print("Curr2:")
+				#for c in depthCounters:
+				#	print(c.label())
+
 				code +=  '\n    ;; -- IF -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
@@ -1649,7 +1669,7 @@ def generate_words(words, dataLabels):
 					while_label = depthCounters[labelDepth].label()
 					depthCounters[labelDepth].counter += 1
 					code += f'    jmp     {while_label}\n'
-				depthCounters[labelDepth].depth += 1
+				depthCounters[labelDepth].counter += 1
 				code += f'{label}: ; end_label\n'
 
 			elif word.op == 'INCLUDE':
