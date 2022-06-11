@@ -1615,13 +1615,14 @@ def generate_words(words, dataLabels):
 				updateLabels()
 				depthCounters[labelDepth].loop = True
 				while_label = depthCounters[labelDepth].nextLabel()
-				labelDepth += 1
+				depthCounters[labelDepth].counter += 1
+				labelDepth += 2
 				updateLabels()
 				code += '\n;; -- WHILE -- ;;\n'
 				code += f'{while_label}:\n'
 				
 			elif word.op == 'DO':
-				end_label = depthCounters[labelDepth-1].nextLabel()
+				end_label = depthCounters[labelDepth-2].nextLabel()
 				code += '\n;; -- DO -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
@@ -1658,9 +1659,9 @@ def generate_words(words, dataLabels):
 				code += '\n;; -- END -- ;;\n'
 				if depthCounters[labelDepth].loop:
 					depthCounters[labelDepth].loop = False
-					depthCounters[labelDepth].counter -= 1
+					depthCounters[labelDepth].counter -= 2
 					while_label = depthCounters[labelDepth].label()
-					depthCounters[labelDepth].counter += 1
+					depthCounters[labelDepth].counter += 2
 					code += f'    jmp     {while_label}\n'
 				depthCounters[labelDepth].counter += 1
 				code += f'{label}: ; end_label\n'
