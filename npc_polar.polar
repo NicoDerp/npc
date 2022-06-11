@@ -160,17 +160,17 @@ proc compile_program in
 end
 
 proc parse_word in
-  lex_buf "+\0" str_to_cstr cstreq if
+  lex_buf cstr_to_str
+  2dup "+" streq if
     OP_PLUS 0 push_op
-  else lex_buf "-\0" str_to_cstr cstreq elif
+  else 2dup "-" streq elif
       OP_SUB 0 push_op
-  else
-    lex_buf "dump\0" str_to_cstr cstreq elif
+  else 2dup "dump" streq elif
       OP_DUMP 0 push_op
   else
     lex_buf cstr_to_int
     false = if
-      "Unable to parse word '" puts lex_buf cstr_to_str puts "'\n" puts
+      "Unable to parse word '" puts lex_buf cputs "'\n" puts
       0 exit
     end
     
