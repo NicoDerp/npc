@@ -21,6 +21,8 @@ memory cstr_to_int_suc 1 end
 
 memory str_conc_buf 8 end
 
+memory streq_ptr 8 end
+
 proc exit int in
   60 syscall1
 end
@@ -100,8 +102,13 @@ proc str_to_cstr int ptr -- ptr in
   swap drop
 end
 
-// ptr2 ptr1
-proc cstreq ptr ptr -- bool in
+proc cstreq
+    ptr // Str1
+    ptr // Str2
+    --
+    bool // Str1 == Str2
+  in
+  
   while
     // Check if both of the characters aren't zero
     2dup , 0 != swap , 0 != land
@@ -120,6 +127,43 @@ proc cstreq ptr ptr -- bool in
 
   // If they both are zero they are the same
   , 0 = swap , 0 = land
+end
+
+proc streq
+    int ptr // Str1
+    int ptr // Str2
+    --
+    bool // Str1 == Str2
+  in
+
+  // ptr int int
+  streq_ptr swap .64
+  rot
+  2dup = if
+    // Same length start checking chars
+    drop
+    // ptr int
+    1 -
+    while
+      // If index is greater than zero
+      dup 0 > if
+        // If the characters are the same
+        2dup + ,
+        over streq_ptr ,64 cast(ptr) + ,
+        =
+      else
+        false
+      end
+    do
+      // Decrement index
+      1 -
+    end
+    swap drop
+    // If the index is zero it means they are equal
+    0 =
+  else
+    drop drop drop false
+  end
 end
 
 proc format ptr int ptr in

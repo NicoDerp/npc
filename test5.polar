@@ -1,7 +1,7 @@
 
 include "std.polar"
 
-memory buf 256 end
+//memory buf 256 end
 
 //proc str_conc
 //    int // Str1-size
@@ -20,9 +20,6 @@ memory buf 256 end
 //end
 
 "Nico"
-"Didde"
-buf
-str_conc
-
-buf cputs
+"Nico"
+streq dump
 
