@@ -19,7 +19,10 @@ include "std.polar"
 //  buf cstr_to_str
 //end
 
-"Nico"c
-"Nico"c
-cstreq dump
+//"Nico"c
+//"Nico"c
+//cstreq dump
+
+argc dump
+4 nth_argv cputs
 

@@ -10,7 +10,6 @@ macro OP_DUMP     4 end
 macro sizeof(Op) 16 end
 memory op-count 8 end
 memory op-start sizeof(Op) 256 * end
-memory argc 1 end
 
 macro sizeof(input_fn) 128 end
 memory input_fn sizeof(input_fn) 1 - end
@@ -189,7 +188,7 @@ proc parse_file in
       // Check if the buffer is not empty
       lex_i , 0 != if
         // Print the contents of the buffer
-        lex_buf cstr_to_str puts '\n' putc
+        //lex_buf cstr_to_str puts '\n' putc
         parse_word
   
         // Reset stuff
@@ -206,33 +205,26 @@ proc parse_file in
   end drop drop drop
 end
 
-argc swap .
-
-argc , 1 = if
+argc 1 = if
   print_help 0 exit
 end
 
-// Dont care about the first arg
-argc dec
-drop
-
 // If the first is '--help'
-dup "--help\0" str_to_cstr cstreq if
+1 nth_argv "--help"c cstreq if
   print_help 0 exit
 end
 
 // Copy the second argument to a buffer (the filename to compile)
-sizeof(input_fn) swap input_fn memcpy
-argc dec
+sizeof(input_fn) 1 nth_argv input_fn memcpy
 
 // Print the filename
-"'" puts input_fn cstr_to_str puts "'\n" puts
+"Compiling file: '" puts input_fn cputs "'\n\n" puts
 
 // Loop over args and do stuff
-while argc , 0 > do
-  cstr_to_str puts '\n' putc
-  argc dec
-end
+2 while dup argc < do
+  "Other args: " puts dup nth_argv cputs '\n' putc
+  1 +
+end drop
 
 // Open file
 O_READONLY_OWNER input_fn f_open
