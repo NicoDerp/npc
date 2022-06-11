@@ -1,5 +1,7 @@
 
-macro STDIO 1 end
+macro STDIN 0 end
+macro STDOUT 1 end
+macro STDERR 2 end
 
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
@@ -29,6 +31,10 @@ end
 
 proc write int ptr int -- int in
   1 syscall3
+end
+
+proc read int ptr int -- int in
+  0 syscall3
 end
 
 proc inc ptr in
@@ -76,7 +82,7 @@ proc f_close
 end
 
 proc puts int ptr -- in
-  STDIO write drop
+  STDOUT write drop
 end
 
 proc putc int -- in
