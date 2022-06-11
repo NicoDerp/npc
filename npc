@@ -222,6 +222,12 @@ def parse(tokens):
 		elif tok.token == '/':
 			yield Word('DIV', tok)
 
+		elif tok.token == 'argv':
+			yield Word('ARGV', tok)
+
+		elif tok.token == 'argc':
+	   		yield Word('ARGC', tok)
+			
 		elif tok.token == 'bor':
 			yield Word('BINARY_OR', tok)
 
@@ -347,7 +353,7 @@ def parse(tokens):
 
 		elif tok.token == 'memory':
 			yield Keyword('MEMORY', tok)
-
+		
 		else:
 			if '\'' in tok.token or '\"' in tok.token:
 				yield parse_string(tok)
@@ -746,6 +752,11 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
 				stack.append(('INT', word))
 
+			elif word.op == 'ARGV':
+				stack.append(('PTR', word))
+
+			elif word.op == 'ARGC':
+				stack.append(('INT', word))
 
 			elif word.op == 'DUP':
 				if len(stack) < 1:
@@ -1437,7 +1448,17 @@ def generate_words(words, dataLabels):
 				code += '    cdq\n'
 				code += '    idiv    rcx\n'
 				code += '    push    rax\n'
-				
+
+			elif word.op == 'ARGV':
+				code += '\n    ;; -- ARGV -- ;;\n'
+				code += '    mov     rax, [argv]\n'
+				code += '    push    rax\n'
+
+			elif word.op == 'ARGC':
+				code += '\n    ;; -- ARGC -- ;;\n'
+				code += '    mov     rax, [argc]\n'
+				code += '    push    rax\n'
+			
 			elif word.op == 'BINARY_OR':
 				code += '\n    ;; -- BINARY_OR -- ;;\n'
 				code += '    pop     rax\n'
@@ -1761,9 +1782,10 @@ dump:
 """
 	code += '_start:\n'
 	code += '    mov     r10, ret_stack\n'
-	#code += '    call    _main_\n'
-
-	#code += '_main_:\n'
+	code += '    mov     rax, [rsp]\n'
+	code += '    mov     [argc], rax\n'
+	code += '    lea     rax, [rsp+8]\n'
+	code += '    mov     [argv], rax\n'
 
 	dataLabels = []
 	c, memReserved = generate_words(words, dataLabels)
@@ -1807,6 +1829,10 @@ dump:
 			code += f'    db      {data_bytes}\n'
 
 	code +=  'segment .bss\n'
+	code +=  'argc:\n'
+	code +=  '    resb    8\n'
+	code +=  'argv:\n'
+	code +=  '    resb    8\n'
 	code +=  'mem:\n'
 	code += f'    resb    {memReserved}\n'
 	code +=  'ret_stack:\n'
