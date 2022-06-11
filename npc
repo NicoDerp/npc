@@ -14,6 +14,7 @@ Options:
   -o <file>    Place the output into file
   -S           Do not assemble, output is assembly code
   -r           Run the program after a succesful compilation
+  -dO          Disable optimization
   --unsafe     Disable type-checking
   --help       Display this information and exit"""
 
@@ -24,13 +25,13 @@ class Arguments:
 	def __init__(self):
 		self.infn = None
 		self.outfn = 'a.out'
-		self.pretty = None
 		self.help = None
 		self.none = None
 		self.asm = None
 		self.run = None
 		self.include_path = './'
-		self.unsafe = None
+		self.unsafe = False
+		self.disOpt = False
 		
 class Classified:
 	def __init__(self, type):
@@ -353,7 +354,7 @@ def parse(tokens):
 
 	
 def parse_args():
-	argv = (x for x in sys.argv)
+	argv = iter(sys.argv)
 	arguments = Arguments() # Put default values here
 
 	# No arguments so skip and save
@@ -379,10 +380,7 @@ def parse_args():
 
 		# print("Arg:", arg)
 
-		if arg == '-p':
-			arguments.pretty = True
-
-		elif arg == '-S':
+		if arg == '-S':
 			arguments.asm = True
 
 		elif arg == '-r':
@@ -390,7 +388,10 @@ def parse_args():
 
 		elif arg == '--unsafe':
 			arguments.unsafe = True
-			
+
+		elif arg == '-dO':
+			arguments.disOpt = True
+		
 		elif arg == '-o':
 			try:
 				arg = next(argv)
@@ -423,7 +424,7 @@ def format_word(typ, word):
 	elif word.type == 'CONST':
 		return f"{typ} from const"
 
-	elif word.type == 'MACRO_CALL':
+	elif word.type == 'PROC_CALL':
 		return f"{typ} from proc {word.name}"
 
 	else:
@@ -1172,7 +1173,7 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 		elif word.type == 'MACRO':
 			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
 
-		elif word.type == 'MACRO_CALL':
+		elif word.type == 'PROC_CALL':
 			proc = procs[word.name]
 			if len(stack) < len(proc['in']):
 				stack_types = list(map(lambda a:a[0], stack))
@@ -1314,11 +1315,12 @@ def parse_procs(words):
 				if w.type == 'MACRO_CALL':
 					if w.name not in procs.keys() and w.name != name.name:
 						program_error(w, f"procedure `{w.name}` does not exist")
+					procs[w.name]['used'] = True
 					proc_words.append(ProcCall(w, procs))
 				else:
 					proc_words.append(w)
 				#words_typecheck.append(w)
-			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs)}
+			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs), 'used': False}
 		elif word.type == 'MACRO_CALL':
 			if word.name not in procs.keys():
 				matches = did_you_mean(word.name, procs.keys())
@@ -1330,6 +1332,7 @@ def parse_procs(words):
 					exit(1)
 				else:
 					program_error(word, f"procedure `{word.name}` doesn't exist")
+			procs[word.name]['used'] = True
 			words_return.append(ProcCall(word, procs))
 		else:
 			words_return.append(word)
@@ -1701,7 +1704,7 @@ def generate_words(words, dataLabels):
 	return code, memReserved
 
 
-def generate_program(words, procs):
+def generate_program(words, procs, args):
 	code =  'section .text\n'
 	code += 'global _start\n'
 
@@ -1759,6 +1762,11 @@ dump:
 	
 	for name in procs:
 		proc = procs[name]
+
+		# Remove unused procedure code
+		if not proc['used'] and not args.disOpt:
+			continue
+		
 		body = proc['body']
 		index = proc['index']
 		c, mem = generate_words(body, dataLabels)
@@ -1826,7 +1834,7 @@ def main():
 	start_compile = time.time()
 	
 	# Compiling
-	code = generate_program(words, procs)
+	code = generate_program(words, procs, arguments)
 
 	end_compile = time.time()
 
