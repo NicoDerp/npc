@@ -1629,40 +1629,31 @@ def generate_words(words, dataLabels):
 				
 			elif word.op == 'IF':
 				labelDepth += 1
-				#while len(depthCounters) <= labelDepth:
-				#	depthCounters.append(Depth(labelDepth))
 				updateLabels()
-				#print("Curr1:")
-				#for c in depthCounters:
-				#	print(c.label())
 				label = depthCounters[labelDepth].nextLabel()
-				#print("Curr2:")
-				#for c in depthCounters:
-				#	print(c.label())
-
+				labelDepth += 1
+				updateLabels()
 				code +=  '\n    ;; -- IF -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
 				code += f'    jz      {label}\n'
 
 			elif word.op == 'ELIF':
-				# TODO: currently if's inside if's doesn't work.
-				# Or If without else I think
-				label = depthCounters[labelDepth].nextLabel()
+				label = depthCounters[labelDepth-1].nextLabel()
 				code +=  '\n;; -- ELIF -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
 				code += f'    jz      {label}\n'
 			
 			elif word.op == 'ELSE':
-				else_label = depthCounters[labelDepth].label()
-				end_label = depthCounters[labelDepth-1].label()
+				else_label = depthCounters[labelDepth-1].label()
+				end_label = depthCounters[labelDepth-2].label()
 				code +=  '\n;; -- ELSE -- ;;\n'
 				code += f'    jmp {end_label}\n'
 				code += f'{else_label}:\n'
 				
 			elif word.op == 'END':
-				labelDepth -= 1
+				labelDepth -= 2
 				label = depthCounters[labelDepth].label()
 				code += '\n;; -- END -- ;;\n'
 				if depthCounters[labelDepth].loop:
