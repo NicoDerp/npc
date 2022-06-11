@@ -80,6 +80,13 @@ class MacroCall(Classified, Position):
 		Position.__init__(self, tok)
 		self.name = tok.token
 
+class ProcCall(Classified, Position):
+	def __init__(self, macro, procs):
+		Classified.__init__(self, "PROC_CALL")
+		Position.__init__(self, macro.tok)
+		self.index = procs[macro.name]['index']
+		self.name = macro.name
+
 class Token(Position):
 	def __init__(self, token, row, col, filepath):
 		self.token = token
@@ -1301,16 +1308,17 @@ def parse_procs(words):
 
 				if w.type == 'KEYWORD' and w.op == 'PROC':
 					assert False, "local procedures not supported yet"
-				if w.type == 'MACRO_CALL':
-					if w.name not in procs.keys() and w.name != name.name:
-						program_error(w, f"procedure `{w.name}` does not exist")
-				
 				if depth == 0:
 					break
 
-				proc_words.append(w)
+				if w.type == 'MACRO_CALL':
+					if w.name not in procs.keys() and w.name != name.name:
+						program_error(w, f"procedure `{w.name}` does not exist")
+					proc_words.append(ProcCall(w, procs))
+				else:
+					proc_words.append(w)
 				#words_typecheck.append(w)
-			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out}
+			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs)}
 		elif word.type == 'MACRO_CALL':
 			if word.name not in procs.keys():
 				matches = did_you_mean(word.name, procs.keys())
@@ -1322,7 +1330,7 @@ def parse_procs(words):
 					exit(1)
 				else:
 					program_error(word, f"procedure `{word.name}` doesn't exist")
-			words_return.append(word)
+			words_return.append(ProcCall(word, procs))
 		else:
 			words_return.append(word)
 			#words_typecheck.append(word)
@@ -1680,12 +1688,11 @@ def generate_words(words, dataLabels):
 		elif word.type == 'MACRO':
 			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
 
-		elif word.type == 'MACRO_CALL':
+		elif word.type == 'PROC_CALL':
 			# Checking if the procedure exists is done
 			# in parse_procs
-			name = word.name.replace("-", "_")
-			code +=  '\n;; -- PROCEDURE -- ;;\n'
-			code += f'    call proc_{name}\n'
+			code += f'\n;; -- proc_{word.name} -- ;;\n'
+			code += f'    call proc_{word.index}\n'
 			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
 			
 		else:
@@ -1753,9 +1760,9 @@ dump:
 	for name in procs:
 		proc = procs[name]
 		body = proc['body']
+		index = proc['index']
 		c, mem = generate_words(body, dataLabels)
-		name = name.replace("-", "_")
-		code += f'\nproc_{name}:\n'
+		code += f'\nproc_{index}:\n'
 		code += '    pop     r11\n'
 		code += '    mov     [r10], r11\n'
 		code += '    add     r10, 8\n'
