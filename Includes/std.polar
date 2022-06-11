@@ -296,3 +296,12 @@ proc ?wspace
   swap drop
 end
 
+proc nth_argv
+    int // n
+    --
+    ptr
+  in
+
+  8 * argv + ,64
+end
+

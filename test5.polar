@@ -24,5 +24,5 @@ include "std.polar"
 //cstreq dump
 
 argc dump
-argv 8 + ,64 cputs
+4 nth_argv cputs
 
