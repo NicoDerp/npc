@@ -284,3 +284,14 @@ proc cputs
   cstr_to_str puts
 end
 
+proc ?wspace
+    int // Char
+    --
+    bool // Whitespace (0, '\n', ' ')
+  in
+
+  dup ' ' =
+  over '\n' = lor
+  over 0 = lor
+end
+

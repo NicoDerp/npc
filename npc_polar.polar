@@ -182,13 +182,11 @@ proc parse_file in
   // buf_size i
   input_buf strlen 0 while 2dup > do
     dup input_buf + ,
-    dup ' ' =
-    over '\n' = lor
-    over 0 = lor
+    ?wspace
     if
       drop // Drop the character
 
-      // Check if the buffer is only whitespace
+      // Check if the buffer is not empty
       lex_i , 0 != if
         // Print the contents of the buffer
         lex_buf cstr_to_str puts '\n' putc
