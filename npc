@@ -297,9 +297,15 @@ def parse(tokens):
 		elif tok.token == 'syscall1':
 			yield Word('SYSCALL1', tok)
 
+		elif tok.token == 'syscall2':
+			yield Word('SYSCALL2', tok)
+		
 		elif tok.token == 'syscall3':
 			yield Word('SYSCALL3', tok)
 
+		elif tok.token == 'syscall6':
+			yield Word('SYSCALL6', tok)
+		
 		elif tok.token == 'cast(int)':
 			yield Word('CAST_INT', tok)
 
@@ -969,7 +975,20 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				if a_type != 'INT':
 					invalid_arguments(word, '`INT`', f'`{a_type}`')
 
-				# I think they don't push anything
+				stack.append(('INT', word))
+
+			elif word.op == 'SYSCALL2':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b = stack.pop()
+				c = stack.pop()
+
+				if a_type != 'INT':
+					invalid_arguments(word, '`INT`', f'`{a_type}`')
+
+				stack.append(('INT', word))
 			
 			elif word.op == 'SYSCALL3':
 				if len(stack) < 4:
@@ -984,7 +1003,24 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 					invalid_arguments(word, '`INT`', f'`{a_type}`')
 
 				stack.append(('INT', word))
-					
+
+			elif word.op == 'SYSCALL6':
+				if len(stack) < 7:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b = stack.pop()
+				c = stack.pop()
+				d = stack.pop()
+				e = stack.pop()
+				f = stack.pop()
+				g = stack.pop()
+				
+				if a_type != 'INT':
+					invalid_arguments(word, '`INT`', f'`{a_type}`')
+
+				stack.append(('INT', word))
+				
 			elif word.op == 'MEM':
 				stack.append(('PTR', word))
 
@@ -1631,9 +1667,18 @@ def generate_words(words, dataLabels):
 				
 			elif word.op == 'SYSCALL1':
 				code += '\n    ;; -- SYSCALL1 -- ;;\n'
-				code += '    pop rax\n'
-				code += '    pop rdi\n'
+				code += '    pop     rax\n'
+				code += '    pop     rdi\n'
 				code += '    syscall\n'
+				code += '    push    rax\n'
+
+			elif word.op == 'SYSCALL2':
+				code += '\n    ;; -- SYSCALL1 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rdi\n'
+				code += '    pop     rsi\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
 				
 			elif word.op == 'SYSCALL3':
 				code += '\n    ;; -- SYSCALL3 -- ;;\n'
@@ -1644,6 +1689,18 @@ def generate_words(words, dataLabels):
 				code += '    syscall\n'
 				code += '    push    rax\n'
 
+			elif word.op == 'SYSCALL6':
+				code += '\n    ;; -- SYSCALL6 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rdi\n'
+				code += '    pop     rsi\n'
+				code += '    pop     rdx\n'
+				code += '    pop     r10\n'
+				code += '    pop     r8\n'
+				code += '    pop     r9\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
+			
 			#elif word.op == 'CAST_INT':
 			#	program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
 			#	
