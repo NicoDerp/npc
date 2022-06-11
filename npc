@@ -406,18 +406,21 @@ def parse_args():
 
 	return arguments
 
-def pretty_print_word(word):
+def format_word(typ, word):
 	if word.type == 'KEYWORD':
-		print(f"KEYWORD: `{word.op}`")
+		return f"{typ} from keyword {word.op}"
 
 	elif word.type == 'WORD':
-		print(f"WORD: `{word.op}`")
+		return f"{typ} from word {word.op}"
 
 	elif word.type == 'CONST':
-		print(f"CONST: `[{word.value_type}: {word.value}]`")
+		return f"{typ} from const"
+
+	elif word.type == 'MACRO_CALL':
+		return f"{typ} from proc {word.name}"
 
 	else:
-		print(f'Unknown {word.type}')
+		return f'unknown {word.type}'
 	
 def preprocess(words, args, includes=0, expansions=0, macros={}, memories={}, memOffset=[0], insideProc=0):
 	#print("Preprocessing with memOffset:", memOffset)
@@ -641,16 +644,13 @@ def invalid_arguments(word, expected, got):
 	program_error(word, f"invalid argument types for {word.op} operation. Expected {expected} but got {got}")
 
 def expected_vs_actual(end, expected, actual):
-	program_note(end, "end block\n")
-	program_note(end, "Expected types:")
+	print("\nExpected types:")
 	for typ, word in expected:
-		program_note(word, typ)
-
-	print()
+		program_note(word, format_word(typ, word))
 	
-	program_note(end, "Actual types:")
+	print("\nActual types:")
 	for typ, word in actual:
-		program_note(word, typ)
+		program_note(word, format_word(typ, word))
 
 	exit(1)
 
@@ -734,32 +734,32 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				if len(stack) < 1:
 					not_enough_arguments(word)
 
-				a = stack.pop()
-					
-				stack.append(a)
-				stack.append(a)
+				a_type, a_loc = stack.pop()
+				
+				stack.append((a_type, a_loc))
+				stack.append((a_type, word))
 
 			elif word.op == 'SWAP':
 				if len(stack) < 2:
 					not_enough_arguments(word)
 
-				a = stack.pop()
-				b = stack.pop()
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
 
-				stack.append(a)
-				stack.append(b)
+				stack.append((a_type, a_loc))
+				stack.append((b_type, b_loc))
 
 			elif word.op == '2DUP':
 				if len(stack) < 2:
 					not_enough_arguments(word)
 
-				a = stack.pop()
-				b = stack.pop()
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
 
-				stack.append(b)
-				stack.append(a)
-				stack.append(b)
-				stack.append(a)
+				stack.append((b_type, b_loc))
+				stack.append((a_type, a_loc))
+				stack.append((b_type, word))
+				stack.append((a_type, word))
 
 			elif word.op == 'BINARY_OR':
 				if len(stack) < 2:
@@ -1029,17 +1029,61 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 				block_stack.append((stack.copy(), word))
 
+			elif word.op == 'ELIF':
+				if len(block_stack) < 1:
+					program_error(word, 'elif keyword is missing previous else block!')
+
+				if len(stack) < 1:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+
+				if a_type != 'BOOL':
+					invalid_arguments(word, '`BOOL`', f'`{a_type}`')
+				
+				expected_stack, block_type, backup_stack = block_stack.pop()
+				expected_types = list(map(lambda x: x[0], expected_stack))
+				actual_types = list(map(lambda x: x[0], stack))
+				
+				if block_type.op != 'ELSE':
+					program_error(word, 'elif keyword is missing previous else block!')
+				
+				if expected_types != actual_types:
+					program_error_(block_type, 'else to elif block is not allowed to alter types on the stack')
+					expected_vs_actual(word, expected_stack, stack)
+
+				block_stack.append((stack_snapshot.copy(), word, backup_stack))
+				#block_stack.append((actual_stack.copy(), word))
+			
 			elif word.op == 'ELSE':
 				if len(block_stack) < 1:
 					program_error(word, 'else keyword is missing previous if block!')
+
+				prev = block_stack.pop()
+				if len(prev) == 2:
+					stack_snapshot, block_type = prev
+				else:
+					stack_snapshot, block_type, prev_stack = prev
 				
-				stack_snapshot, block_type = block_stack.pop()
+				if block_type.op == 'ELIF':
+					expected_types = list(map(lambda x: x[0], prev_stack))
+					actual_types = list(map(lambda x: x[0], stack))
+					#print("x:", expected_types, "a:", actual_types)
+					if expected_types != actual_types:
+						program_error_(block_type, 'this block\'s stack is not the same as the previous elif block stack')
+						expected_vs_actual(word, prev_stack, stack)
+					#block_stack.append((stack_snapshot.copy(), word))
+					#stack = stack_snapshot
 
-				if block_type.op != 'IF':
-					program_error(word, 'else keyword is missing previous if block!')
-
-				block_stack.append((stack.copy(), word))
+				#elif block_type.op == 'IF':
+				#	#print("Stack: ", stack)
+				#	block_stack.append((stack.copy(), word))
+				#	stack = stack_snapshot
+				block_stack.append((stack_snapshot.copy(), word, stack.copy()))
 				stack = stack_snapshot
+
+				#else:
+				#	program_error(word, 'else keyword is missing previous if block!')
 
 			elif word.op == 'WHILE':
 				block_stack.append((stack.copy(), word))
@@ -1066,16 +1110,22 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 				if expected_types != actual_types:
 					program_error_(word, 'do block is not allowed to alter the types on the stack')
-					program_note(word, f'expected types: {expected_types}')
-					program_note(word, f'actual types: {actual_types}')
-					exit(1)
+					expected_vs_actual(word, expected_stack, stack)
+					#program_note(word, f'expected types: {expected_types}')
+					#program_note(word, f'actual types: {actual_types}')
+					#exit(1)
 
 				block_stack.append((stack.copy(), word))
 				
 			elif word.op == 'END':
 				if len(block_stack) == 0:
 					program_error(word, 'end has no block')
-				expected_stack, block_type = block_stack.pop()
+				block = block_stack.pop()
+				if len(block) == 2:
+					expected_stack, block_type = block
+				else:
+					expected_stack, block_type, prev_stack = block
+				
 				expected_types = list(map(lambda x: x[0], expected_stack))
 				actual_types = list(map(lambda x: x[0], stack))
 				
@@ -1088,6 +1138,7 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 						#exit(1)
 
 				elif block_type.op == 'ELSE':
+					expected_types = list(map(lambda x: x[0], prev_stack))
 					if expected_types != actual_types:
 						program_error_(block_type, 'both if and else blocks must produce the same types on the stack')
 						expected_vs_actual(word, expected_stack, stack)
@@ -1564,13 +1615,14 @@ def generate_words(words, dataLabels):
 				updateLabels()
 				depthCounters[labelDepth].loop = True
 				while_label = depthCounters[labelDepth].nextLabel()
-				labelDepth += 1
+				depthCounters[labelDepth].counter += 1
+				labelDepth += 2
 				updateLabels()
 				code += '\n;; -- WHILE -- ;;\n'
 				code += f'{while_label}:\n'
 				
 			elif word.op == 'DO':
-				end_label = depthCounters[labelDepth-1].nextLabel()
+				end_label = depthCounters[labelDepth-2].nextLabel()
 				code += '\n;; -- DO -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
@@ -1578,41 +1630,46 @@ def generate_words(words, dataLabels):
 				
 			elif word.op == 'IF':
 				labelDepth += 1
-				#while len(depthCounters) <= labelDepth:
-				#	depthCounters.append(Depth(labelDepth))
 				updateLabels()
 				label = depthCounters[labelDepth].nextLabel()
+				depthCounters[labelDepth].counter -= 1
+				labelDepth += 1
+				updateLabels()
 				code +=  '\n    ;; -- IF -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
 				code += f'    jz      {label}\n'
 
 			elif word.op == 'ELIF':
-				label = depthCounters[labelDepth].nextLabel()
+				label = depthCounters[labelDepth-1].nextLabel()
+				depthCounters[labelDepth-1].counter -= 1
 				code +=  '\n;; -- ELIF -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
 				code += f'    jz      {label}\n'
 			
 			elif word.op == 'ELSE':
-				else_label = depthCounters[labelDepth].label()
-				end_label = depthCounters[labelDepth-1].label()
+				else_label = depthCounters[labelDepth-1].nextLabel()
+				end_label = depthCounters[labelDepth-2].label()
 				code +=  '\n;; -- ELSE -- ;;\n'
 				code += f'    jmp {end_label}\n'
 				code += f'{else_label}:\n'
 				
 			elif word.op == 'END':
-				labelDepth -= 1
+				if_label = depthCounters[labelDepth-1].nextLabel()
+				depthCounters[labelDepth-1].counter += 1
+				labelDepth -= 2
 				label = depthCounters[labelDepth].label()
 				code += '\n;; -- END -- ;;\n'
 				if depthCounters[labelDepth].loop:
 					depthCounters[labelDepth].loop = False
-					depthCounters[labelDepth].counter -= 1
+					depthCounters[labelDepth].counter -= 2
 					while_label = depthCounters[labelDepth].label()
-					depthCounters[labelDepth].counter += 1
+					depthCounters[labelDepth].counter += 2
 					code += f'    jmp     {while_label}\n'
-				depthCounters[labelDepth].depth += 1
+				depthCounters[labelDepth].counter += 1
 				code += f'{label}: ; end_label\n'
+				code += f'{if_label}:\n'
 
 			elif word.op == 'INCLUDE':
 				program_error(word, f"there shouldn't be an `include` here! It's probably a bug in the preprocessing")
