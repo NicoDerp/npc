@@ -156,7 +156,7 @@ def lex_file(source_file):
 	with open(source_file, 'r') as infile:
 		# Comments!
 		lines = [line.split('//', 1)[0] for line in infile.readlines()]
-		matches = [((token.start(), token.group()) for token in re.finditer(r"\"((.|\\.)+?)\"|'(.+?)'|\S+", line)) for line in lines]
+		matches = [((token.start(), token.group()) for token in re.finditer(r"\"((.|\\.)+?)\"(c)?|'(.+?)'|\S+", line)) for line in lines]
 		
 	for row, i in enumerate(matches):
 		for col, tok in i:
@@ -168,17 +168,22 @@ def parse_string(tok):
 	if len(tok.token) == 1:
 		program_error(tok, f"unclosed string literal `{tok.token}`")
 
+	cstr = tok.token[-1] == 'c'
+	
 	quote = tok.token[0]
 	# Not a quote (shouldn't occur)
 	if not quote in '\'"':
 		program_error(tok, f"unclosed string literal `{tok.token}`")
-		
+
 	# Two different quotes
-	if quote != tok.token[-1]:
+	if not cstr and quote != tok.token[-1] or cstr and quote != tok.token[-2]:
 		program_error(tok, f"unclosed string literal `{tok.token}`")
 	
 	# Remove quotes
-	s = tok.token[1:-1]
+	if cstr:
+		s = tok.token[1:-2]
+	else:
+		s = tok.token[1:-1]
 	
 	# For escaped stuff, convert to bytes, then back again
 	bytes_string = bytes(s, 'utf-8')
@@ -186,10 +191,11 @@ def parse_string(tok):
 		s = bytes_string.decode('unicode_escape')
 	except (UnicodeDecodeError, DeprecationWarning):
 		program_error(tok, "invalid escape sequence in string")
-		
+	
 	# String
 	if quote == '"':
-		return Const('STR', s, tok)
+		str_type = 'CSTR' if cstr else 'STR'
+		return Const(str_type, s, tok)
 	
 	# Character
 	if len(s) != 1:
@@ -671,6 +677,9 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 			elif word.value_type == 'STR':
 				stack.append(('INT', word))
+				stack.append(('PTR', word))
+
+			elif word.value_type == 'CSTR':
 				stack.append(('PTR', word))
 
 			elif word.value_type == 'CHAR':
@@ -1369,12 +1378,18 @@ def generate_words(words, dataLabels):
 
 			elif word.value_type == 'STR':
 				label = 'str_' + str(len(dataLabels))
-				dataLabels.append({'label': label, 'data': word.value})
+				dataLabels.append({'label': label, 'data': word.value, 'cstr': False})
 				size = len(word.value)
 				code +=  '\n    ;; -- CONST STR -- ;;\n'
 				code += f'    push    {size}\n'
 				code += f'    push    {label}\n'
 
+			elif word.value_type == 'CSTR':
+				label = 'cstr_' + str(len(dataLabels))
+				dataLabels.append({'label': label, 'data': word.value, 'cstr': True})
+				code +=  '\n    ;; -- CONST CSTR -- ;;\n'
+				code += f'    push    {label}\n'
+				
 			elif word.value_type == 'CHAR':
 				code +=  '\n    ;; -- CONST CHAR -- ;;\n'
 				code += f'    push    {word.value}\n'
@@ -1786,7 +1801,10 @@ dump:
 	for data in dataLabels:
 		data_bytes = ','.join(map(hex, bytes(data['data'], 'utf-8')))	
 		code += f'{data["label"]}:\n'
-		code += f'    db      {data_bytes}\n'
+		if data['cstr']:
+			code += f'    db      {data_bytes},0\n'
+		else:
+			code += f'    db      {data_bytes}\n'
 
 	code +=  'segment .bss\n'
 	code +=  'mem:\n'

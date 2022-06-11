@@ -13,12 +13,12 @@ Polar is planned to
 - [x] Be Turing-complete
 - [ ] Have a complete standard library
 - [ ] Be self-hosted
-- [ ] Be optimized
+- [x] Be optimized
 - [x] Have advanced type-checking
 
 ## Features
 - [x] Procedures and macros
-- [ ] C-style strings
+- [x] C-style strings
 - [x] Support includes
 
 ## Examples
@@ -129,6 +129,17 @@ Last the pointer to the memory location is pushed onto the stack.
 Example of the stack afterwards:
 ```
 13 420123
+```
+
+#### C-style strings
+
+These are like strings, but they only push the pointer and not the size.
+These strings ends with 0, and are used in C and in the linux kernel.
+To specify that a string is a c-style string, it ends with a 'c'.
+
+Example:
+```
+"Hello World!"c cputs
 ```
 
 #### Character
