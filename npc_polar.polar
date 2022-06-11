@@ -175,14 +175,14 @@ proc parse_word in
     end
     
     OP_PUSH_INT swap push_op
-  end
+  end drop drop
 end
 
 proc parse_file in
   // buf_size i
   input_buf strlen 0 while 2dup > do
     dup input_buf + ,
-    ?wspace
+    dup ?wspace
     if
       drop // Drop the character
 

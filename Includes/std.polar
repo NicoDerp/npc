@@ -293,5 +293,6 @@ proc ?wspace
   dup ' ' =
   over '\n' = lor
   over 0 = lor
+  swap drop
 end
 
