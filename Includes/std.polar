@@ -17,6 +17,9 @@ memory putc_char 1 end
 
 memory cstr_to_int_out 8 end
 memory cstr_to_int_str 8 end
+memory cstr_to_int_suc 1 end
+
+memory str_conc_buf 8 end
 
 proc exit int in
   60 syscall1
@@ -167,10 +170,12 @@ proc cstr_to_int
      ptr // Cstr
      --
      int // int(cstr)
+     bool // succeed
   in
 
   cstr_to_int_str swap .64
   cstr_to_int_out 0 .64
+  cstr_to_int_suc 1 .
 
   // strlen 0 digit
   cstr_to_int_str ,64 strlen swap drop
@@ -183,18 +188,16 @@ proc cstr_to_int
       // Basically break
       // Since index == strlen
       drop drop dup
-      // And create 'error'
-      cstr_to_int_out -1 .64
+      cstr_to_int_suc 0 .
     else
       '0' -
       cstr_to_int_out ,64 10 * + cstr_to_int_out swap .64
       1 +
     end
-
-
   end drop drop
   
   cstr_to_int_out ,64
+  cstr_to_int_suc , cast(bool)
 end
 
 proc power
@@ -215,4 +218,25 @@ proc power
   drop drop
 end
 
+proc str_conc
+    int // Str1-size
+    ptr // Str1-ptr
+    int // Str2-size
+    ptr // Str2-size
+    ptr // Buffer
+    --
+  in
+
+  str_conc_buf swap .64
+  over swap str_conc_buf ,64 memcpy
+  str_conc_buf ,64 + memcpy
+end
+
+proc cputs
+    ptr // Cstr
+    --
+  in
+
+  cstr_to_str puts
+end
 

@@ -169,7 +169,7 @@ proc parse_word in
       OP_DUMP 0 push_op
   else
     lex_buf cstr_to_int
-    dup -1 = if
+    false = if
       "Unable to parse word '" puts lex_buf cstr_to_str puts "'\n" puts
       0 exit
     end
