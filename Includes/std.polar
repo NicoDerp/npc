@@ -299,7 +299,7 @@ end
 proc nth_argv
     int // n
     --
-    ptr
+    int
   in
 
   8 * argv + ,64
