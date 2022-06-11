@@ -1632,6 +1632,7 @@ def generate_words(words, dataLabels):
 				labelDepth += 1
 				updateLabels()
 				label = depthCounters[labelDepth].nextLabel()
+				depthCounters[labelDepth].counter -= 1
 				labelDepth += 1
 				updateLabels()
 				code +=  '\n    ;; -- IF -- ;;\n'
@@ -1641,19 +1642,22 @@ def generate_words(words, dataLabels):
 
 			elif word.op == 'ELIF':
 				label = depthCounters[labelDepth-1].nextLabel()
+				depthCounters[labelDepth-1].counter -= 1
 				code +=  '\n;; -- ELIF -- ;;\n'
 				code +=  '    pop     rax\n'
 				code +=  '    test    rax, rax\n'
 				code += f'    jz      {label}\n'
 			
 			elif word.op == 'ELSE':
-				else_label = depthCounters[labelDepth-1].label()
+				else_label = depthCounters[labelDepth-1].nextLabel()
 				end_label = depthCounters[labelDepth-2].label()
 				code +=  '\n;; -- ELSE -- ;;\n'
 				code += f'    jmp {end_label}\n'
 				code += f'{else_label}:\n'
 				
 			elif word.op == 'END':
+				if_label = depthCounters[labelDepth-1].nextLabel()
+				depthCounters[labelDepth-1].counter += 1
 				labelDepth -= 2
 				label = depthCounters[labelDepth].label()
 				code += '\n;; -- END -- ;;\n'
@@ -1665,6 +1669,7 @@ def generate_words(words, dataLabels):
 					code += f'    jmp     {while_label}\n'
 				depthCounters[labelDepth].counter += 1
 				code += f'{label}: ; end_label\n'
+				code += f'{if_label}:\n'
 
 			elif word.op == 'INCLUDE':
 				program_error(word, f"there shouldn't be an `include` here! It's probably a bug in the preprocessing")

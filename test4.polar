@@ -3,6 +3,11 @@ include "std.polar"
 
 macro puts 1 1 syscall3 drop end
 
+//1 1 = if
+//  "abc" puts
+//end
+
+
 0 while dup 8 < do
   dup 1 = if
     "One\n"
