@@ -30,22 +30,7 @@ dup MAP_FAILED = if
   "Failed to memory map file\n" puts
 end
 
-// TODO: Maybe why I can't call is because mmap is using
-// r8 and r9 I think which interferses with the return
-// stack.
-// Two possibilietes:
-// - Just switch registers that i use
-// Or
-// - Reserve some space in the .bss section as the pointer.
-// I definetely think 1 is best
-
-//"abc" puts
-cast(ptr)
-0 while 2dup + , 0 > do
-  1 +
-end
-swap 1 1 syscall3 drop
-//cast(ptr) cputs
+cast(ptr) cputs
 
 // Close file
 //fd ,64 f_close

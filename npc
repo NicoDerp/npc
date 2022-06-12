@@ -1838,7 +1838,9 @@ dump:
     ret
 """
 	code += '_start:\n'
-	code += '    mov     r10, ret_stack\n'
+	code += '    ; Set up return stack\n'
+	code += '    mov     r15, ret_stack\n'
+	code += '    ; Set up argc and argv\n'
 	code += '    mov     rax, [rsp]\n'
 	code += '    mov     [argc], rax\n'
 	code += '    lea     rax, [rsp+8]\n'
@@ -1865,14 +1867,14 @@ dump:
 		index = proc['index']
 		c, mem = generate_words(body, dataLabels)
 		code += f'\nproc_{index}:\n'
-		code += '    pop     r11\n'
-		code += '    mov     [r10], r11\n'
-		code += '    add     r10, 8\n'
+		code += '    pop     r14\n'
+		code += '    mov     [r15], r14\n'
+		code += '    add     r15, 8\n'
 		code += c
 		code += '\n;; -- Return stack magic -- ;;\n'
-		code += '    sub     r10, 8\n'
-		code += '    mov     r11, [r10]\n'
-		code += '    jmp     r11\n'
+		code += '    sub     r15, 8\n'
+		code += '    mov     r14, [r15]\n'
+		code += '    jmp     r14\n'
 		memReserved += mem
 	
 	code += '\nsegment .data\n'
