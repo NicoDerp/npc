@@ -4,27 +4,48 @@ macro STDOUT 1 end
 macro STDERR 2 end
 
 macro sizeof(fstat) 144 end
-macro st_dev 0 + end 
-macro st_ino 8 + end 
-macro st_mode 24 + end 
-macro st_nlink 16 + end 
-macro st_uid 28 + end 
-macro st_gid 32 + end 
-macro st_rdev 40 + end 
-macro st_size 48 + end 
-macro st_blksize 56 + end 
-macro st_blocks 64 + end 
-macro st_atime 72 + end 
-macro st_mtime 88 + end 
-macro st_ctime 104 + end
+macro st_dev 0 +        end 
+macro st_ino 8 +        end 
+macro st_mode 24 +      end 
+macro st_nlink 16 +     end 
+macro st_uid 28 +       end
+macro st_gid 32 +       end
+macro st_rdev 40 +      end
+macro st_size 48 +      end
+macro st_blksize 56 +   end
+macro st_blocks 64 +    end
+macro st_atime 72 +     end
+macro st_mtime 88 +     end
+macro st_ctime 104 +    end
 
 macro MAP_FAILED -1 end
-macro PROT_READ 1 end
+macro PROT_READ   1 end
 macro MAP_PRIVATE 2 end
 
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
-macro O_READONLY_OWNER 400 0 end
+
+macro S_IRWXU 00700 end
+macro S_IRUSR 00400 end
+macro S_IWUSR 00200 end
+macro S_IXUSR 00100 end
+macro S_IRWXG 00070 end
+macro S_IRGRP 00040 end
+macro S_IWGRP 00020 end
+macro S_IXGRP 00010 end
+macro S_IRWXO 00007 end
+macro S_IROTH 00004 end
+macro S_IWOTH 00002 end
+macro S_IXOTH 00001 end
+
+macro O_RDONLY_OWNER S_IRUSR O_RDONLY end
+macro O_WRONLY_OWNER S_IWUSR
+
+macro O_RDONLY 0   end
+macro O_WRONLY 1   end
+macro O_RDWR   2   end
+macro O_CREAT  64  end
+macro O_TRUNC  512 end
 
 memory memcpy_src 8 end
 memory memcpy_dst 8 end

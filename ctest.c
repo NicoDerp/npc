@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stddef.h>
 #include <sys/mman.h>
+#include <fcntl.h>
 
 int main() {
   /* printf("macro sizeof(fstat) %ld end\n", sizeof(struct stat)); */
@@ -21,10 +22,16 @@ int main() {
   /* printf("macro st_mtime %ld + end \n", offsetof(struct stat, st_mtime));    /\* time of last modification *\/ */
   /* printf("macro st_ctime %ld + end \n", offsetof(struct stat, st_ctime));    /\* time of last status change *\/ */
 
-  printf("macro MAP_PRIVATE %d end\n", MAP_PRIVATE);
-  printf("macro PROT_READ %d end\n", PROT_READ);
-  printf("macro MAP_FAILED %p end\n", MAP_FAILED);
-  printf("a: %d\n", MAP_FAILED == -1);
+  /* printf("macro MAP_PRIVATE %d end\n", MAP_PRIVATE); */
+  /* printf("macro PROT_READ %d end\n", PROT_READ); */
+  /* printf("macro MAP_FAILED %p end\n", MAP_FAILED); */
+  /* printf("a: %d\n", MAP_FAILED == -1); */
+
+  printf("macro O_RDONLY %d end\n", O_RDONLY);
+  printf("macro O_WRONLY %d end\n", O_WRONLY);
+  printf("macro O_CREAT %d end\n", O_CREAT);
+  printf("macro O_TRUNC %d end\n", O_TRUNC);
+  printf("macro O_RDWR %d end\n", O_RDWR);
   
   return 0;
 }
