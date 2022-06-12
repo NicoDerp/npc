@@ -28,6 +28,13 @@ memory lex_i 1 end
 
 memory gen_i 8 end
 
+// [ - - - - - - - v ]
+memory argbits 1 end
+
+proc is_verbose -- bool in
+  argbits , 1 band cast(bool)
+end
+
 proc print_help in
   "Usage: npc <file> [options]\n\n"					puts
   "Options:\n"								puts
@@ -245,12 +252,10 @@ end
 // Copy the second argument to a buffer (the filename to compile)
 sizeof(input_fn) 1 nth_argv input_fn memcpy
 
-// Print the filename
-"Compiling file: '" puts input_fn cputs "'\n\n" puts
-
 // Loop over args and do stuff
 2 while dup argc < do
-  "Other args: " puts dup nth_argv cputs '\n' putc
+  "Parsing arg: '" puts dup nth_argv cputs "'\n" puts
+  dup nth_argv "-v"c cstreq if argbits argbits , 1 bor . end
   1 +
 end drop
 
@@ -281,9 +286,12 @@ end
 // - Arg stuff
 // - Use nasm
 
-
-"File descriptor: " puts input_fd ,64 dump
-"File size: " puts stat st_size ,64 dump
+is_verbose if
+  "\nCompiling file: '" puts input_fn cputs "'\n" puts
+  "File descriptor: " puts input_fd ,64 dump
+  "File size: " puts stat st_size ,64 dump
+  "\n" puts
+end
 
 // Memory map file
 0 input_fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
@@ -296,8 +304,11 @@ input_buf swap .64
 
 parse_file
 
-"Program:\n" puts
-dump_ops
-"Assembly:\n\n" puts
+is_verbose if
+  "Program:\n" puts
+  dump_ops
+end
+
+"\nAssembly:\n\n" puts
 compile_program
 
