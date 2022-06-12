@@ -28,6 +28,7 @@ end
 0 fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
 dup MAP_FAILED = if
   "Failed to memory map file\n" puts
+  -1 exit
 end
 
 cast(ptr) cputs

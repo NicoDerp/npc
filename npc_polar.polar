@@ -13,9 +13,9 @@ memory op-start sizeof(Op) 256 * end
 macro sizeof(input_fn) 128 end
 memory input_fn sizeof(input_fn) 1 - end
 
-macro sizeof(input_buf) 4096 end
-memory input_buf sizeof(input_buf) 1 - end
 memory input_fd 8 end
+memory input_buf 8 end
+memory stat sizeof(fstat) end
 
 // Max word-size is 32 characters
 macro sizeof(word) 32 end
@@ -178,8 +178,8 @@ end
 
 proc parse_file in
   // buf_size i
-  input_buf strlen 0 while 2dup > do
-    dup input_buf + ,
+  stat st_size ,64 0 while 2dup > do
+    dup input_buf ,64 cast(ptr) + ,
     dup ?wspace
     if
       drop // Drop the character
@@ -201,7 +201,7 @@ proc parse_file in
       lex_i inc
     end
     1 +
-  end drop drop drop
+  end drop drop
 end
 
 argc 1 = if
@@ -236,24 +236,29 @@ input_fd ,64 -1 <
 input_fd ,64 -4095 >
 land
 if
-  "[ERROR] failed to open file\n" puts 0 exit
-else
-  // Read
-  sizeof(input_buf) input_buf input_fd ,64 f_read
-  
-  // Close
-  input_fd ,64 f_close
-  
-  //input_buf cstr_to_str puts
-  parse_file
+  "[ERROR] failed to open file\n" puts -1 exit
 end
 
-//0 exit
+// Get fstat and check status
+stat input_fd ,64 5 syscall2
+0 < if
+  "Failed to open file\n" puts
+  -1 exit
+end
 
-//OP_PUSH_INT 48 push_op
-//OP_PUSH_INT 12 push_op
-//OP_PLUS     0  push_op
-//OP_DUMP     0  push_op
+"File descriptor: " puts input_fd ,64 dump
+"File size: " puts stat st_size ,64 dump
+
+// Memory map file
+0 input_fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
+dup MAP_FAILED = if
+  "Failed to memory map file\n" puts
+  -1 exit
+end
+
+input_buf swap .64
+
+parse_file
 
 "Program:\n" puts
 dump_ops
