@@ -5,6 +5,9 @@ macro OP_PUSH_INT 1 end
 macro OP_PLUS     2 end
 macro OP_SUB      3 end
 macro OP_DUMP     4 end
+macro OP_EQU      5 end
+macro OP_IF       6 end
+macro OP_END_IF   7 end
 
 macro sizeof(Op) 16 end
 memory op-count 8 end
@@ -22,6 +25,8 @@ macro sizeof(word) 32 end
 
 memory lex_buf sizeof(word) end
 memory lex_i 1 end
+
+memory gen_i 8 end
 
 proc print_help in
   "Usage: npc <file> [options]\n\n"					puts
@@ -97,6 +102,24 @@ proc compile_ops in
       "\n;; -- OP_DUMP -- ;;\n" puts
       "    pop     rdi\n"       puts
       "    call    dump\n"      puts
+    else dup , OP_EQU = elif
+      "\n    ;; -- EQU -- ;;\n" puts
+      "    xor     rdx, rdx\n"	puts
+      "    mov     rbx, 1\n"	puts
+      "    pop     rax\n"	puts
+      "    pop     rcx\n"	puts
+      "    cmp     rax, rcx\n"	puts
+      "    cmove   rdx, rbx\n"	puts
+      "    push    rdx\n"	puts
+    else dup , OP_IF = elif
+      gen_i inc64
+      "\n    ;; -- IF -- ;;\n"	puts
+      "    pop     rax\n"	puts
+      "    test    rax, rax\n"	puts
+      "    jz      " puts gen_i ,64 dump
+    else dup , OP_END_IF = elif
+	"\n;; -- END -- ;;\n" puts
+	gen_i ,64 dump ":" puts
     else
        Unreachable
     end
@@ -162,9 +185,15 @@ proc parse_word in
   2dup "+" streq if
     OP_PLUS 0 push_op
   else 2dup "-" streq elif
-      OP_SUB 0 push_op
+    OP_SUB 0 push_op
   else 2dup "dump" streq elif
-      OP_DUMP 0 push_op
+    OP_DUMP 0 push_op
+  else 2dup "=" streq elif
+    OP_EQU 0 push_op
+  else 2dup "if" streq elif
+    OP_IF 0 push_op
+  else 2dup "end" streq elif
+    OP_END_IF 0 push_op
   else
     lex_buf cstr_to_int
     false = if
@@ -187,7 +216,7 @@ proc parse_file in
       // Check if the buffer is not empty
       lex_i , 0 != if
         // Print the contents of the buffer
-        //lex_buf cstr_to_str puts '\n' putc
+        //lex_buf cputs '\n' putc
         parse_word
   
         // Reset stuff
@@ -245,6 +274,13 @@ stat input_fd ,64 5 syscall2
   "Failed to open file\n" puts
   -1 exit
 end
+
+
+// TODO:
+// - Make a 'stack' for blocks?
+// - Arg stuff
+// - Use nasm
+
 
 "File descriptor: " puts input_fd ,64 dump
 "File size: " puts stat st_size ,64 dump

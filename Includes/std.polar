@@ -72,6 +72,11 @@ proc dec64 ptr in
   dup ,64 1 - .64
 end
 
+proc >= int int -- bool in
+  2dup >
+  rot rot = lor
+end
+
 proc f_open
     int // Permissions
     int // Flags
@@ -161,7 +166,7 @@ proc streq
     bool // Str1 == Str2
   in
 
-  // ptr int int
+  // ptr int
   streq_ptr swap .64
   rot
   2dup = if
@@ -170,8 +175,8 @@ proc streq
     // ptr int
     1 -
     while
-      // If index is greater than zero
-      dup 0 > if
+      // If index is greater than or equal to zero
+      dup 0 >= if
         // If the characters are the same
         2dup + ,
         over streq_ptr ,64 cast(ptr) + ,
@@ -183,9 +188,16 @@ proc streq
       // Decrement index
       1 -
     end
-    swap drop
-    // If the index is zero it means they are equal
-    0 =
+    // If the last characters are equal they are the same
+    // And the index is -1
+    -1 = dup if
+      drop
+      ,
+      streq_ptr ,64 cast(ptr) ,
+      =
+    else
+      swap drop
+    end
   else
     drop drop drop false
   end

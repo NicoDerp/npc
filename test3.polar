@@ -1,4 +1,5 @@
 
-15 12 + dump
-19 8 - dump
+15 2 + 17 = if
+  888 dump
+end
 
