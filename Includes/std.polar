@@ -25,18 +25,18 @@ macro MAP_PRIVATE 2 end
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
 
-macro S_IRWXU 00700 end
-macro S_IRUSR 00400 end
-macro S_IWUSR 00200 end
-macro S_IXUSR 00100 end
-macro S_IRWXG 00070 end
-macro S_IRGRP 00040 end
-macro S_IWGRP 00020 end
-macro S_IXGRP 00010 end
-macro S_IRWXO 00007 end
-macro S_IROTH 00004 end
-macro S_IWOTH 00002 end
-macro S_IXOTH 00001 end
+macro S_IRWXU 00700 end // user (file owner) has read, write, and execute permission
+macro S_IRUSR 00400 end // user has read permission
+macro S_IWUSR 00200 end // user has write permission
+macro S_IXUSR 00100 end // user has execute permission
+macro S_IRWXG 00070 end // group has read, write, and execute permission
+macro S_IRGRP 00040 end // group has read permission
+macro S_IWGRP 00020 end // group has write permission
+macro S_IXGRP 00010 end // group has execute permission
+macro S_IRWXO 00007 end // others have read, write, and execute permission
+macro S_IROTH 00004 end // others have read permission
+macro S_IWOTH 00002 end // others have write permission
+macro S_IXOTH 00001 end // others have execute permission
 
 macro O_RDONLY 0   end
 macro O_WRONLY 1   end
@@ -44,8 +44,10 @@ macro O_RDWR   2   end
 macro O_CREAT  64  end
 macro O_TRUNC  512 end
 
-macro O_RDONLY_OWNER S_IRUSR O_RDONLY end
-macro O_WRONLY_OWNER S_IWUSR O_CREAT O_TRUNC bor end
+macro S_USER_RW S_IRUSR S_IWUSR bor end
+macro S_USER_RD S_IRUSR end
+
+macro O_RDONLY_USER S_USER_RD O_RDONLY end
 
 memory memcpy_src 8 end
 memory memcpy_dst 8 end
@@ -117,6 +119,15 @@ proc f_read
   in
   
   0 syscall3 drop
+end
+
+proc f_write
+    int // Count
+    ptr // Buf
+    int // Fd
+  in
+
+  1 syscall3 drop
 end
 
 proc f_close
