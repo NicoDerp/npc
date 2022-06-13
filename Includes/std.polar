@@ -1,5 +1,5 @@
 
-macro STDIN 0 end
+macro STDIN  0 end
 macro STDOUT 1 end
 macro STDERR 2 end
 
@@ -25,18 +25,18 @@ macro MAP_PRIVATE 2 end
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
 
-macro S_IRWXU 00700 end // user (file owner) has read, write, and execute permission
-macro S_IRUSR 00400 end // user has read permission
-macro S_IWUSR 00200 end // user has write permission
-macro S_IXUSR 00100 end // user has execute permission
-macro S_IRWXG 00070 end // group has read, write, and execute permission
-macro S_IRGRP 00040 end // group has read permission
-macro S_IWGRP 00020 end // group has write permission
-macro S_IXGRP 00010 end // group has execute permission
-macro S_IRWXO 00007 end // others have read, write, and execute permission
-macro S_IROTH 00004 end // others have read permission
-macro S_IWOTH 00002 end // others have write permission
-macro S_IXOTH 00001 end // others have execute permission
+macro S_IRWXU 448 end // 00700 user (file owner) has read, write, and execute permission
+macro S_IRUSR 256 end // 00400 user has read permission
+macro S_IWUSR 128 end // 00200 user has write permission
+macro S_IXUSR 64  end // 00100 user has execute permission
+macro S_IRWXG 56  end // 00070 group has read, write, and execute permission
+macro S_IRGRP 32  end // 00040 group has read permission
+macro S_IWGRP 16  end // 00020 group has write permission
+macro S_IXGRP 8   end // 00010 group has execute permission
+macro S_IRWXO 7   end // 00007 others have read, write, and execute permission
+macro S_IROTH 4   end // 00004 others have read permission
+macro S_IWOTH 2   end // 00002 others have write permission
+macro S_IXOTH 1   end // 00001 others have execute permission
 
 macro O_RDONLY 0   end
 macro O_WRONLY 1   end
