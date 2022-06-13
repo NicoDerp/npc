@@ -38,14 +38,14 @@ macro S_IROTH 00004 end
 macro S_IWOTH 00002 end
 macro S_IXOTH 00001 end
 
-macro O_RDONLY_OWNER S_IRUSR O_RDONLY end
-macro O_WRONLY_OWNER S_IWUSR
-
 macro O_RDONLY 0   end
 macro O_WRONLY 1   end
 macro O_RDWR   2   end
 macro O_CREAT  64  end
 macro O_TRUNC  512 end
+
+macro O_RDONLY_OWNER S_IRUSR O_RDONLY end
+macro O_WRONLY_OWNER S_IWUSR O_CREAT O_TRUNC bor end
 
 memory memcpy_src 8 end
 memory memcpy_dst 8 end

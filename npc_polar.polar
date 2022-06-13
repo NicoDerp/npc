@@ -260,7 +260,7 @@ sizeof(input_fn) 1 nth_argv input_fn memcpy
 end drop
 
 // Open file
-O_READONLY_OWNER input_fn f_open
+O_RDONLY_OWNER input_fn f_open
 
 // Save file descriptor
 input_fd swap .64
@@ -306,9 +306,9 @@ parse_file
 
 is_verbose if
   "Program:\n" puts
-  dump_ops
+  dump_ops "\n" puts
 end
 
-"\nAssembly:\n\n" puts
+"Assembly:\n\n" puts
 compile_program
 
