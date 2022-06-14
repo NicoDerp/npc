@@ -191,14 +191,14 @@ This program will write the integer `69` to stdout. This is because the ASCII co
 |--------|:----------|-------------|
 | `shr`  | `[a: int] [b: int] -- [a >> b: int]` | right unsigned bit shift |
 | `shl`  | `[a: int] [b: int] -- [a << b: int]` | left unsigned bit shift |
-| `bor`  | `[a: int] [b: int] -- [a | b: int]`  | bitwise or |
+| `bor`  | `[a: int] [b: int] -- [a \| b: int]`  | bitwise or |
 | `band` | `[a: int] [b: int] -- [a & b: int]`  | bitwise and |
 
 #### Logical
 
 |  Name  | Signature | Description |
 |--------|:----------|-------------|
-| `lor`  | `[a: int] [b: int] -- [a || b: int]`  | logical or |
+| `lor`  | `[a: int] [b: int] -- [a \|\| b: int]`  | logical or |
 | `land`  | `[a: int] [b: int] -- [a && b: int]` | logical and |
 
 #### Memory
