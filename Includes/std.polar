@@ -100,6 +100,18 @@ proc >= int int -- bool in
   rot rot = lor
 end
 
+// n (n<-1) (n>-4095)
+proc ?ferr
+    int // File descriptor
+    --
+    bool // Error
+  in
+
+  dup -1 <
+  over -4095 >
+  land swap drop
+end
+
 proc f_open
     int // Permissions
     int // Flags

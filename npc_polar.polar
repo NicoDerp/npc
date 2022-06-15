@@ -18,6 +18,9 @@ memory input_fn sizeof(input_fn) 1 - end
 
 memory input_fd 8 end
 memory input_buf 8 end
+
+memory out_fd 8 end
+
 memory stat sizeof(fstat) end
 
 // Max word-size is 32 characters
@@ -91,42 +94,44 @@ proc compile_ops in
     dup sizeof(Op) * op-start +
 
     dup , OP_PUSH_INT = if
-      "\n;; -- OP_PUSH_INT -- ;;\n" puts
-      "    push    " puts dup 8 + , dump
+      "\n;; -- OP_PUSH_INT -- ;;\n"	out_fd ,64 f_write
+      "    push    42\n"		out_fd ,64 f_write
+      //dup 8 + , dump
     else dup , OP_PLUS = elif
-        "\n;; -- OP_PLUS -- ;;\n" puts
-	"    pop     rcx\n"       puts
-	"    pop     rax\n"       puts
-	"    add     rax, rcx\n"  puts
-	"    push    rax\n"       puts
+        "\n;; -- OP_PLUS -- ;;\n"	out_fd ,64 f_write
+	"    pop     rcx\n"		out_fd ,64 f_write
+	"    pop     rax\n"		out_fd ,64 f_write
+	"    add     rax, rcx\n"	out_fd ,64 f_write
+	"    push    rax\n"		out_fd ,64 f_write
     else dup , OP_SUB = elif
-        "\n    ;; -- SUB -- ;;\n"	puts
-        "    pop     rax\n"		puts
-        "    pop     rcx\n"		puts
-        "    sub     rcx, rax\n"	puts
-        "    push    rcx\n"		puts
+        "\n    ;; -- SUB -- ;;\n"	out_fd ,64 f_write
+        "    pop     rax\n"		out_fd ,64 f_write
+        "    pop     rcx\n"		out_fd ,64 f_write
+        "    sub     rcx, rax\n"	out_fd ,64 f_write
+        "    push    rcx\n"		out_fd ,64 f_write
     else dup , OP_DUMP = elif
-      "\n;; -- OP_DUMP -- ;;\n" puts
-      "    pop     rdi\n"       puts
-      "    call    dump\n"      puts
+      "\n;; -- OP_DUMP -- ;;\n"		out_fd ,64 f_write
+      "    pop     rdi\n"		out_fd ,64 f_write
+      "    call    dump\n"		out_fd ,64 f_write
     else dup , OP_EQU = elif
-      "\n    ;; -- EQU -- ;;\n" puts
-      "    xor     rdx, rdx\n"	puts
-      "    mov     rbx, 1\n"	puts
-      "    pop     rax\n"	puts
-      "    pop     rcx\n"	puts
-      "    cmp     rax, rcx\n"	puts
-      "    cmove   rdx, rbx\n"	puts
-      "    push    rdx\n"	puts
+      "\n    ;; -- EQU -- ;;\n"		out_fd ,64 f_write
+      "    xor     rdx, rdx\n"		out_fd ,64 f_write
+      "    mov     rbx, 1\n"		out_fd ,64 f_write
+      "    pop     rax\n"		out_fd ,64 f_write
+      "    pop     rcx\n"		out_fd ,64 f_write
+      "    cmp     rax, rcx\n"		out_fd ,64 f_write
+      "    cmove   rdx, rbx\n"		out_fd ,64 f_write
+      "    push    rdx\n"		out_fd ,64 f_write
     else dup , OP_IF = elif
       gen_i inc64
-      "\n    ;; -- IF -- ;;\n"	puts
-      "    pop     rax\n"	puts
-      "    test    rax, rax\n"	puts
-      "    jz      " puts gen_i ,64 dump
+      "\n    ;; -- IF -- ;;\n"		out_fd ,64 f_write
+      "    pop     rax\n"		out_fd ,64 f_write
+      "    test    rax, rax\n"		out_fd ,64 f_write
+      "    jz      41\n"		out_fd ,64 f_write
+      //gen_i ,64 dump
     else dup , OP_END_IF = elif
-	"\n;; -- END -- ;;\n" puts
-	gen_i ,64 dump ":" puts
+	"\n;; -- END -- ;;\n"		out_fd ,64 f_write
+	gen_i ,64 dump ":"		out_fd ,64 f_write
     else
        Unreachable
     end
@@ -136,55 +141,56 @@ proc compile_ops in
 end
 
 proc compile_program in
-  "section .text\n"				puts
-  "global _start\n"				puts
-  "BITS 64\n"					puts
-  "dump:\n"					puts
-  "    mov     r9, -3689348814741910323\n"	puts
-  "    sub     rsp, 40\n"			puts
-  "    mov     BYTE [rsp+31], 10\n"		puts
-  "    lea     rcx, [rsp+30]\n"			puts
-  ".L1:\n"					puts
-  "    mov     rax, rdi\n"			puts
-  "    lea     r8, [rsp+32]\n"			puts
-  "    mul     r9\n"				puts
-  "    mov     rax, rdi\n"			puts
-  "    sub     r8, rcx\n"			puts
-  "    shr     rdx, 3\n"			puts
-  "    lea     rsi, [rdx+rdx*4]\n"		puts
-  "    add     rsi, rsi\n"			puts
-  "    sub     rax, rsi\n"			puts
-  "    add     eax, 48\n"			puts
-  "    mov     BYTE [rcx], al\n"		puts
-  "    mov     rax, rdi\n"			puts
-  "    mov     rdi, rdx\n"			puts
-  "    mov     rdx, rcx\n"			puts
-  "    sub     rcx, 1\n"			puts
-  "    cmp     rax, 9\n"			puts
-  "    ja      .L1\n"				puts
-  "    lea     rax, [rsp+32]\n"			puts
-  "    mov     edi, 1\n"			puts
-  "    sub     rdx, rax\n"			puts
-  "    xor     eax, eax\n"			puts
-  "    lea     rsi, [rsp+32+rdx]\n"		puts
-  "    mov     rdx, r8\n"			puts
-  "    mov     rax, 1\n"			puts
-  "    syscall\n"				puts
-  "    add     rsp, 40\n"			puts
-  "    ret\n"					puts
-  "_start:\n"					puts
+  "section .text\n"				out_fd ,64 f_write
+  "global _start\n"				out_fd ,64 f_write
+  "BITS 64\n"					out_fd ,64 f_write
+  "dump:\n"					out_fd ,64 f_write
+  "    mov     r9, -3689348814741910323\n"	out_fd ,64 f_write
+  "    sub     rsp, 40\n"			out_fd ,64 f_write
+  "    mov     BYTE [rsp+31], 10\n"		out_fd ,64 f_write
+  "    lea     rcx, [rsp+30]\n"			out_fd ,64 f_write
+  ".L1:\n"					out_fd ,64 f_write
+  "    mov     rax, rdi\n"			out_fd ,64 f_write
+  "    lea     r8, [rsp+32]\n"			out_fd ,64 f_write
+  "    mul     r9\n"				out_fd ,64 f_write
+  "    mov     rax, rdi\n"			out_fd ,64 f_write
+  "    sub     r8, rcx\n"			out_fd ,64 f_write
+  "    shr     rdx, 3\n"			out_fd ,64 f_write
+  "    lea     rsi, [rdx+rdx*4]\n"		out_fd ,64 f_write
+  "    add     rsi, rsi\n"			out_fd ,64 f_write
+  "    sub     rax, rsi\n"			out_fd ,64 f_write
+  "    add     eax, 48\n"			out_fd ,64 f_write
+  "    mov     BYTE [rcx], al\n"		out_fd ,64 f_write
+  "    mov     rax, rdi\n"			out_fd ,64 f_write
+  "    mov     rdi, rdx\n"			out_fd ,64 f_write
+  "    mov     rdx, rcx\n"			out_fd ,64 f_write
+  "    sub     rcx, 1\n"			out_fd ,64 f_write
+  "    cmp     rax, 9\n"			out_fd ,64 f_write
+  "    ja      .L1\n"				out_fd ,64 f_write
+  "    lea     rax, [rsp+32]\n"			out_fd ,64 f_write
+  "    mov     edi, 1\n"			out_fd ,64 f_write
+  "    sub     rdx, rax\n"			out_fd ,64 f_write
+  "    xor     eax, eax\n"			out_fd ,64 f_write
+  "    lea     rsi, [rsp+32+rdx]\n"		out_fd ,64 f_write
+  "    mov     rdx, r8\n"			out_fd ,64 f_write
+  "    mov     rax, 1\n"			out_fd ,64 f_write
+  "    syscall\n"				out_fd ,64 f_write
+  "    add     rsp, 40\n"			out_fd ,64 f_write
+  "    ret\n"					out_fd ,64 f_write
+  "_start:\n"					out_fd ,64 f_write
   
   compile_ops
   
-  "    xor     rdi, rdi\n"	puts
-  "    mov     rax, 60\n"	puts
-  "    syscall\n"		puts
+  "    xor     rdi, rdi\n"	out_fd ,64 f_write
+  "    mov     rax, 60\n"	out_fd ,64 f_write
+  "    syscall\n"		out_fd ,64 f_write
   
-  "\nsegment .data\n"   puts
+  "\nsegment .data\n"   out_fd ,64 f_write
   // Strings
-  "\nsegment .bss\n"	puts
-  "mem:\n"		puts
-  "    resb    "	puts MEM_CAPACITY dump
+  "\nsegment .bss\n"	out_fd ,64 f_write
+  "mem:\n"		out_fd ,64 f_write
+  "    resb    4096\n"	out_fd ,64 f_write
+  //MEM_CAPACITY dump
 end
 
 proc parse_word in
@@ -260,17 +266,17 @@ sizeof(input_fn) 1 nth_argv input_fn memcpy
 end drop
 
 // Open file
-O_RDONLY_OWNER input_fn f_open
+O_RDONLY_USER input_fn f_open
 
 // Save file descriptor
 input_fd swap .64
 
 // Check for errors (-4095 < fd < -1)
-input_fd ,64 -1 <
-input_fd ,64 -4095 >
-land
+input_fd ,64 ?ferr
 if
-  "[ERROR] failed to open file\n" puts -1 exit
+  "[ERROR] failed to open input file: '" puts
+  input_fn cputs "'\n" puts
+  -1 exit
 end
 
 // Get fstat and check status
@@ -309,6 +315,20 @@ is_verbose if
   dump_ops "\n" puts
 end
 
-"Assembly:\n\n" puts
+S_IRUSR S_IWUSR S_IRGRP + +
+O_WRONLY O_CREAT O_TRUNC bor bor
+"./out_asm.s"c f_open
+out_fd swap .64
+
+out_fd ,64 ?ferr
+if
+  "[ERROR] failed to open output file\n" puts -1 exit
+end
+
 compile_program
+
+out_fd ,64 f_close
+
+//"Assembly:\n\n" puts
+//compile_program
 
