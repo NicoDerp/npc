@@ -83,6 +83,10 @@ proc read int ptr int -- int in
   0 syscall3
 end
 
+proc fork in
+  57 syscall0
+end
+
 proc inc ptr in
   dup , 1 + .
 end

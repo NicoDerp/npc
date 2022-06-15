@@ -297,6 +297,9 @@ def parse(tokens):
 		elif tok.token == '.64':
 			yield Word('STORE64', tok)
 
+		elif tok.token == 'syscall0':
+			yield Word('SYSCALL0', tok)
+		
 		elif tok.token == 'syscall1':
 			yield Word('SYSCALL1', tok)
 
@@ -981,6 +984,14 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
 				stack.append(('BOOL', word))
 
+			elif word.op == 'SYSCALL0':
+				a_type, a_loc = stack.pop()
+
+				if a_type != 'INT':
+					invalid_arguments(word, '`INT`', f'`{a_type}`')
+
+				stack.append(('INT', word))
+			
 			elif word.op == 'SYSCALL1':
 				if len(stack) < 2:
 					not_enough_arguments(word)
@@ -1689,7 +1700,13 @@ def generate_words(words, dataLabels):
 				code += '    pop     rbx\n'
 				code += '    pop     rax\n'
 				code += '    mov     [rax], rbx\n'
-				
+
+			elif word.op == 'SYSCALL0':
+				code += '\n    ;; -- SYSCALL0 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
+			
 			elif word.op == 'SYSCALL1':
 				code += '\n    ;; -- SYSCALL1 -- ;;\n'
 				code += '    pop     rax\n'
