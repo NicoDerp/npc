@@ -87,6 +87,13 @@ proc fork in
   57 syscall0
 end
 
+proc execve
+    ptr // argv
+    ptr // file
+  in
+  
+end
+
 proc inc ptr in
   dup , 1 + .
 end
@@ -415,4 +422,18 @@ proc uint_to_cstr
   int_to_str_buf int_to_str_i , +
 end
 
+proc exec_cmd
+    ptr // Array of cstrs as arguments
+  in
+
+  fork
+  dup 0 < if
+    "[ERROR] Could not fork for exec_cmd\n" puts -1 exit
+  else 0 > elif
+    // Parent process
+  else 0 = elif
+    // Child process
+    
+  end
+end
 
