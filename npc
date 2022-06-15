@@ -222,6 +222,9 @@ def parse(tokens):
 		elif tok.token == '/':
 			yield Word('DIV', tok)
 
+		elif tok.token == '/%':
+			yield Word('DIVMOD', tok)
+		
 		elif tok.token == 'argv':
 			yield Word('ARGV', tok)
 
@@ -758,6 +761,19 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
 				stack.append(('INT', word))
 
+			elif word.op == 'DIVMOD':
+				if len(stack) < 2:
+					not_enough_arguments(word)
+
+				a_type, a_loc = stack.pop()
+				b_type, b_loc = stack.pop()
+
+				if a_type != 'INT' or b_type != 'INT':
+					invalid_arguments(word, '`INT` and `INT`', f'`{a_type}` and `{b_type}`')
+				
+				stack.append(('INT', word))
+				stack.append(('INT', word))
+			
 			elif word.op == 'ARGV':
 				stack.append(('PTR', word))
 
@@ -1484,6 +1500,15 @@ def generate_words(words, dataLabels):
 				code += '    cdq\n'
 				code += '    idiv    rcx\n'
 				code += '    push    rax\n'
+
+			elif word.op == 'DIVMOD':
+				code += '\n    ;; -- DIV -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rax\n'
+				code += '    cdq\n'
+				code += '    idiv    rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rdx\n'
 
 			elif word.op == 'ARGV':
 				code += '\n    ;; -- ARGV -- ;;\n'

@@ -67,6 +67,8 @@ memory str_conc_buf 8 end
 
 memory streq_ptr 8 end
 
+memory int_to_str 32 end
+
 proc exit int in
   60 syscall1 drop
 end
@@ -384,5 +386,14 @@ proc nth_argv
   in
 
   8 * argv + ,64
+end
+
+proc uint_to_cstr
+    int
+    --
+    ptr
+  in
+
+  1 /%
 end
 
