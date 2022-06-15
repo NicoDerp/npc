@@ -184,6 +184,7 @@ This program will write the integer `69` to stdout. This is because the ASCII co
 | `-`  | `[a: int] [b: int] -- [a - b: int]` | subtract the top two elements of the stack |
 | `*`  | `[a: int] [b: int] -- [a * b: int]` | multiply the top two elements of the stack |
 | `/`  | `[a: int] [b: int] -- [a / b: int]` | divide the top two elements of the stack   |
+| `/%`  | `[a: int] [b: int] -- [a / b: int] [a % b: int]` | perform euclidean division on the top two elements of the stack   |
 
 #### Bitwise
 
