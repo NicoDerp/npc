@@ -67,7 +67,9 @@ memory str_conc_buf 8 end
 
 memory streq_ptr 8 end
 
-memory int_to_str 32 end
+macro sizeof(int_to_str_buf) 32 end
+memory int_to_str_buf sizeof(int_to_str_buf) end
+memory int_to_str_i 1 end
 
 proc exit int in
   60 syscall1 drop
@@ -394,6 +396,18 @@ proc uint_to_cstr
     ptr
   in
 
-  1 /%
+  sizeof(int_to_str_buf) int_to_str_buf 0 memset
+  int_to_str_i sizeof(int_to_str_buf) 2 - .
+
+  // div (buf+*i) char
+  while
+    10 /% '0' +
+    int_to_str_buf int_to_str_i , + swap .
+    dup 0 !=
+  do
+    int_to_str_i dec
+  end drop
+
+  int_to_str_buf int_to_str_i , +
 end
 
