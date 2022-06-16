@@ -87,7 +87,7 @@ macro sizeof(int_to_str_buf) 32 end
 memory int_to_str_buf sizeof(int_to_str_buf) end
 memory int_to_str_i 1 end
 
-macro sizeof(array) 8 sizeof(ptr) * end
+macro sizeof(array) 16 sizeof(ptr) * end
 memory array 8 sizeof(ptr) * 1 + end
 memory array_i 8 end
 
@@ -517,7 +517,7 @@ proc subp_exec_cmd
   end drop drop
 end
 
-proc array_append
+proc array_push
     ptr // Cstr
   in
 
@@ -529,6 +529,21 @@ end
 proc array_clean in
   sizeof(array) array 0 memset
   array_i 0 .64
+end
+
+// (array+i*size(ptr))
+proc array_pop
+    --
+    int // Out
+  in
+
+  array_i ,64 0 = if
+    "Pop from empty list!\n" puts 1 exit
+  end
+  
+  array_i dec64
+  array array_i ,64 sizeof(ptr) * +
+  ,64
 end
 
 proc rmfile

@@ -1,17 +1,21 @@
 include "std.polar"
 
 
-macro OP_PUSH_INT 1 end
-macro OP_PLUS     2 end
-macro OP_SUB      3 end
-macro OP_DUMP     4 end
-macro OP_EQU      5 end
-macro OP_IF       6 end
-macro OP_END_IF   7 end
+macro OP_PUSH_INT  1  end
+macro OP_PLUS      2  end
+macro OP_SUB       3  end
+macro OP_DUMP      4  end
+macro OP_EQU       5  end
+macro OP_IF        6  end
+macro OP_ELSE      7  end
+macro OP_END_IF    8  end
+macro OP_END_WHILE 9  end
+macro OP_WHILE     10 end
+macro OP_DO        11 end
 
 macro sizeof(Op) 16 end
-memory op-count 8 end
-memory op-start sizeof(Op) 256 * end
+memory op_count 8 end
+memory op_start sizeof(Op) 256 * end
 
 //macro sizeof(input_fn) 128 end
 //memory input_fn sizeof(input_fn) 1 - end
@@ -30,13 +34,19 @@ macro sizeof(word) 32 end
 memory lex_buf sizeof(word) end
 memory lex_i 1 end
 
-memory gen_i 8 end
+memory depth_counter 1 end
+memory inside_while sizeof(bool) end
+memory block_i 8 end
 
 // [ - - - - - - - v ]
 memory argbits 1 end
 
 proc is_verbose -- bool in
   argbits , 1 band cast(bool)
+end
+
+proc ?inside_while -- bool in
+  inside_while , cast(bool)
 end
 
 proc print_help in
@@ -50,7 +60,7 @@ proc print_help in
 end
 
 // [                                                 ]
-//   op-count  op-type op-value  op-type op-value ...
+//   op_count  op-type op-value  op-type op-value ...
 //             0       8         16      24
 
 // n op (count*size)
@@ -60,22 +70,22 @@ proc push_op
 in
   
   swap
-  op-count , sizeof(Op) * op-start +
+  op_count , sizeof(Op) * op_start +
 
   dup rot .
   8 + swap .
 
   // Increment ops count
-  op-count inc64
+  op_count inc64
 end
 
 // ptr
 proc dump_ops in
-  "------------\nop-count: "
-  puts op-count , dump
+  "------------\nop_count: "
+  puts op_count , dump
   "------------\n" puts
-  0 while dup op-count , < do
-    dup sizeof(Op) * op-start +
+  0 while dup op_count , < do
+    dup sizeof(Op) * op_start +
     
     "Type    : " puts dup     , dump
     "Operand : " puts dup 8 + , dump
@@ -91,8 +101,8 @@ macro Unreachable    "Unreachable"    puts 0 exit end
 macro MEM_CAPACITY 4096 end
 
 proc compile_ops in
-  0 while dup op-count , < do
-    dup sizeof(Op) * op-start +
+  0 while dup op_count , < do
+    dup sizeof(Op) * op_start +
 
     dup , OP_PUSH_INT = if
       "\n;; -- OP_PUSH_INT -- ;;\n"		out_fd ,64 f_write
@@ -126,20 +136,19 @@ proc compile_ops in
       "    cmove   rdx, rbx\n"			out_fd ,64 f_write
       "    push    rdx\n"			out_fd ,64 f_write
     else dup , OP_IF = elif
-      gen_i inc64
       "\n    ;; -- IF -- ;;\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
       "    test    rax, rax\n"			out_fd ,64 f_write
       "    jz      .L"				out_fd ,64 f_write
-      gen_i ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n"					out_fd ,64 f_write
     else dup , OP_END_IF = elif
 	"\n;; -- END -- ;;\n"			out_fd ,64 f_write
 	".L"  	     				out_fd ,64 f_write
-	gen_i ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
+	dup 8 + ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
 	":\n"					out_fd ,64 f_write
     else
-       Unreachable
+       "Unknown word?\n" puts
     end
     drop
     1 +
@@ -199,6 +208,49 @@ proc compile_program in
   //MEM_CAPACITY dump
 end
 
+//def cross_reference(ops):
+//  stack = []
+//  n = 0
+//  
+//  for ptr in ops:
+//	typ = *ptr
+//	value = *(ptr+8)
+//    if typ in ["IF", "ELIF", "ELSE", "WHILE"]:
+//      stack.append(ptr)
+//	elif typ == "END":
+//      block_ptr = stack.pop()
+//	  *(block_ptr+8) = n
+//	  value = n
+//	  n += 1
+
+// op-i
+proc crossreference_blocks in
+  0 while dup op_count , < do
+    dup sizeof(Op) * op_start +
+    dup , OP_IF = if
+      dup array_push
+    else dup , OP_ELSE = elif
+      dup array_push
+    else dup , OP_WHILE = elif
+      dup array_push
+    else dup , OP_END_IF = elif
+      // op-i op-ptr n
+      block_i ,64
+      array_pop 8 + cast(ptr)
+      over .64
+      over 8 + cast(ptr) swap .64
+    else dup , OP_END_WHILE = elif
+      // op-i op-ptr n block-ptr 
+      block_i ,64
+      array_pop 8 + cast(ptr)
+      over .64
+      dup 8 + cast(ptr) swap .64
+    end
+    drop
+    1 +
+  end drop
+end
+
 proc parse_word in
   lex_buf cstr_to_str
   2dup "+" streq if
@@ -211,8 +263,22 @@ proc parse_word in
     OP_EQU 0 push_op
   else 2dup "if" streq elif
     OP_IF 0 push_op
+    ?inside_while if depth_counter inc end
+  else 2dup "else" streq elif
+    OP_ELSE 0 push_op
+    ?inside_while if depth_counter inc end
   else 2dup "end" streq elif
-    OP_END_IF 0 push_op
+    depth_counter , 1 =
+    ?inside_while land
+    if
+      OP_END_WHILE 0 push_op
+    else
+      OP_END_IF 0 push_op
+    end
+    depth_counter dec
+  else 2dup "while" streq elif
+    OP_WHILE 0 push_op
+    inside_while 1 .
   else
     lex_buf cstr_to_int
     false = if
@@ -327,6 +393,9 @@ input_buf swap .64
 
 parse_file
 
+crossreference_blocks
+array_clean
+
 is_verbose if
   "Program:\n" puts
   dump_ops "\n" puts
@@ -346,19 +415,19 @@ compile_program
 
 out_fd ,64 f_close
 
-"/usr/bin/nasm"c array_append
-"-felf64"c       array_append
-".tmp_file.s"c   array_append
-"-o"c            array_append
-".tmp_file.o"c   array_append
+"/usr/bin/nasm"c array_push
+"-felf64"c       array_push
+".tmp_file.s"c   array_push
+"-o"c            array_push
+".tmp_file.o"c   array_push
 
 array subp_exec_cmd
 array_clean
 
-"/usr/bin/ld"c array_append
-".tmp_file.o"c array_append
-"-o"c          array_append
-out_fn ,64     array_append
+"/usr/bin/ld"c array_push
+".tmp_file.o"c array_push
+"-o"c          array_push
+out_fn ,64     array_push
 
 array subp_exec_cmd
 array_clean
