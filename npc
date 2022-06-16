@@ -1250,14 +1250,17 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				elif block_type.op == 'ELSE':
 					expected_types = list(map(lambda x: x[0], prev_stack))
 					if expected_types != actual_types:
-						program_error_(block_type, 'both if and else blocks must produce the same types on the stack')
+						program_error_(block_type, 'both if, else and elif blocks must produce the same types on the stack')
 						expected_vs_actual(word, expected_stack, stack)
 						#program_note(word, f'expected types: {expected_types}')
 						#program_note(word, f'actual types: {actual_types}')
 						#exit(1)
 
 				elif block_type.op == 'ELIF':
-					pass
+					expected_types = list(map(lambda x: x[0], prev_stack))
+					if expected_types != actual_types:
+						program_error_(block_type, 'both if and else blocks must produce the same types on the stack')
+						expected_vs_actual(word, expected_stack, stack)
 				
 				elif block_type.op == 'DO':
 					if expected_types != actual_types:

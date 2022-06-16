@@ -13,12 +13,13 @@ macro sizeof(Op) 16 end
 memory op-count 8 end
 memory op-start sizeof(Op) 256 * end
 
-macro sizeof(input_fn) 128 end
-memory input_fn sizeof(input_fn) 1 - end
+//macro sizeof(input_fn) 128 end
+//memory input_fn sizeof(input_fn) 1 - end
 
 memory input_fd 8 end
-memory input_buf 8 end
+memory input_buf sizeof(ptr) end
 
+memory out_fn sizeof(ptr) end
 memory out_fd 8 end
 
 memory stat sizeof(fstat) end
@@ -260,18 +261,29 @@ end
   print_help 0 exit
 end
 
+// Default out
+out_fn "a.out"c .64
+
 // Copy the second argument to a buffer (the filename to compile)
-sizeof(input_fn) 1 nth_argv input_fn memcpy
+//sizeof(input_fn) 1 nth_argv input_fn memcpy
 
 // Loop over args and do stuff
 2 while dup argc < do
   "Parsing arg: '" puts dup nth_argv cputs "'\n" puts
-  dup nth_argv "-v"c cstreq if argbits argbits , 1 bor . end
+  dup nth_argv "-v"c cstreq if
+    argbits argbits , 1 bor .
+  else dup nth_argv "-o"c cstreq elif
+    1 +
+    dup argc = if
+      "[ERROR] No filename supplied after '-o'\n" puts 1 exit
+    end
+    dup nth_argv out_fn swap .64
+  end
   1 +
 end drop
 
-// Open file
-O_RDONLY_USER input_fn f_open
+// Open 1st arg which is file name
+O_RDONLY_USER 1 nth_argv f_open
 
 // Save file descriptor
 input_fd swap .64
@@ -280,7 +292,7 @@ input_fd swap .64
 input_fd ,64 ?ferr
 if
   "[ERROR] failed to open input file: '" puts
-  input_fn cputs "'\n" puts
+  1 nth_argv cputs "'\n" puts
   -1 exit
 end
 
@@ -298,7 +310,7 @@ end
 // - Use nasm
 
 is_verbose if
-  "\nCompiling file: '" puts input_fn cputs "'\n" puts
+  "\nCompiling file: '" puts 1 nth_argv cputs "'\n" puts
   "File descriptor: " puts input_fd ,64 dump
   "File size: " puts stat st_size ,64 dump
   "\n" puts
@@ -344,9 +356,9 @@ array subp_exec_cmd
 array_clean
 
 "/usr/bin/ld"c array_append
-"-s"c          array_append
-"a.out"c       array_append
-".tmp_file.o"c   array_append
+".tmp_file.o"c array_append
+"-o"c          array_append
+out_fn ,64     array_append
 
 array subp_exec_cmd
 array_clean
