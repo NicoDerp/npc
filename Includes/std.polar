@@ -1,5 +1,7 @@
 
 macro NULL 0 cast(ptr) end
+macro sizeof(ptr) 8 end
+macro sizeof(bool) 1 end
 
 macro STDIN  0 end
 macro STDOUT 1 end
@@ -86,6 +88,10 @@ memory streq_ptr 8 end
 macro sizeof(int_to_str_buf) 32 end
 memory int_to_str_buf sizeof(int_to_str_buf) end
 memory int_to_str_i 1 end
+
+macro sizeof(array) 8 sizeof(ptr) * end
+memory array 8 sizeof(ptr) * 1 + end
+memory array_i 8 end
 
 memory wstatus 8 end
 
@@ -512,4 +518,19 @@ proc subp_exec_cmd
     end
   end drop drop
 end
+
+proc array_append
+    ptr // Cstr
+  in
+
+  array array_i ,64 sizeof(ptr) * +
+  swap .64
+  array_i inc64
+end
+
+proc array_clean in
+  sizeof(array) array 0 memset
+  array_i 0 .64
+end
+
 
