@@ -26,8 +26,6 @@ macro MAP_FAILED -1 end
 macro PROT_READ   1 end
 macro MAP_PRIVATE 2 end
 
-macro EXEC_FAILED -2 end
-
 proc WTERMSIG int -- int in
   127 band
 end
@@ -513,7 +511,7 @@ proc subp_exec_cmd
   else dup 0 = elif
     // Child process
     over exec_cmd
-    EXEC_FAILED = if
+    0 < if
       "Failed to execute command\n" puts 1 exit
     end
   end drop drop
@@ -533,4 +531,12 @@ proc array_clean in
   array_i 0 .64
 end
 
+proc rmfile
+    ptr // Cstr filename
+    --
+    int // Error
+  in
+
+  87 syscall1
+end
 
