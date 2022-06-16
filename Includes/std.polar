@@ -1,4 +1,6 @@
 
+macro NULL 0 cast(ptr) end
+
 macro STDIN  0 end
 macro STDOUT 1 end
 macro STDERR 2 end
@@ -23,6 +25,18 @@ macro PROT_READ   1 end
 macro MAP_PRIVATE 2 end
 
 macro EXEC_FAILED -2 end
+
+proc WTERMSIG int -- int in
+  127 band
+end
+
+proc WIFEXITED int -- bool in
+  127 band 0 =
+end
+
+proc WEXITSTATUS int -- int in
+  65280 band 8 shr
+end
 
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
@@ -73,6 +87,8 @@ macro sizeof(int_to_str_buf) 32 end
 memory int_to_str_buf sizeof(int_to_str_buf) end
 memory int_to_str_i 1 end
 
+memory wstatus 8 end
+
 proc exit int in
   60 syscall1 drop
 end
@@ -87,6 +103,10 @@ end
 
 proc fork -- int in
   57 syscall0
+end
+
+proc wait4 ptr int ptr int -- int in
+  61 syscall4
 end
 
 //proc execve
@@ -454,17 +474,42 @@ proc exec_cmd
   59 syscall3
 end
 
+// ptr pid
 proc subp_exec_cmd
     ptr // Array of cstrs as arguments
   in
 
   fork
-  dup 0 < if
-    "[ERROR] Could not fork for exec_cmd\n" puts -1 exit
+  dup -1 = if
+    "[ERROR] Could not fork for exec_cmd\n" puts 1 exit
   else dup 0 > elif
-    // Parent process
+    // Parent process. Wait for child to finish
+    while
+      NULL 0 wstatus -1 wait4
+      0 < if
+        "[ERROR] Could not wait for process to finish\n" puts
+	1 exit
+      end
+      // int
+      wstatus ,64
+      dup WIFEXITED if
+        dup WEXITSTATUS
+        dup 0 != if
+          dup exit // Exit with the child's exit code if fail
+        end
+        drop // Drop exit-code
+        false // Break
+      else // Check stopped and continue??
+        true
+      end swap drop // Drop *wstatus
+    do end
+      
   else dup 0 = elif
     // Child process
+    over exec_cmd
+    EXEC_FAILED = if
+      "Failed to execute command\n" puts 1 exit
+    end
   end drop drop
 end
 
