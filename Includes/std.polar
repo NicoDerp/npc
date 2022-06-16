@@ -1,4 +1,8 @@
 
+macro NULL 0 cast(ptr) end
+macro sizeof(ptr) 8 end
+macro sizeof(bool) 1 end
+
 macro STDIN  0 end
 macro STDOUT 1 end
 macro STDERR 2 end
@@ -21,6 +25,20 @@ macro st_ctime 104 +    end
 macro MAP_FAILED -1 end
 macro PROT_READ   1 end
 macro MAP_PRIVATE 2 end
+
+macro EXEC_FAILED -2 end
+
+proc WTERMSIG int -- int in
+  127 band
+end
+
+proc WIFEXITED int -- bool in
+  127 band 0 =
+end
+
+proc WEXITSTATUS int -- int in
+  65280 band 8 shr
+end
 
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
@@ -71,6 +89,12 @@ macro sizeof(int_to_str_buf) 32 end
 memory int_to_str_buf sizeof(int_to_str_buf) end
 memory int_to_str_i 1 end
 
+macro sizeof(array) 8 sizeof(ptr) * end
+memory array 8 sizeof(ptr) * 1 + end
+memory array_i 8 end
+
+memory wstatus 8 end
+
 proc exit int in
   60 syscall1 drop
 end
@@ -82,6 +106,21 @@ end
 proc read int ptr int -- int in
   0 syscall3
 end
+
+proc fork -- int in
+  57 syscall0
+end
+
+proc wait4 ptr int ptr int -- int in
+  61 syscall4
+end
+
+//proc execve
+//    ptr // argv
+//    ptr // file
+//  in
+//  
+//end
 
 proc inc ptr in
   dup , 1 + .
@@ -409,6 +448,89 @@ proc uint_to_cstr
   end drop
 
   int_to_str_buf int_to_str_i , +
+end
+
+// ptr -> argv[0] -> '/' // Filename
+//                   'u'
+//                   's'
+//                   'r'
+//                   '/'
+//                   'b'
+//                   'i'
+//                   'n'
+//                   '/'
+//                   'n'
+//                   'a'
+//                   's'
+//                   'm'
+//        argv[1] -> ... // Args
+//        argv[2] -> ...
+//        argv[3] -> ...
+//        ...     -> ...
+
+// 0 ptr ptr
+proc exec_cmd
+    ptr // Array of cstrs as arguments
+    --
+    int // Error
+  in
+
+  0 swap
+  dup ,64
+  59 syscall3
+end
+
+// ptr pid
+proc subp_exec_cmd
+    ptr // Array of cstrs as arguments
+  in
+
+  fork
+  dup -1 = if
+    "[ERROR] Could not fork for exec_cmd\n" puts 1 exit
+  else dup 0 > elif
+    // Parent process. Wait for child to finish
+    while
+      NULL 0 wstatus -1 wait4
+      0 < if
+        "[ERROR] Could not wait for process to finish\n" puts
+	1 exit
+      end
+      // int
+      wstatus ,64
+      dup WIFEXITED if
+        dup WEXITSTATUS
+        dup 0 != if
+          dup exit // Exit with the child's exit code if fail
+        end
+        drop // Drop exit-code
+        false // Break
+      else // Check stopped and continue??
+        true
+      end swap drop // Drop *wstatus
+    do end
+      
+  else dup 0 = elif
+    // Child process
+    over exec_cmd
+    EXEC_FAILED = if
+      "Failed to execute command\n" puts 1 exit
+    end
+  end drop drop
+end
+
+proc array_append
+    ptr // Cstr
+  in
+
+  array array_i ,64 sizeof(ptr) * +
+  swap .64
+  array_i inc64
+end
+
+proc array_clean in
+  sizeof(array) array 0 memset
+  array_i 0 .64
 end
 
 

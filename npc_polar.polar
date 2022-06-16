@@ -129,12 +129,14 @@ proc compile_ops in
       "\n    ;; -- IF -- ;;\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
       "    test    rax, rax\n"			out_fd ,64 f_write
-      "    jz      "				out_fd ,64 f_write
+      "    jz      .L"				out_fd ,64 f_write
       gen_i ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n"					out_fd ,64 f_write
     else dup , OP_END_IF = elif
 	"\n;; -- END -- ;;\n"			out_fd ,64 f_write
-	gen_i ,64 dump ":"			out_fd ,64 f_write
+	".L"  	     				out_fd ,64 f_write
+	gen_i ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
+	":\n"					out_fd ,64 f_write
     else
        Unreachable
     end
@@ -320,7 +322,7 @@ end
 
 S_IRUSR S_IWUSR S_IRGRP + +
 O_WRONLY O_CREAT O_TRUNC bor bor
-"./out_asm.s"c f_open
+".tmp_file.s"c f_open
 out_fd swap .64
 
 out_fd ,64 ?ferr
@@ -331,6 +333,25 @@ end
 compile_program
 
 out_fd ,64 f_close
+
+"/usr/bin/nasm"c array_append
+"-felf64"c       array_append
+".tmp_file.s"c   array_append
+"-o"c            array_append
+".tmp_file.o"c   array_append
+
+array subp_exec_cmd
+array_clean
+
+"/usr/bin/ld"c array_append
+"-s"c          array_append
+"a.out"c       array_append
+".tmp_file.o"c   array_append
+
+array subp_exec_cmd
+array_clean
+
+"[INFO] All done!\n" puts
 
 //"Assembly:\n\n" puts
 //compile_program
