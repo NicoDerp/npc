@@ -22,6 +22,8 @@ macro MAP_FAILED -1 end
 macro PROT_READ   1 end
 macro MAP_PRIVATE 2 end
 
+macro EXEC_FAILED -2 end
+
 macro true  1 cast(bool) end
 macro false 0 cast(bool) end
 
@@ -83,16 +85,16 @@ proc read int ptr int -- int in
   0 syscall3
 end
 
-proc fork in
+proc fork -- int in
   57 syscall0
 end
 
-proc execve
-    ptr // argv
-    ptr // file
-  in
-  
-end
+//proc execve
+//    ptr // argv
+//    ptr // file
+//  in
+//  
+//end
 
 proc inc ptr in
   dup , 1 + .
@@ -422,18 +424,47 @@ proc uint_to_cstr
   int_to_str_buf int_to_str_i , +
 end
 
+// ptr -> argv[0] -> '/' // Filename
+//                   'u'
+//                   's'
+//                   'r'
+//                   '/'
+//                   'b'
+//                   'i'
+//                   'n'
+//                   '/'
+//                   'n'
+//                   'a'
+//                   's'
+//                   'm'
+//        argv[1] -> ... // Args
+//        argv[2] -> ...
+//        argv[3] -> ...
+//        ...     -> ...
+
+// 0 ptr ptr
 proc exec_cmd
+    ptr // Array of cstrs as arguments
+    --
+    int // Error
+  in
+
+  0 swap
+  dup ,64
+  59 syscall3
+end
+
+proc subp_exec_cmd
     ptr // Array of cstrs as arguments
   in
 
   fork
   dup 0 < if
     "[ERROR] Could not fork for exec_cmd\n" puts -1 exit
-  else 0 > elif
+  else dup 0 > elif
     // Parent process
-  else 0 = elif
+  else dup 0 = elif
     // Child process
-    
-  end
+  end drop drop
 end
 

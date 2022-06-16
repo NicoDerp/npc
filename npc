@@ -1237,6 +1237,9 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 						#program_note(word, f'actual types: {actual_types}')
 						#exit(1)
 
+				elif block_type.op == 'ELIF':
+					pass
+				
 				elif block_type.op == 'DO':
 					if expected_types != actual_types:
 						program_error_(block_type, 'while block is not allowed to alter the types on the stack')
