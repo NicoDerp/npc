@@ -1416,7 +1416,8 @@ def parse_procs(words):
 					depth -= 1
 
 				if w.type == 'KEYWORD' and w.op == 'PROC':
-					assert False, "local procedures not supported yet"
+					program_error(w, "local procedures are not supported")
+					#assert False, "local procedures not supported yet"
 				if depth == 0:
 					break
 
