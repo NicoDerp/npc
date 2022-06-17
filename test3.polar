@@ -1,13 +1,6 @@
 
-15 1 + 17 = if
-  11 dump
-else
-  9 dump
-end
-
-1 2 + 0 = if
-  99 dump
-else
-  55 dump
+0 while dup 10 < do
+  dup dump
+  1 +
 end
 

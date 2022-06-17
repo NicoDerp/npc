@@ -1,17 +1,20 @@
 include "std.polar"
 
 
-macro OP_PUSH_INT  1  end
-macro OP_PLUS      2  end
-macro OP_SUB       3  end
-macro OP_DUMP      4  end
-macro OP_EQU       5  end
-macro OP_IF        6  end
-macro OP_ELSE      7  end
-macro OP_END_IF    8  end
-macro OP_END_WHILE 9  end
-macro OP_WHILE     10 end
-macro OP_DO        11 end
+macro OP_PUSH_INT   1  end
+macro OP_PLUS       2  end
+macro OP_SUB        3  end
+macro OP_DUMP       4  end
+macro OP_EQU        5  end
+macro OP_GT         6  end
+macro OP_LT         7  end
+macro OP_DUP        8  end
+macro KEY_IF        9  end
+macro KEY_ELSE      10 end
+macro KEY_END_IF    11 end
+macro KEY_END_WHILE 12 end
+macro KEY_WHILE     13 end
+macro KEY_DO        14 end
 
 macro sizeof(Op) 16 end
 memory op_count 8 end
@@ -112,17 +115,17 @@ proc compile_ops in
       "\n"					out_fd ,64 f_write
     
     else dup , OP_PLUS = elif
-      "\n;; -- OP_PLUS -- ;;\n"		out_fd ,64 f_write
+      "\n;; -- OP_PLUS -- ;;\n"			out_fd ,64 f_write
       "    pop     rcx\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
-      "    add     rax, rcx\n"		out_fd ,64 f_write
+      "    add     rax, rcx\n"			out_fd ,64 f_write
       "    push    rax\n"			out_fd ,64 f_write
     
     else dup , OP_SUB = elif
-      "\n    ;; -- SUB -- ;;\n"		out_fd ,64 f_write
+      "\n;; -- OP_SUB -- ;;\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
       "    pop     rcx\n"			out_fd ,64 f_write
-      "    sub     rcx, rax\n"		out_fd ,64 f_write
+      "    sub     rcx, rax\n"			out_fd ,64 f_write
       "    push    rcx\n"			out_fd ,64 f_write
     
     else dup , OP_DUMP = elif
@@ -131,7 +134,7 @@ proc compile_ops in
       "    call    dump\n"			out_fd ,64 f_write
     
     else dup , OP_EQU = elif
-      "\n    ;; -- EQU -- ;;\n"			out_fd ,64 f_write
+      "\n;; -- OP_EQU -- ;;\n"			out_fd ,64 f_write
       "    xor     rdx, rdx\n"			out_fd ,64 f_write
       "    mov     rbx, 1\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
@@ -139,9 +142,35 @@ proc compile_ops in
       "    cmp     rax, rcx\n"			out_fd ,64 f_write
       "    cmove   rdx, rbx\n"			out_fd ,64 f_write
       "    push    rdx\n"			out_fd ,64 f_write
-    
-    else dup , OP_IF = elif
-      "\n;; -- IF -- ;;\n"			out_fd ,64 f_write
+
+    else dup , OP_GT = elif
+      "\n;; -- OP_GT -- ;;\n"	out_fd ,64 f_write
+      "    pop     rax\n"			out_fd ,64 f_write
+      "    pop     rcx\n"			out_fd ,64 f_write
+      "    xor     rdx, rdx\n"			out_fd ,64 f_write
+      "    mov     rbx, 1\n"			out_fd ,64 f_write
+      "    cmp     rcx, rax\n"			out_fd ,64 f_write
+      "    cmovg   rdx, rbx\n"			out_fd ,64 f_write
+      "    push    rdx\n"			out_fd ,64 f_write
+
+    else dup , OP_LT = elif
+      "\n;; -- OP_LT -- ;;\n"		out_fd ,64 f_write
+      "    pop     rax\n"			out_fd ,64 f_write
+      "    pop     rcx\n"			out_fd ,64 f_write
+      "    xor     rdx, rdx\n"			out_fd ,64 f_write
+      "    mov     rbx, 1\n"			out_fd ,64 f_write
+      "    cmp     rcx, rax\n"			out_fd ,64 f_write
+      "    cmovl   rdx, rbx\n"			out_fd ,64 f_write
+      "    push    rdx\n"			out_fd ,64 f_write
+
+    else dup , OP_DUP = elif
+      "\n;; -- OP_DUP -- ;;\n"			out_fd ,64 f_write
+      "    pop     rax\n"			out_fd ,64 f_write
+      "    push    rax\n"			out_fd ,64 f_write
+      "    push    rax\n"			out_fd ,64 f_write
+
+    else dup , KEY_IF = elif
+      "\n;; -- KEY_IF -- ;;\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
       "    test    rax, rax\n"			out_fd ,64 f_write
       "    jz      .L"				out_fd ,64 f_write
@@ -149,8 +178,8 @@ proc compile_ops in
       "\n"					out_fd ,64 f_write
       block_i inc64
     
-    else dup , OP_ELSE = elif
-      "\n;; -- ELSE -- ;;\n"			out_fd ,64 f_write
+    else dup , KEY_ELSE = elif
+      "\n;; -- KEY_ELSE -- ;;\n"			out_fd ,64 f_write
       "    jmp     .L"				out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n.L"					out_fd ,64 f_write
@@ -158,15 +187,40 @@ proc compile_ops in
       ":\n"    	  	       			out_fd ,64 f_write
       block_i inc64
     
-    else dup , OP_END_IF = elif
-      "\n;; -- END -- ;;\n"			out_fd ,64 f_write
+    else dup , KEY_END_IF = elif
+      "\n;; -- KEY_END_IF -- ;;\n"			out_fd ,64 f_write
       ".L"  	     				out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
       ":\n"					out_fd ,64 f_write
       block_i inc64
-    
+
+    else dup , KEY_END_WHILE = elif
+      "\n;; -- KEY_END_WHILE -- ;;\n"		out_fd ,64 f_write
+      "    jmp     .L"	    			out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
+      "\n.L"  	     				out_fd ,64 f_write
+      block_i ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
+      ":\n"					out_fd ,64 f_write
+      block_i inc64
+
+    else dup , KEY_WHILE = elif
+      "\n;; -- KEY_WHILE -- ;;\n"			out_fd ,64 f_write
+      ".L"  	     				out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
+      ":\n"					out_fd ,64 f_write
+      block_i inc64
+
+    else dup , KEY_DO = elif
+      "\n;; -- KEY_DO -- ;;\n"			out_fd ,64 f_write
+      "    pop     rax\n"			out_fd ,64 f_write
+      "    test    rax, rax\n"			out_fd ,64 f_write
+      "    jz      .L"				out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
+      "\n"					out_fd ,64 f_write
+      block_i inc64
+
     else
-       "Unknown word?\n" puts 1 exit
+       "Unknown word " puts dup , dump 1 exit
     end
     drop
     1 +
@@ -245,33 +299,39 @@ end
 proc crossreference_blocks in
   0 while dup op_count ,64 < do
     dup sizeof(Op) * op_start +
-    dup , OP_IF = if
+    dup , KEY_IF = if
       dup array_push
       block_i inc64
-    else dup , OP_ELSE = elif
+    else dup , KEY_ELSE = elif
       block_i ,64
       array_pop 8 + cast(ptr)
       over .64
       over 8 + cast(ptr) swap .64
       dup array_push
       block_i inc64
-    else dup , OP_WHILE = elif
+    else dup , KEY_WHILE = elif
+      dup 8 + block_i ,64 .64 // Save n to while block
       dup array_push
       block_i inc64
-    else dup , OP_END_IF = elif
+    else dup , KEY_DO = elif
+      dup array_push
+      block_i inc64
+    else dup , KEY_END_IF = elif
       // op-i op-ptr n
       block_i ,64
       array_pop 8 + cast(ptr)
       over .64
       over 8 + cast(ptr) swap .64
       block_i inc64
-    else dup , OP_END_WHILE = elif
-      // op-i op-ptr n block-ptr
+    else dup , KEY_END_WHILE = elif
+      // op-i op-ptr n2
       block_i ,64
-      array_pop 8 + cast(ptr)
-      over .64
-      dup 8 + cast(ptr) swap .64
+      array_pop 8 + cast(ptr) swap .64 // Save n to do-block
+      array_pop 8 + cast(ptr) ,64 // Get while-block n
+      over 8 + swap .64
       block_i inc64
+    else dup , KEY_WHILE = elif
+      dup array_push
     end
     drop
     1 +
@@ -288,24 +348,33 @@ proc parse_word in
     OP_DUMP 0 push_op
   else 2dup "=" streq elif
     OP_EQU 0 push_op
+  else 2dup ">" streq elif
+    OP_GT 0 push_op
+  else 2dup "<" streq elif
+    OP_LT 0 push_op
+  else 2dup "dup" streq elif
+    OP_DUP 0 push_op
   else 2dup "if" streq elif
-    OP_IF 0 push_op
+    KEY_IF 0 push_op
     ?inside_while if depth_counter inc end
   else 2dup "else" streq elif
-    OP_ELSE 0 push_op
+    KEY_ELSE 0 push_op
     ?inside_while if depth_counter inc end
   else 2dup "end" streq elif
-    depth_counter , 1 =
+    depth_counter , 0 =
     ?inside_while land
     if
-      OP_END_WHILE 0 push_op
+      inside_while 0 .
+      KEY_END_WHILE 0 push_op
     else
-      OP_END_IF 0 push_op
+      KEY_END_IF 0 push_op
     end
     depth_counter dec
   else 2dup "while" streq elif
-    OP_WHILE 0 push_op
+    KEY_WHILE 0 push_op
     inside_while 1 .
+  else 2dup "do" streq elif
+    KEY_DO 0 push_op
   else
     lex_buf cstr_to_int
     false = if
