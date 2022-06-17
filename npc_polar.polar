@@ -9,12 +9,14 @@ macro OP_EQU        5  end
 macro OP_GT         6  end
 macro OP_LT         7  end
 macro OP_DUP        8  end
-macro KEY_IF        9  end
-macro KEY_ELSE      10 end
-macro KEY_END_IF    11 end
-macro KEY_END_WHILE 12 end
-macro KEY_WHILE     13 end
-macro KEY_DO        14 end
+macro OP_2DUP       9  end
+macro OP_DROP       10 end
+macro KEY_IF        11 end
+macro KEY_ELSE      12 end
+macro KEY_END_IF    13 end
+macro KEY_END_WHILE 14 end
+macro KEY_WHILE     15 end
+macro KEY_DO        16 end
 
 macro sizeof(Op) 16 end
 memory op_count 8 end
@@ -144,7 +146,7 @@ proc compile_ops in
       "    push    rdx\n"			out_fd ,64 f_write
 
     else dup , OP_GT = elif
-      "\n;; -- OP_GT -- ;;\n"	out_fd ,64 f_write
+      "\n;; -- OP_GT -- ;;\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
       "    pop     rcx\n"			out_fd ,64 f_write
       "    xor     rdx, rdx\n"			out_fd ,64 f_write
@@ -154,7 +156,7 @@ proc compile_ops in
       "    push    rdx\n"			out_fd ,64 f_write
 
     else dup , OP_LT = elif
-      "\n;; -- OP_LT -- ;;\n"		out_fd ,64 f_write
+      "\n;; -- OP_LT -- ;;\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
       "    pop     rcx\n"			out_fd ,64 f_write
       "    xor     rdx, rdx\n"			out_fd ,64 f_write
@@ -169,6 +171,19 @@ proc compile_ops in
       "    push    rax\n"			out_fd ,64 f_write
       "    push    rax\n"			out_fd ,64 f_write
 
+    else dup , OP_2DUP = elif
+      "\n;; -- 2DUP -- ;;\n"			out_fd ,64 f_write
+      "    pop     rax\n"			out_fd ,64 f_write
+      "    pop     rcx\n"			out_fd ,64 f_write
+      "    push    rcx\n"			out_fd ,64 f_write
+      "    push    rax\n"			out_fd ,64 f_write
+      "    push    rcx\n"			out_fd ,64 f_write
+      "    push    rax\n"			out_fd ,64 f_write
+
+    else dup , OP_DROP = elif
+      "\n;; -- DROP -- ;;\n"			out_fd ,64 f_write
+      "    pop     rax\n"    			out_fd ,64 f_write
+
     else dup , KEY_IF = elif
       "\n;; -- KEY_IF -- ;;\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
@@ -179,7 +194,7 @@ proc compile_ops in
       block_i inc64
     
     else dup , KEY_ELSE = elif
-      "\n;; -- KEY_ELSE -- ;;\n"			out_fd ,64 f_write
+      "\n;; -- KEY_ELSE -- ;;\n"		out_fd ,64 f_write
       "    jmp     .L"				out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n.L"					out_fd ,64 f_write
@@ -188,7 +203,7 @@ proc compile_ops in
       block_i inc64
     
     else dup , KEY_END_IF = elif
-      "\n;; -- KEY_END_IF -- ;;\n"			out_fd ,64 f_write
+      "\n;; -- KEY_END_IF -- ;;\n"		out_fd ,64 f_write
       ".L"  	     				out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
       ":\n"					out_fd ,64 f_write
@@ -204,7 +219,7 @@ proc compile_ops in
       block_i inc64
 
     else dup , KEY_WHILE = elif
-      "\n;; -- KEY_WHILE -- ;;\n"			out_fd ,64 f_write
+      "\n;; -- KEY_WHILE -- ;;\n"		out_fd ,64 f_write
       ".L"  	     				out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
       ":\n"					out_fd ,64 f_write
@@ -220,7 +235,7 @@ proc compile_ops in
       block_i inc64
 
     else
-       "Unknown word " puts dup , dump 1 exit
+       "Unknown word with id " puts dup , dump 1 exit
     end
     drop
     1 +
@@ -354,17 +369,20 @@ proc parse_word in
     OP_LT 0 push_op
   else 2dup "dup" streq elif
     OP_DUP 0 push_op
+  else 2dup "2dup" streq elif
+    OP_2DUP 0 push_op
+  else 2dup "drop" streq elif
+    OP_DROP 0 push_op
   else 2dup "if" streq elif
     KEY_IF 0 push_op
-    ?inside_while if depth_counter inc end
+    ?array_empty lnot if array_top inc64 end
   else 2dup "else" streq elif
     KEY_ELSE 0 push_op
-    ?inside_while if depth_counter inc end
   else 2dup "end" streq elif
-    depth_counter , 0 =
-    ?inside_while land
+    array_top dec64
+    array_top ,64 0 =
     if
-      inside_while 0 .
+      array_pop drop
       KEY_END_WHILE 0 push_op
     else
       KEY_END_IF 0 push_op
@@ -372,7 +390,7 @@ proc parse_word in
     depth_counter dec
   else 2dup "while" streq elif
     KEY_WHILE 0 push_op
-    inside_while 1 .
+    1 array_push
   else 2dup "do" streq elif
     KEY_DO 0 push_op
   else
@@ -488,6 +506,7 @@ end
 input_buf swap .64
 
 parse_file
+array_clean
 
 crossreference_blocks
 array_clean
@@ -529,11 +548,11 @@ array subp_exec_cmd
 array_clean
 
 // Clean up temporary files
-".tmp_file.s"c rmfile -2 =
-".tmp_file.o"c rmfile -2 =
-lor if
-  "[ERROR] Failed to clean up temporary files\n" puts 1 exit
-end
+//".tmp_file.s"c rmfile -2 =
+//".tmp_file.o"c rmfile -2 =
+//lor if
+//  "[ERROR] Failed to clean up temporary files\n" puts 1 exit
+//end
 
 "[INFO] All done!\n" puts
 

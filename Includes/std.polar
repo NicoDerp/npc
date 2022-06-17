@@ -546,6 +546,22 @@ proc array_pop
   ,64
 end
 
+proc array_top
+    --
+    ptr // Out
+  in
+
+  array array_i ,64 1 - sizeof(ptr) * +
+end
+
+proc ?array_empty -- bool in
+  array_i ,64 0 =
+end
+
+proc lnot bool -- bool in
+  false =
+end
+
 proc rmfile
     ptr // Cstr filename
     --
