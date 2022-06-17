@@ -70,7 +70,7 @@ proc push_op
 in
   
   swap
-  op_count , sizeof(Op) * op_start +
+  op_count ,64 sizeof(Op) * op_start +
 
   dup rot .
   8 + swap .
@@ -82,9 +82,9 @@ end
 // ptr
 proc dump_ops in
   "------------\nop_count: "
-  puts op_count , dump
+  puts op_count ,64 dump
   "------------\n" puts
-  0 while dup op_count , < do
+  0 while dup op_count ,64 < do
     dup sizeof(Op) * op_start +
     
     "Type    : " puts dup     , dump
@@ -101,7 +101,8 @@ macro Unreachable    "Unreachable"    puts 0 exit end
 macro MEM_CAPACITY 4096 end
 
 proc compile_ops in
-  0 while dup op_count , < do
+  block_i 0 .64
+  0 while dup op_count ,64 < do
     dup sizeof(Op) * op_start +
 
     dup , OP_PUSH_INT = if
@@ -109,23 +110,26 @@ proc compile_ops in
       "    push    "				out_fd ,64 f_write
       dup 8 + , uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n"					out_fd ,64 f_write
-
+    
     else dup , OP_PLUS = elif
-        "\n;; -- OP_PLUS -- ;;\n"		out_fd ,64 f_write
-	"    pop     rcx\n"			out_fd ,64 f_write
-	"    pop     rax\n"			out_fd ,64 f_write
-	"    add     rax, rcx\n"		out_fd ,64 f_write
-	"    push    rax\n"			out_fd ,64 f_write
+      "\n;; -- OP_PLUS -- ;;\n"		out_fd ,64 f_write
+      "    pop     rcx\n"			out_fd ,64 f_write
+      "    pop     rax\n"			out_fd ,64 f_write
+      "    add     rax, rcx\n"		out_fd ,64 f_write
+      "    push    rax\n"			out_fd ,64 f_write
+    
     else dup , OP_SUB = elif
-        "\n    ;; -- SUB -- ;;\n"		out_fd ,64 f_write
-        "    pop     rax\n"			out_fd ,64 f_write
-        "    pop     rcx\n"			out_fd ,64 f_write
-        "    sub     rcx, rax\n"		out_fd ,64 f_write
-        "    push    rcx\n"			out_fd ,64 f_write
+      "\n    ;; -- SUB -- ;;\n"		out_fd ,64 f_write
+      "    pop     rax\n"			out_fd ,64 f_write
+      "    pop     rcx\n"			out_fd ,64 f_write
+      "    sub     rcx, rax\n"		out_fd ,64 f_write
+      "    push    rcx\n"			out_fd ,64 f_write
+    
     else dup , OP_DUMP = elif
       "\n;; -- OP_DUMP -- ;;\n"			out_fd ,64 f_write
       "    pop     rdi\n"			out_fd ,64 f_write
       "    call    dump\n"			out_fd ,64 f_write
+    
     else dup , OP_EQU = elif
       "\n    ;; -- EQU -- ;;\n"			out_fd ,64 f_write
       "    xor     rdx, rdx\n"			out_fd ,64 f_write
@@ -135,20 +139,34 @@ proc compile_ops in
       "    cmp     rax, rcx\n"			out_fd ,64 f_write
       "    cmove   rdx, rbx\n"			out_fd ,64 f_write
       "    push    rdx\n"			out_fd ,64 f_write
+    
     else dup , OP_IF = elif
-      "\n    ;; -- IF -- ;;\n"			out_fd ,64 f_write
+      "\n;; -- IF -- ;;\n"			out_fd ,64 f_write
       "    pop     rax\n"			out_fd ,64 f_write
       "    test    rax, rax\n"			out_fd ,64 f_write
       "    jz      .L"				out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n"					out_fd ,64 f_write
+      block_i inc64
+    
+    else dup , OP_ELSE = elif
+      "\n;; -- ELSE -- ;;\n"			out_fd ,64 f_write
+      "    jmp     .L"				out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
+      "\n.L"					out_fd ,64 f_write
+      block_i ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
+      ":\n"    	  	       			out_fd ,64 f_write
+      block_i inc64
+    
     else dup , OP_END_IF = elif
-	"\n;; -- END -- ;;\n"			out_fd ,64 f_write
-	".L"  	     				out_fd ,64 f_write
-	dup 8 + ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
-	":\n"					out_fd ,64 f_write
+      "\n;; -- END -- ;;\n"			out_fd ,64 f_write
+      ".L"  	     				out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str 	out_fd ,64 f_write
+      ":\n"					out_fd ,64 f_write
+      block_i inc64
+    
     else
-       "Unknown word?\n" puts
+       "Unknown word?\n" puts 1 exit
     end
     drop
     1 +
@@ -217,34 +235,43 @@ end
 //	value = *(ptr+8)
 //    if typ in ["IF", "ELIF", "ELSE", "WHILE"]:
 //      stack.append(ptr)
-//	elif typ == "END":
+//    elif typ == "END":
 //      block_ptr = stack.pop()
-//	  *(block_ptr+8) = n
-//	  value = n
-//	  n += 1
+//      *(block_ptr+8) = n
+//      value = n
+//      n += 1
 
 // op-i
 proc crossreference_blocks in
-  0 while dup op_count , < do
+  0 while dup op_count ,64 < do
     dup sizeof(Op) * op_start +
     dup , OP_IF = if
       dup array_push
+      block_i inc64
     else dup , OP_ELSE = elif
+      block_i ,64
+      array_pop 8 + cast(ptr)
+      over .64
+      over 8 + cast(ptr) swap .64
       dup array_push
+      block_i inc64
     else dup , OP_WHILE = elif
       dup array_push
+      block_i inc64
     else dup , OP_END_IF = elif
       // op-i op-ptr n
       block_i ,64
       array_pop 8 + cast(ptr)
       over .64
       over 8 + cast(ptr) swap .64
+      block_i inc64
     else dup , OP_END_WHILE = elif
-      // op-i op-ptr n block-ptr 
+      // op-i op-ptr n block-ptr
       block_i ,64
       array_pop 8 + cast(ptr)
       over .64
       dup 8 + cast(ptr) swap .64
+      block_i inc64
     end
     drop
     1 +

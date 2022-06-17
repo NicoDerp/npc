@@ -88,7 +88,7 @@ memory int_to_str_buf sizeof(int_to_str_buf) end
 memory int_to_str_i 1 end
 
 macro sizeof(array) 16 sizeof(ptr) * end
-memory array 8 sizeof(ptr) * 1 + end
+memory array 16 sizeof(ptr) * 1 + end
 memory array_i 8 end
 
 memory wstatus 8 end
