@@ -548,11 +548,11 @@ array subp_exec_cmd
 array_clean
 
 // Clean up temporary files
-//".tmp_file.s"c rmfile -2 =
-//".tmp_file.o"c rmfile -2 =
-//lor if
-//  "[ERROR] Failed to clean up temporary files\n" puts 1 exit
-//end
+".tmp_file.s"c rmfile -2 =
+".tmp_file.o"c rmfile -2 =
+lor if
+  "[ERROR] Failed to clean up temporary files\n" puts 1 exit
+end
 
 "[INFO] All done!\n" puts
 
