@@ -93,6 +93,8 @@ memory array_i 8 end
 
 memory wstatus 8 end
 
+memory char_in_cstr_out sizeof(bool) end
+
 proc exit int in
   60 syscall1 drop
 end
@@ -569,5 +571,37 @@ proc rmfile
   in
 
   87 syscall1
+end
+
+proc char_in_cstr
+    ptr // Str
+    int // Char
+    --
+    bool
+  in
+
+  // ptr char
+  while
+    over ,
+    dup 0 != if
+      over = if char_in_cstr_out 1 . end
+      true
+    else
+      drop false
+    end
+  do
+    swap 1 + swap
+  end drop drop
+  char_in_cstr_out , cast(bool)
+end
+
+proc last_char_in_cstr
+    ptr // Cstr
+    --
+    int // Char
+  in
+
+  // ptr int
+  strlen 1 - + ,
 end
 

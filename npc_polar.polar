@@ -444,11 +444,17 @@ proc parse_word in
   else
     lex_buf cstr_to_int
     false = if
-      "Unable to parse word '" puts lex_buf cputs "'\n" puts
-      0 exit
+      drop
+      lex_buf '"' char_in_cstr false = if
+        "Unable to parse word '" puts lex_buf cputs "'\n" puts
+        1 exit
+      end
+      "String!" puts
+      "Last character: " puts
+      lex_buf last_char_in_cstr putc
+    else
+      OP_PUSH_INT swap push_op
     end
-    
-    OP_PUSH_INT swap push_op
   end drop drop
 end
 
