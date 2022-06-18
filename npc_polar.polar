@@ -12,11 +12,12 @@ macro OP_DUP        8  end
 macro OP_2DUP       9  end
 macro OP_DROP       10 end
 macro KEY_IF        11 end
-macro KEY_ELSE      12 end
-macro KEY_END_IF    13 end
-macro KEY_END_WHILE 14 end
-macro KEY_WHILE     15 end
-macro KEY_DO        16 end
+macro KEY_ELIF      12 end
+macro KEY_ELSE      13 end
+macro KEY_END_IF    14 end
+macro KEY_END_WHILE 15 end
+macro KEY_WHILE     16 end
+macro KEY_DO        17 end
 
 macro sizeof(Op) 16 end
 memory op_count 8 end
@@ -192,7 +193,16 @@ proc compile_ops in
       dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n"					out_fd ,64 f_write
       block_i inc64
-    
+
+    else dup , KEY_ELIF = elif
+      "\n;; -- KEY_ELIF -- ;;\n" out_fd ,64 f_write
+      "    pop     rax\n"			out_fd ,64 f_write
+      "    test    rax, rax\n"			out_fd ,64 f_write
+      "    jz      .L"				out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write
+      "\n"					out_fd ,64 f_write
+      block_i inc64
+
     else dup , KEY_ELSE = elif
       "\n;; -- KEY_ELSE -- ;;\n"		out_fd ,64 f_write
       "    jmp     .L"				out_fd ,64 f_write
@@ -235,7 +245,7 @@ proc compile_ops in
       block_i inc64
 
     else
-       "Unknown word with id " puts dup , dump 1 exit
+       "Unknown word in code generation with id " puts dup , dump 1 exit
     end
     drop
     1 +
@@ -317,13 +327,26 @@ proc crossreference_blocks in
     dup , KEY_IF = if
       dup array_push
       block_i inc64
-    else dup , KEY_ELSE = elif
-      block_i ,64
-      array_pop 8 + cast(ptr)
-      over .64
-      over 8 + cast(ptr) swap .64
+    else dup , KEY_ELIF = elif
       dup array_push
       block_i inc64
+    else dup , KEY_ELSE = elif
+      block_i ,64
+      array_top ,64 cast(ptr)
+      dup ,64 KEY_IF = if
+        8 + cast(ptr)
+        over .64
+        over 8 + cast(ptr) swap .64
+        dup array_push
+        block_i inc64
+      else dup ,64 KEY_ELIF = elif
+        array_pop drop
+        8 + cast(ptr)
+        over .64
+        over 8 + cast(ptr) swap .64
+        dup array_push
+        block_i inc64
+      end
     else dup , KEY_WHILE = elif
       dup 8 + block_i ,64 .64 // Save n to while block
       dup array_push
@@ -332,11 +355,34 @@ proc crossreference_blocks in
       dup array_push
       block_i inc64
     else dup , KEY_END_IF = elif
-      // op-i op-ptr n
+      // op-i op-ptr block_ptr
+      array_top ,64 cast(ptr)
+      dup ,64 KEY_ELIF = if
+        array_pop drop
+        8 + cast(ptr)
+        block_i inc64
+        block_i ,64 .64
+      else
+        drop
+      end
+
+      // op-i op-ptr 0 block_ptr
+      0 while
+        array_pop cast(ptr)
+        dup ,64 KEY_ELSE = if
+	  block_i ,64
+	  over 8 +
+	  over .64
+	  drop drop
+	  true
+	else
+	  drop false
+	end
+      do
+        1 +
+      end drop
       block_i ,64
-      array_pop 8 + cast(ptr)
-      over .64
-      over 8 + cast(ptr) swap .64
+      over 8 + swap .64
       block_i inc64
     else dup , KEY_END_WHILE = elif
       // op-i op-ptr n2
@@ -376,6 +422,8 @@ proc parse_word in
   else 2dup "if" streq elif
     KEY_IF 0 push_op
     ?array_empty lnot if array_top inc64 end
+  else 2dup "elif" streq elif
+    KEY_ELIF 0 push_op
   else 2dup "else" streq elif
     KEY_ELSE 0 push_op
   else 2dup "end" streq elif
