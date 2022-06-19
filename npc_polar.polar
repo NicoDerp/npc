@@ -52,6 +52,10 @@ memory strbuf_i 8 end
 memory str_start sizeof(ptr) end
 memory str_count 8 end
 
+macro sizeof(str) 16 end
+memory strings 64 sizeof(str) * end
+memory strings_i 8 end
+
 proc strbuf_append_char
     int // Char
   in
@@ -68,6 +72,22 @@ end
 proc strbuf_end -- ptr in
   strbuf_start strbuf_i ,64 +
 end
+
+proc append_str
+    int // Count
+    ptr // Ptr
+    --
+    int // Index
+  in
+
+  strings_i ,64
+  dup sizeof(str) * strings +
+  rot over swap .64
+  8 + rot .64
+  strings_i inc64
+end
+
+//prov str_from_index
 
 // [ - - - - - - - v ]
 memory argbits 1 end
@@ -142,6 +162,16 @@ proc compile_ops in
       dup 8 + , uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n"					out_fd ,64 f_write
     
+    else dup , OP_PUSH_STR = elif
+      "\n;; -- OP_PUSH_STR -- ;;\n"			out_fd ,64 f_write
+      "    mov     rax, "			out_fd ,64 f_write
+      dup 8 + ,64 sizeof(str) * strings + 8 + ,64
+      uint_to_cstr cstr_to_str	out_fd ,64 f_write 
+      "\n    push    rax\n"			out_fd ,64 f_write
+      "    push    str_"			out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write  
+      "\n"			out_fd ,64 f_write 
+
     else dup , OP_PLUS = elif
       "\n;; -- OP_PLUS -- ;;\n"			out_fd ,64 f_write
       "    pop     rcx\n"			out_fd ,64 f_write
@@ -449,9 +479,12 @@ proc parse_string
 	  cstr_chop_left
 	  dup 'n' = if
 	    "Newline\n" puts
+            '\n' strbuf_append_char
+            str_count inc64
 	  else
-	    "Something else\n" puts
-	  end drop
+	    "[ERROR] Unreckognized escape sequence '\\" puts
+            putc "'\n" puts
+	  end
 	else
 	  strbuf_append_char
 	  cstr_chop_left drop
@@ -509,15 +542,15 @@ proc parse_word in
   else 2dup "do" streq elif
     KEY_DO 0 push_op
   else
-    // 
     lex_buf cstr_to_int
     false = if
       drop
       dup lex_buf parse_string false = if
         "Unable to parse word '" puts lex_buf cputs "'\n" puts
         1 exit
-      end drop drop drop
-      OP_PUSH_STR 0 push_op
+      end drop
+      append_str
+      OP_PUSH_STR swap push_op
     else
       OP_PUSH_INT swap push_op
     end
