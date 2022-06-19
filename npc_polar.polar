@@ -2,22 +2,23 @@ include "std.polar"
 
 
 macro OP_PUSH_INT   1  end
-macro OP_PLUS       2  end
-macro OP_SUB        3  end
-macro OP_DUMP       4  end
-macro OP_EQU        5  end
-macro OP_GT         6  end
-macro OP_LT         7  end
-macro OP_DUP        8  end
-macro OP_2DUP       9  end
-macro OP_DROP       10 end
-macro KEY_IF        11 end
-macro KEY_ELIF      12 end
-macro KEY_ELSE      13 end
-macro KEY_END_IF    14 end
-macro KEY_END_WHILE 15 end
-macro KEY_WHILE     16 end
-macro KEY_DO        17 end
+macro OP_PUSH_STR   2  end
+macro OP_PLUS       3  end
+macro OP_SUB        4  end
+macro OP_DUMP       5  end
+macro OP_EQU        6  end
+macro OP_GT         7  end
+macro OP_LT         8  end
+macro OP_DUP        9  end
+macro OP_2DUP       10 end
+macro OP_DROP       11 end
+macro KEY_IF        12 end
+macro KEY_ELIF      13 end
+macro KEY_ELSE      14 end
+macro KEY_END_IF    15 end
+macro KEY_END_WHILE 16 end
+macro KEY_WHILE     17 end
+macro KEY_DO        18 end
 
 macro sizeof(Op) 16 end
 memory op_count 8 end
@@ -43,6 +44,30 @@ memory lex_i 1 end
 memory depth_counter 1 end
 memory inside_while sizeof(bool) end
 memory block_i 8 end
+
+macro sizeof(strbuf) 64 256 * end
+memory strbuf_start 64 256 * end
+memory strbuf_i 8 end
+
+memory str_start sizeof(ptr) end
+memory str_count 8 end
+
+proc strbuf_append_char
+    int // Char
+  in
+
+  strbuf_i ,64 sizeof(strbuf) = if
+    "[ERROR] Can't append character since strbuf is full!\n" puts 1 exit
+  end
+
+  strbuf_start strbuf_i ,64 +
+  swap .64
+  strbuf_i inc64
+end
+
+proc strbuf_end -- ptr in
+  strbuf_start strbuf_i ,64 +
+end
 
 // [ - - - - - - - v ]
 memory argbits 1 end
@@ -399,6 +424,48 @@ proc crossreference_blocks in
   end drop
 end
 
+proc parse_string
+    ptr // Cstr
+    --
+    int // Str.count
+    ptr // Str.ptr
+    bool // Success
+  in
+
+  str_start strbuf_end .64
+  str_count 0 .64
+
+  cstr_chop_right '"' !=
+  swap cstr_chop_left '"' !=
+  rot lor if
+    drop
+    0 NULL false
+  else
+    while
+      dup ?cstr_empty lnot if
+        dup ,
+	dup '\\' = if
+	  drop
+	  cstr_chop_left
+	  dup 'n' = if
+	    "Newline\n" puts
+	  else
+	    "Something else\n" puts
+	  end drop
+	else
+	  strbuf_append_char
+	  cstr_chop_left drop
+	  str_count inc64
+	end
+	true
+      else
+        false
+      end
+    do end drop
+    str_count ,64 str_start ,64 cast(ptr) true
+  end
+end
+
 proc parse_word in
   lex_buf cstr_to_str
   2dup "+" streq if
@@ -442,16 +509,15 @@ proc parse_word in
   else 2dup "do" streq elif
     KEY_DO 0 push_op
   else
+    // 
     lex_buf cstr_to_int
     false = if
       drop
-      lex_buf '"' char_in_cstr false = if
+      dup lex_buf parse_string false = if
         "Unable to parse word '" puts lex_buf cputs "'\n" puts
         1 exit
-      end
-      "String!" puts
-      "Last character: " puts
-      lex_buf last_char_in_cstr putc
+      end drop drop drop
+      OP_PUSH_STR 0 push_op
     else
       OP_PUSH_INT swap push_op
     end
