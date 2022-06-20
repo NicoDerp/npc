@@ -903,7 +903,7 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				a_type, a_loc = stack.pop()
 				b_type, b_loc = stack.pop()
 
-				if a_type != 'INT' or b_type != 'PTR':
+				if a_type not in ['INT', 'BOOL'] or b_type != 'PTR':
 					invalid_arguments(word, '`INT` and `PTR`', f'`{a_type}` and `{b_type}`')
 
 			elif word.op == 'DUMP':

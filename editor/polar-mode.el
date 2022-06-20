@@ -52,6 +52,7 @@
   "Major Mode for editing polar source code."
   :syntax-table polar-mode-syntax-table
   (setq font-lock-defaults '(polar-highlights))
+  (setq-default indent-tabs-mode nil)
   (setq-local comment-start "// "))
   (setq whitespace-space-regexp "\\(^ +\\)")
   (setq whitespace-style '(space-mark))

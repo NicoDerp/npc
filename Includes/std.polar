@@ -93,6 +93,8 @@ memory array_i 8 end
 
 memory wstatus 8 end
 
+memory char_in_cstr_out sizeof(bool) end
+
 proc exit int in
   60 syscall1 drop
 end
@@ -181,6 +183,17 @@ proc f_write
   in
 
   1 syscall3 drop
+end
+
+proc f_writec
+    int // Int
+    int // Fd
+  in
+
+  // 1 buf fd
+  swap putc_char swap .
+  1 swap putc_char swap
+  f_write
 end
 
 proc f_close
@@ -569,5 +582,94 @@ proc rmfile
   in
 
   87 syscall1
+end
+
+proc char_in_cstr
+    ptr // Str
+    int // Char
+    --
+    bool
+  in
+
+  // ptr char
+  while
+    over ,
+    dup 0 != if
+      over = if char_in_cstr_out 1 . end
+      true
+    else
+      drop false
+    end
+  do
+    swap 1 + swap
+  end drop drop
+  char_in_cstr_out , cast(bool)
+end
+
+proc cstr_leftmost_char
+    ptr // Cstr
+    --
+    int // Char
+  in
+
+  ,
+end
+
+proc cstr_rightmost_char
+    ptr // Cstr
+    --
+    int // Char
+  in
+
+  // ptr int
+  strlen 1 - + ,
+end
+
+proc ?cstr_empty
+    ptr // Cstr
+    --
+    bool // Empty
+  in
+
+  , 0 =
+end
+
+proc cstr_chop_left
+    ptr // Cstr
+    --
+    ptr // Cstr
+    int // Char
+  in
+
+  // ptr char
+  dup ,
+  swap 1 + swap
+end
+
+proc cstr_chop_right
+    ptr // Cstr
+    --
+    ptr // Cstr
+    int // Char
+  in
+
+  strlen 1 -
+  over +
+  dup ,
+  swap 0 .
+end
+
+proc cstr_starts_with
+    ptr // Cstr
+    int // Char
+    --
+    bool // Out
+  in
+
+  swap , =
+end
+
+proc lflip ptr in
+  dup , lnot .
 end
 

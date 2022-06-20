@@ -2,22 +2,23 @@ include "std.polar"
 
 
 macro OP_PUSH_INT   1  end
-macro OP_PLUS       2  end
-macro OP_SUB        3  end
-macro OP_DUMP       4  end
-macro OP_EQU        5  end
-macro OP_GT         6  end
-macro OP_LT         7  end
-macro OP_DUP        8  end
-macro OP_2DUP       9  end
-macro OP_DROP       10 end
-macro KEY_IF        11 end
-macro KEY_ELIF      12 end
-macro KEY_ELSE      13 end
-macro KEY_END_IF    14 end
-macro KEY_END_WHILE 15 end
-macro KEY_WHILE     16 end
-macro KEY_DO        17 end
+macro OP_PUSH_STR   2  end
+macro OP_PLUS       3  end
+macro OP_SUB        4  end
+macro OP_DUMP       5  end
+macro OP_EQU        6  end
+macro OP_GT         7  end
+macro OP_LT         8  end
+macro OP_DUP        9  end
+macro OP_2DUP       10 end
+macro OP_DROP       11 end
+macro KEY_IF        12 end
+macro KEY_ELIF      13 end
+macro KEY_ELSE      14 end
+macro KEY_END_IF    15 end
+macro KEY_END_WHILE 16 end
+macro KEY_WHILE     17 end
+macro KEY_DO        18 end
 
 macro sizeof(Op) 16 end
 memory op_count 8 end
@@ -39,10 +40,54 @@ macro sizeof(word) 32 end
 
 memory lex_buf sizeof(word) end
 memory lex_i 1 end
+memory lex_inside_str sizeof(bool) end
 
-memory depth_counter 1 end
 memory inside_while sizeof(bool) end
 memory block_i 8 end
+
+macro sizeof(strbuf) 64 256 * end
+memory strbuf_start 64 256 * end
+memory strbuf_i 8 end
+
+memory str_start sizeof(ptr) end
+memory str_count 8 end
+
+macro sizeof(str) 16 end
+memory strings 64 sizeof(str) * end
+memory strings_i 8 end
+
+proc strbuf_append_char
+    int // Char
+  in
+
+  strbuf_i ,64 sizeof(strbuf) = if
+    "[ERROR] Can't append character since strbuf is full!\n" puts 1 exit
+  end
+
+  strbuf_start strbuf_i ,64 +
+  swap .64
+  strbuf_i inc64
+end
+
+proc strbuf_end -- ptr in
+  strbuf_start strbuf_i ,64 +
+end
+
+proc append_str
+    int // Count
+    ptr // Ptr
+    --
+    int // Index
+  in
+
+  strings_i ,64
+  dup sizeof(str) * strings +
+  rot over swap .64
+  8 + rot .64
+  strings_i inc64
+end
+
+//prov str_from_index
 
 // [ - - - - - - - v ]
 memory argbits 1 end
@@ -117,6 +162,16 @@ proc compile_ops in
       dup 8 + , uint_to_cstr cstr_to_str	out_fd ,64 f_write
       "\n"					out_fd ,64 f_write
     
+    else dup , OP_PUSH_STR = elif
+      "\n;; -- OP_PUSH_STR -- ;;\n"			out_fd ,64 f_write
+      "    mov     rax, "			out_fd ,64 f_write
+      dup 8 + ,64 sizeof(str) * strings + 8 + ,64
+      uint_to_cstr cstr_to_str	out_fd ,64 f_write 
+      "\n    push    rax\n"			out_fd ,64 f_write
+      "    push    str_"			out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str	out_fd ,64 f_write  
+      "\n"			out_fd ,64 f_write 
+
     else dup , OP_PLUS = elif
       "\n;; -- OP_PLUS -- ;;\n"			out_fd ,64 f_write
       "    pop     rcx\n"			out_fd ,64 f_write
@@ -298,7 +353,31 @@ proc compile_program in
   "    syscall\n"		out_fd ,64 f_write
   
   "\nsegment .data\n"   out_fd ,64 f_write
-  // Strings
+
+  0 while dup strings_i ,64 < do
+    // i size (ptr+8)
+    "str_" out_fd ,64 f_write
+    dup uint_to_cstr cstr_to_str out_fd ,64 f_write
+    
+    dup sizeof(str) * strings +
+    dup ,64 cast(ptr)
+    swap 8 + ,64
+    ":\n    db      " out_fd ,64 f_write
+    // count ptr
+    while dup 0 > do
+      swap
+      dup , uint_to_cstr cstr_to_str out_fd ,64 f_write
+      over 1 != if
+        ", "  out_fd ,64 f_write
+      end
+      1 + swap
+      1 -
+    end drop drop
+    "\n" out_fd ,64 f_write
+    //puts
+    1 +
+  end drop
+  
   "\nsegment .bss\n"	out_fd ,64 f_write
   "mem:\n"		out_fd ,64 f_write
   "    resb    4096\n"	out_fd ,64 f_write
@@ -399,6 +478,58 @@ proc crossreference_blocks in
   end drop
 end
 
+proc parse_string
+    ptr // Cstr
+    --
+    int // Str.count
+    ptr // Str.ptr
+    bool // Success
+  in
+
+  str_start strbuf_end .64
+  str_count 0 .64
+
+  cstr_chop_right '"' !=
+  swap cstr_chop_left '"' !=
+  rot lor if
+    drop
+    0 NULL false
+  else
+    while
+      dup ?cstr_empty lnot if
+        cstr_chop_left
+	dup '\\' = if
+          drop
+          cstr_chop_left
+          dup 'n' = if
+            drop
+            '\n' strbuf_append_char
+            str_count inc64
+	  else dup '\\' = elif
+	    drop
+	    '\\' strbuf_append_char
+	    str_count inc64
+	  else dup 't' = elif
+	    drop
+	    '\t' strbuf_append_char
+	    str_count inc64
+          else
+            "[ERROR] Unreckognized escape sequence '\\" puts
+            putc "'\n" puts 1 exit
+	  end
+	else
+	  strbuf_append_char
+	  str_count inc64
+	end
+	true
+      else
+        false
+      end
+    do end drop
+    str_count ,64 str_start ,64 cast(ptr) true
+  end
+end
+
 proc parse_word in
   lex_buf cstr_to_str
   2dup "+" streq if
@@ -435,7 +566,6 @@ proc parse_word in
     else
       KEY_END_IF 0 push_op
     end
-    depth_counter dec
   else 2dup "while" streq elif
     KEY_WHILE 0 push_op
     1 array_push
@@ -444,19 +574,29 @@ proc parse_word in
   else
     lex_buf cstr_to_int
     false = if
-      "Unable to parse word '" puts lex_buf cputs "'\n" puts
-      0 exit
+      drop
+      lex_buf parse_string false = if
+        "Unable to parse word '" puts lex_buf cputs "'\n" puts
+        1 exit
+      end
+      append_str
+      OP_PUSH_STR swap push_op
+    else
+      OP_PUSH_INT swap push_op
     end
-    
-    OP_PUSH_INT swap push_op
   end drop drop
 end
 
 proc parse_file in
-  // buf_size i
+  // buf_size i c bool
   stat st_size ,64 0 while 2dup > do
     dup input_buf ,64 cast(ptr) + ,
+    dup '"' = if
+      lex_inside_str lflip
+    end
     dup ?wspace
+    lex_inside_str , cast(bool) lnot
+    land
     if
       drop // Drop the character
 
