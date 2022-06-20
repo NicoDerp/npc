@@ -95,6 +95,8 @@ memory wstatus 8 end
 
 memory char_in_cstr_out sizeof(bool) end
 
+memory exec_cmd_err sizeof(bool) end
+
 proc exit int in
   60 syscall1 drop
 end
@@ -494,40 +496,49 @@ end
 // ptr pid
 proc subp_exec_cmd
     ptr // Array of cstrs as arguments
+    --
+    bool // Error
   in
 
   fork
   dup -1 = if
-    "[ERROR] Could not fork for exec_cmd\n" puts 1 exit
+    exec_cmd_err true .
+    //"[ERROR] Could not fork for exec_cmd\n" puts 1 exit
   else dup 0 > elif
     // Parent process. Wait for child to finish
     while
       NULL 0 wstatus -1 wait4
       0 < if
-        "[ERROR] Could not wait for process to finish\n" puts
-	1 exit
+        //"[ERROR] Could not wait for process to finish\n" puts
+	//1 exit
+        exec_cmd_err true .
+        false
+      else
+        // int
+        wstatus ,64
+        dup WIFEXITED if
+          dup WEXITSTATUS
+          dup 0 != if
+            exec_cmd_err true .
+            //dup exit // Exit with the child's exit code if fail
+          end
+          drop // Drop exit-code
+          false // Break
+        else // Check stopped and continue??
+          true
+        end swap drop // Drop *wstatus
       end
-      // int
-      wstatus ,64
-      dup WIFEXITED if
-        dup WEXITSTATUS
-        dup 0 != if
-          dup exit // Exit with the child's exit code if fail
-        end
-        drop // Drop exit-code
-        false // Break
-      else // Check stopped and continue??
-        true
-      end swap drop // Drop *wstatus
     do end
       
   else dup 0 = elif
     // Child process
     over exec_cmd
     0 < if
-      "Failed to execute command\n" puts 1 exit
+      1 exit
+      //"Failed to execute command\n" puts 1 exit
     end
   end drop drop
+  exec_cmd_err , cast(bool)
 end
 
 proc array_push

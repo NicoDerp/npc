@@ -735,7 +735,9 @@ out_fd ,64 f_close
 "-o"c            array_push
 ".tmp_file.o"c   array_push
 
-array subp_exec_cmd
+array subp_exec_cmd true = if
+  "[ERROR] Failed to execute assembler\n" puts 1 exit
+end
 array_clean
 
 "/usr/bin/ld"c array_push
@@ -743,7 +745,9 @@ array_clean
 "-o"c          array_push
 out_fn ,64     array_push
 
-array subp_exec_cmd
+array subp_exec_cmd true = if
+  "[ERROR] Failed to execute linker\n" puts 1 exit
+end
 array_clean
 
 // Clean up temporary files
