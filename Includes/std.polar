@@ -185,6 +185,17 @@ proc f_write
   1 syscall3 drop
 end
 
+proc f_writec
+    int // Int
+    int // Fd
+  in
+
+  // 1 buf fd
+  swap putc_char swap .
+  1 swap putc_char swap
+  f_write
+end
+
 proc f_close
     int // Fd
   in
@@ -595,7 +606,16 @@ proc char_in_cstr
   char_in_cstr_out , cast(bool)
 end
 
-proc cstr_left_char
+proc cstr_leftmost_char
+    ptr // Cstr
+    --
+    int // Char
+  in
+
+  ,
+end
+
+proc cstr_rightmost_char
     ptr // Cstr
     --
     int // Char
@@ -603,14 +623,6 @@ proc cstr_left_char
 
   // ptr int
   strlen 1 - + ,
-end
-
-proc cstr_right_char
-    ptr // Cstr
-    --
-    int // Char
-  in
-
 end
 
 proc ?cstr_empty
@@ -645,5 +657,19 @@ proc cstr_chop_right
   over +
   dup ,
   swap 0 .
+end
+
+proc cstr_starts_with
+    ptr // Cstr
+    int // Char
+    --
+    bool // Out
+  in
+
+  swap , =
+end
+
+proc lflip ptr in
+  dup , lnot .
 end
 

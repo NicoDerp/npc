@@ -40,8 +40,8 @@ macro sizeof(word) 32 end
 
 memory lex_buf sizeof(word) end
 memory lex_i 1 end
+memory lex_inside_str sizeof(bool) end
 
-memory depth_counter 1 end
 memory inside_while sizeof(bool) end
 memory block_i 8 end
 
@@ -353,7 +353,31 @@ proc compile_program in
   "    syscall\n"		out_fd ,64 f_write
   
   "\nsegment .data\n"   out_fd ,64 f_write
-  // Strings
+
+  0 while dup strings_i ,64 < do
+    // i size (ptr+8)
+    "str_" out_fd ,64 f_write
+    dup uint_to_cstr cstr_to_str out_fd ,64 f_write
+    
+    dup sizeof(str) * strings +
+    dup ,64 cast(ptr)
+    swap 8 + ,64
+    ":\n    db      " out_fd ,64 f_write
+    // count ptr
+    while dup 0 > do
+      swap
+      dup , uint_to_cstr cstr_to_str out_fd ,64 f_write
+      over 1 != if
+        ", "  out_fd ,64 f_write
+      end
+      1 + swap
+      1 -
+    end drop drop
+    "\n" out_fd ,64 f_write
+    //puts
+    1 +
+  end drop
+  
   "\nsegment .bss\n"	out_fd ,64 f_write
   "mem:\n"		out_fd ,64 f_write
   "    resb    4096\n"	out_fd ,64 f_write
@@ -473,21 +497,28 @@ proc parse_string
   else
     while
       dup ?cstr_empty lnot if
-        dup ,
+        cstr_chop_left
 	dup '\\' = if
-	  drop
-	  cstr_chop_left
-	  dup 'n' = if
-	    "Newline\n" puts
+          drop
+          cstr_chop_left
+          dup 'n' = if
+            drop
             '\n' strbuf_append_char
             str_count inc64
-	  else
-	    "[ERROR] Unreckognized escape sequence '\\" puts
-            putc "'\n" puts
+	  else dup '\\' = elif
+	    drop
+	    '\\' strbuf_append_char
+	    str_count inc64
+	  else dup 't' = elif
+	    drop
+	    '\t' strbuf_append_char
+	    str_count inc64
+          else
+            "[ERROR] Unreckognized escape sequence '\\" puts
+            putc "'\n" puts 1 exit
 	  end
 	else
 	  strbuf_append_char
-	  cstr_chop_left drop
 	  str_count inc64
 	end
 	true
@@ -535,7 +566,6 @@ proc parse_word in
     else
       KEY_END_IF 0 push_op
     end
-    depth_counter dec
   else 2dup "while" streq elif
     KEY_WHILE 0 push_op
     1 array_push
@@ -545,10 +575,10 @@ proc parse_word in
     lex_buf cstr_to_int
     false = if
       drop
-      dup lex_buf parse_string false = if
+      lex_buf parse_string false = if
         "Unable to parse word '" puts lex_buf cputs "'\n" puts
         1 exit
-      end drop
+      end
       append_str
       OP_PUSH_STR swap push_op
     else
@@ -558,10 +588,15 @@ proc parse_word in
 end
 
 proc parse_file in
-  // buf_size i
+  // buf_size i c bool
   stat st_size ,64 0 while 2dup > do
     dup input_buf ,64 cast(ptr) + ,
+    dup '"' = if
+      lex_inside_str lflip
+    end
     dup ?wspace
+    lex_inside_str , cast(bool) lnot
+    land
     if
       drop // Drop the character
 
