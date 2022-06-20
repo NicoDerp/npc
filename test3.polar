@@ -1,4 +1,4 @@
 
-"Hei" dump dump
-"Bip bop\n" dump dump
+"Hei" 1 1 syscall3
+"Bip bop\n" 1 1 syscall3
 

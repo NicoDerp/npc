@@ -609,20 +609,22 @@ end
 proc cstr_leftmost_char
     ptr // Cstr
     --
+    ptr // Cstr
     int // Char
   in
 
-  ,
+  dup ,
 end
 
 proc cstr_rightmost_char
     ptr // Cstr
     --
+    ptr // Cstr
     int // Char
   in
 
   // ptr int
-  strlen 1 - + ,
+  dup strlen 1 - + ,
 end
 
 proc ?cstr_empty

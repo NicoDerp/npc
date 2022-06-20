@@ -2063,7 +2063,7 @@ def main():
 		fn_to_run = './' + arguments.outfn
 		print(f"Running '{fn_to_run}'\n")
 		# Segmentation fault show show?
-		process = subprocess.Popen([fn_to_run, "./test3.polar"])
+		process = subprocess.Popen([fn_to_run])
 		process.communicate()
 
 		if process.returncode == 0:
