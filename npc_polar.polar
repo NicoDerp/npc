@@ -20,6 +20,7 @@ macro KEY_END_IF    16 end
 macro KEY_END_WHILE 17 end
 macro KEY_WHILE     18 end
 macro KEY_DO        19 end
+macro KEY_INCLUDE   20 end
 
 macro sizeof(Op) 16 end
 memory op_count 8 end
@@ -27,6 +28,7 @@ memory op_start sizeof(Op) 256 * end
 
 memory input_fd 8 end
 memory input_buf sizeof(ptr) end
+memory input_fn sizeof(ptr) end
 
 memory out_fn sizeof(ptr) end
 memory out_fd 8 end
@@ -53,6 +55,10 @@ memory str_count 8 end
 macro sizeof(str) 16 end
 memory strings 64 sizeof(str) * end
 memory strings_i 8 end
+
+memory parse_next_word_eof sizeof(bool) end
+memory word_type 8 end
+memory word_value 8 end
 
 proc strbuf_append_char
     int // Char
@@ -539,49 +545,43 @@ proc parse_string
   end
 end
 
-proc parse_word in
-  lex_buf cstr_to_str
-  2dup "+" streq if
-    OP_PLUS 0 push_op
-  else 2dup "-" streq elif
-    OP_SUB 0 push_op
-  else 2dup "dump" streq elif
-    OP_DUMP 0 push_op
-  else 2dup "=" streq elif
-    OP_EQU 0 push_op
-  else 2dup ">" streq elif
-    OP_GT 0 push_op
-  else 2dup "<" streq elif
-    OP_LT 0 push_op
-  else 2dup "dup" streq elif
-    OP_DUP 0 push_op
-  else 2dup "2dup" streq elif
-    OP_2DUP 0 push_op
-  else 2dup "drop" streq elif
-    OP_DROP 0 push_op
-  else 2dup "syscall3" streq elif
-    OP_SYSCALL3 0 push_op
-  else 2dup "if" streq elif
-    KEY_IF 0 push_op
-    ?array_empty lnot if array_top inc64 end
-  else 2dup "elif" streq elif
-    KEY_ELIF 0 push_op
-  else 2dup "else" streq elif
-    KEY_ELSE 0 push_op
-  else 2dup "end" streq elif
+proc parse_word
+    --
+    int // Type
+    int // Value
+  in
+  
+  lex_buf "+"c cstreq if
+    OP_PLUS 0
+  else lex_buf "-"c cstreq        elif OP_SUB 0
+  else lex_buf "dump"c cstreq     elif OP_DUMP 0
+  else lex_buf "="c cstreq        elif OP_EQU 0
+  else lex_buf ">"c cstreq        elif OP_GT 0
+  else lex_buf "<"c cstreq        elif OP_LT 0
+  else lex_buf "dup"c cstreq      elif OP_DUP 0
+  else lex_buf "2dup"c cstreq     elif OP_2DUP 0
+  else lex_buf "drop"c cstreq     elif OP_DROP 0
+  else lex_buf "syscall3"c cstreq elif OP_SYSCALL3 0
+  else lex_buf "if"c cstreq elif
+    ?array_empty lnot if
+      array_top inc64
+    end KEY_IF 0
+  else lex_buf "elif"c cstreq     elif KEY_ELIF 0
+  else lex_buf "else"c cstreq     elif KEY_ELSE 0
+  else lex_buf "end"c cstreq      elif
     array_top dec64
     array_top ,64 0 =
     if
       array_pop drop
-      KEY_END_WHILE 0 push_op
+      KEY_END_WHILE 0
     else
-      KEY_END_IF 0 push_op
+      KEY_END_IF 0
     end
-  else 2dup "while" streq elif
-    KEY_WHILE 0 push_op
+  else lex_buf "while"c cstreq elif
+    KEY_WHILE 0
     1 array_push
-  else 2dup "do" streq elif
-    KEY_DO 0 push_op
+  else lex_buf "do"c cstreq       elif KEY_DO 0
+  else lex_buf "include"c cstreq  elif KEY_INCLUDE 0
   else
     lex_buf cstr_to_int
     false = if
@@ -591,44 +591,108 @@ proc parse_word in
         1 exit
       end
       append_str
-      OP_PUSH_STR swap push_op
+      OP_PUSH_STR swap
     else
-      OP_PUSH_INT swap push_op
+      OP_PUSH_INT swap
     end
-  end drop drop
+  end
 end
 
-proc parse_file in
-  // buf_size i c bool
-  stat st_size ,64 0 while 2dup > do
-    dup input_buf ,64 cast(ptr) + ,
-    dup '"' = if
-      lex_inside_str lflip
-    end
-    dup ?wspace
-    lex_inside_str , cast(bool) lnot
-    land
-    if
-      drop // Drop the character
+proc parse_next_word
+    int // Index
+    --
+    bool // End of file
+  in
 
-      // Check if the buffer is not empty
-      lex_i , 0 != if
-        // Print the contents of the buffer
-        //lex_buf cputs '\n' putc
-        parse_word
-  
-        // Reset stuff
-        lex_i 0 .
-        sizeof(word) lex_buf 0 memset
-      end
+  // i size
+  while
+    stat st_size ,64
+    over <= if
+      parse_next_word_eof true .
+      false
     else
-      // Append character
-      lex_buf lex_i , + swap .
-      // Increment index
-      lex_i inc
+      dup input_buf ,64 cast(ptr) + ,
+      "Parsing character: " puts dup putc "\n" puts
+      dup '"' = if
+        lex_inside_str lflip
+      end
+      dup ?wspace
+      lex_inside_str , cast(bool) lnot
+      land
+      if
+        drop // Drop the character
+  
+        // Check if the buffer is not empty
+        lex_i , 0 != if
+          // Print the contents of the buffer
+          //lex_buf cputs '\n' putc
+          parse_word
+          word_value swap .64
+          word_type swap .64
+    
+          // Reset stuff
+          lex_i 0 .
+          sizeof(word) lex_buf 0 memset
+          // Break
+          false
+        else
+          true
+        end
+      else
+        // Append character
+        lex_buf lex_i , + swap .
+        // Increment index
+        lex_i inc
+        true // Continue loop
+      end
     end
+  do
     1 +
-  end drop drop
+  end drop
+  parse_next_word_eof , lnot cast(bool)
+end
+
+proc parse_file
+    ptr // Cstr filename
+  in
+
+  input_fn swap .64
+  O_RDONLY_USER input_fn ,64 f_open
+
+  // Save file descriptor
+  input_fd swap .64
+  
+  // Check for errors (-4095 < fd < -1)
+  input_fd ,64 ?ferr
+  if
+    "[ERROR] failed to open file: '" puts
+    1 nth_argv cputs "'\n" puts
+    -1 exit
+  end
+  
+  // Get fstat and check status
+  stat input_fd ,64 5 syscall2
+  0 < if
+    "[ERROR] Failed to open file\n" puts
+    -1 exit
+  end
+
+  // Memory map file
+  0 input_fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
+  dup MAP_FAILED = if
+    "Failed to memory map file\n" puts
+    -1 exit
+  end
+
+  input_buf swap .64
+
+  0 while dup parse_next_word do
+    word_type ,64 KEY_INCLUDE = if
+      "Shiiish" puts
+    else
+      word_type ,64 word_value ,64 push_op
+    end
+  end drop
 end
 
 argc 1 = if
@@ -661,33 +725,6 @@ out_fn "a.out"c .64
   1 +
 end drop
 
-// Open 1st arg which is file name
-O_RDONLY_USER 1 nth_argv f_open
-
-// Save file descriptor
-input_fd swap .64
-
-// Check for errors (-4095 < fd < -1)
-input_fd ,64 ?ferr
-if
-  "[ERROR] failed to open input file: '" puts
-  1 nth_argv cputs "'\n" puts
-  -1 exit
-end
-
-// Get fstat and check status
-stat input_fd ,64 5 syscall2
-0 < if
-  "Failed to open file\n" puts
-  -1 exit
-end
-
-
-// TODO:
-// - Make a 'stack' for blocks?
-// - Arg stuff
-// - Use nasm
-
 is_verbose if
   "\nCompiling file: '" puts 1 nth_argv cputs "'\n" puts
   "File descriptor: " puts input_fd ,64 dump
@@ -695,16 +732,7 @@ is_verbose if
   "\n" puts
 end
 
-// Memory map file
-0 input_fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
-dup MAP_FAILED = if
-  "Failed to memory map file\n" puts
-  -1 exit
-end
-
-input_buf swap .64
-
-parse_file
+1 nth_argv parse_file
 array_clean
 
 crossreference_blocks

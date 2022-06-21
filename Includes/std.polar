@@ -145,6 +145,11 @@ proc >= int int -- bool in
   rot rot = lor
 end
 
+proc <= int int -- bool in
+  2dup <
+  rot rot = lor
+end
+
 // n (n<-1) (n>-4095)
 proc ?ferr
     int // File descriptor
