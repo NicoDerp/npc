@@ -137,7 +137,7 @@ def compiler_error(err):
 	print(err)
 	exit(1)
 
-def did_you_mean(s, l):
+def did_you_mean_(s, l):
 	ml = []
 	for match in l:
 		# Insert
@@ -157,6 +157,19 @@ def did_you_mean(s, l):
 					ml.append((changes, match))
 					break
 	return ml
+
+def did_you_mean(word, procs, memories, loc_mems={}):
+	d = {}
+	d = {**d, **{n:procs[n]['word'] for n in procs}}
+	d = {**d, **{n:memories[n].tok for n in memories}}
+	d = {**d, **{n:loc_mems[n].tok for n in loc_mems}}
+	matches = did_you_mean_(word.name, d.keys())
+	program_error_(word, f"procedure or memory `{word.name}` doesn't exist")
+	for c, match in matches:
+		w = d[match]
+		program_note(w, f"did you mean `{match}`?")
+	exit(1)
+
 
 def lex_file(source_file):
 	# Read and get tokens (not including comments)
@@ -696,15 +709,15 @@ def parse_stuff(words):
 					program_error(arg, f"`{arg.type}` is not supported inside procedure headers")
 					
 			proc_words = []
-			loc_mems = []
+			loc_mems = {}
 			depth = 1
 			while True:
 				try:
 					w = next(words)
 				except StopIteration:
 					program_error(word, "procedure has no end")
-				
-				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
+
+				if w.type == 'KEYWORD' and w.op in ['IF', 'WHILE']:
 			   		depth += 1
 					
 				if w.type == 'KEYWORD' and w.op == 'END':
@@ -714,29 +727,44 @@ def parse_stuff(words):
 					program_error(w, "local procedures are not supported")
 				if depth == 0:
 					break
-
-				if word.type == 'KEYWORD' and word.op == 'MEMORY':
-					program_note(word, "local memory")
+				if w.type == 'KEYWORD' and w.op == 'MEMORY':
+					program_note(w, "local memory")
 					try:
-						name = next(words)
+						mem_name = next(words)
 					except StopIteration:
-						program_error(word, "memory definition is missing end")
+						program_error(w, "memory definition is missing end")
 
-					if name.type != 'MACRO_CALL':
+					if mem_name.type != 'MACRO_CALL':
 						program_error(name, f"wrong type for memory name. Expected `MACRO_CALL`, but got `{name.type}")
 
-					if name.name in memories.keys():
-						program_error_(word, f"redefinition of already existing memory `{name.name}`")
-						program_note(memories[name.name][1], f"the first definition is located here")
+					if mem_name.name in memories.keys():
+						program_error_(word, f"redefinition of already existing global memory `{name.name}`")
+						program_note(memories[mem_name.name][1], f"the original definition is located here")
+						exit(1)
+					if mem_name.name in loc_mems.keys():
+						program_error_(w, f"redefinition of already existing local memory `{name.name}`")
+						program_note(loc_mems[mem_name.name].tok, f"the original definition is located here")
+						exit(1)
+					if mem_name.name in procs.keys():
+						program_error_(w, f"can't have name the same as procedure `{mem_name.name}`")
+						program_note(procs[mem_name.name]['word'], f"the procedure is located here")
+						exit(1)
+					if mem_name.name == name.name:
+						program_error_(w, f"can't have name the same as procedure `{mem_name.name}`")
+						program_note(word, f"the procedure is located here")
 						exit(1)
 
 					size = precompute_memory_size(words)
-					memories[name.name] = Memory(size, memCapacity, name)
+					mem = Memory(size, memCapacity, mem_name)
+					#memories[name.name] = mem
+					loc_mems[mem_name.name] = mem
 					memCapacity += size
-					loc_mems.append(name.name)
-				if w.type == 'MACRO_CALL':
+				elif w.type == 'MACRO_CALL':
 					if w.name in memories.keys():
 						mem = memories[w.name]
+						proc_words.append(Const('MEMORY_OFFSET', mem.offset, word))
+					elif w.name in loc_mems.keys():
+						mem = loc_mems[w.name]
 						proc_words.append(Const('MEMORY_OFFSET', mem.offset, word))
 					elif w.name in procs.keys():
 						procs[w.name]['used'] = True
@@ -745,30 +773,21 @@ def parse_stuff(words):
 						used = True
 						proc_words.append(w)
 					else:
-						program_error(w, f"procedure `{w.name}` does not exist")
+						did_you_mean(word, procs, memories, loc_mems)
 				else:
 					proc_words.append(w)
 				#words_typecheck.append(w)
 			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs), 'used': False, 'loc_mems': loc_mems}
 		elif word.type == 'MACRO_CALL':
+			print(word.name, procs.keys())
 			if word.name in memories.keys():
 				mem = memories[word.name]
 				words_return.append(Const('MEMORY_OFFSET', mem.offset, word))
-
 			elif word.name in procs.keys():
 				procs[word.name]['used'] = True
 				words_return.append(ProcCall(word, procs))
 			else:
-				matches = did_you_mean(word.name, procs.keys()+memories.keys())
-				if len(matches) >= 1:
-					program_error_(word, f"procedure or memory `{word.name}` doesn't exist")
-					for c, match in matches:
-						proc_word = procs[match]['word']
-						program_note(proc_word, f"did you mean `{match}`?")
-					exit(1)
-				else:
-					program_error(word, f"procedure or memory `{word.name}` doesn't exist")
-		
+				did_you_mean(word, procs, memories)
 		elif word.type == 'KEYWORD' and word.op == 'MEMORY':
 			try:
 				name = next(words)
@@ -778,11 +797,15 @@ def parse_stuff(words):
 			if name.type != 'MACRO_CALL':
 				program_error(name, f"wrong type for memory name. Expected `MACRO_CALL`, but got `{name.type}")
 
-			if name.name in memories.keys():
-				program_error_(word, f"redefinition of already existing memory `{name.name}`")
-				program_note(memories[name.name][1], f"the first definition is located here")
+			if mem_name.name in memories.keys():
+				program_error_(word, f"redefinition of already existing global memory `{name.name}`")
+				program_note(memories[mem_name.name][1], f"the original definition is located here")
 				exit(1)
-
+			if mem_name.name in procs.keys():
+				program_error_(w, f"can't have name the same as procedure `{mem_name.name}`")
+				program_note(procs[mem_name.name]['word'], f"the procedure is located here")
+				exit(1)
+			
 			size = precompute_memory_size(words)
 			memories[name.name] = Memory(size, memCapacity, name)
 			memCapacity += size
