@@ -710,6 +710,7 @@ def parse_stuff(words):
 					
 			proc_words = []
 			loc_mems = {}
+			locMemCapacity = 0
 			depth = 1
 			while True:
 				try:
@@ -758,7 +759,7 @@ def parse_stuff(words):
 					mem = Memory(size, memCapacity, mem_name)
 					#memories[name.name] = mem
 					loc_mems[mem_name.name] = mem
-					memCapacity += size
+					locMemCapacity += size
 				elif w.type == 'MACRO_CALL':
 					if w.name in memories.keys():
 						mem = memories[w.name]
@@ -777,7 +778,7 @@ def parse_stuff(words):
 				else:
 					proc_words.append(w)
 				#words_typecheck.append(w)
-			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs), 'used': False, 'loc_mems': loc_mems}
+			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs), 'used': False, 'locMemCapacity': locMemCapacity}
 		elif word.type == 'MACRO_CALL':
 			print(word.name, procs.keys())
 			if word.name in memories.keys():
@@ -1973,8 +1974,6 @@ dump:
 	dataLabels = []
 	c = generate_words(words, dataLabels)
 	code += c
-	
-	#code += '    ret\n'
 
 	code += '    xor     rdi, rdi\n'
 	code += '    mov     rax, 60\n'
