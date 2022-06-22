@@ -88,6 +88,13 @@ class ProcCall(Classified, Position):
 		self.index = procs[macro.name]['index']
 		self.name = macro.name
 
+class Memory(Classified, Position):
+	def __init__(self, size, offset, tok):
+		Classified.__init__(self, "MEMORY")
+		Position.__init__(self, tok)
+		self.size = size
+		self.offset = offset
+
 class Token(Position):
 	def __init__(self, token, row, col, filepath):
 		self.token = token
@@ -551,22 +558,217 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, insideProc=0):
 		else:
 			yield word
 
-def parse_memories(words):
-	words_bak = []
+def precompute_memory_size(words):
+	stack = []
+				
+	while True:
+		try:
+			w = next(words)
+		except StopIteration:
+			program_error(word, "memory is missing end")
+
+		if w.type == 'KEYWORD':
+			if w.op == 'END':
+				break
+			else:
+				program_error_(w, "keywords are not allowed in memory reservation")
+				program_note(word, "memory definition")
+				exit(1)
+		elif w.type == 'CONST':
+			if w.value_type == 'INT':
+				stack.append(w.value)
+			elif w.value_type == 'STRING':
+				program_error_(w, "strings are not allowed in memory reservation")
+				program_note(word, "memory definition")
+				exit(1)
+			elif w.value_type == 'CHARACTER':
+				program_error_(w, "characters are not allowed in memory reservation")
+				program_note(word, "memory definition")
+				exit(1)
+			else:
+				program_error(w, "shouldn't get here??")
+		elif w.type == 'WORD':
+			if w.op == 'ADD':
+				if len(stack) < 2:
+					not_enough_arguments(w)
+				a = stack.pop()
+				b = stack.pop()
+				stack.append(a+b)
+			elif w.op == 'SUB':
+				if len(stack) < 2:
+					not_enough_arguments(w)
+				a = stack.pop()
+				b = stack.pop()
+				stack.append(b-a)
+			elif w.op == 'MULT':
+				if len(stack) < 2:
+					not_enough_arguments(w)
+				a = stack.pop()
+				b = stack.pop()
+				stack.append(a*b)
+			else:
+				program_error_(w, "only addition, subtraction and multiplication are allowed in memory reservation")
+				program_note(word, "memory definition")
+				exit(1)
+
+		elif w.type == 'MACRO_CALL':
+			if w.name in macros.keys():
+				m = macros[w.name]
+				mbody = precompute_memory_size(m.body)
+				if len(mbody) != 1:
+					program_error_(w, "only macros with an integer constant are currently allowed inside a memory reservation")
+					program_note(m[1], "macro definition")
+					exit(1)
+				o = mbody.pop()
+				if o.type != 'CONST' or o.type == 'CONST' and o.value_type != 'INT':
+					program_error_(w, "only macros with an integer constant are currently allowed inside a memory reservation")
+					program_note(m[1], "macro definition")
+					program_note(o, "not const")
+					exit(1)
+				stack.append(o.value)
+			elif w.name in memories.keys():
+				stack.append(memories[w.name][0])
+			else:
+				program_error(word, f"macro or memory `{word.name}` does not exist or is used inside it's definition")		
+		else:
+			program_error_(w, "illegal type in memery reservation")
+			program_note(word, "memory definition")
+			exit(1)
+						
+	if len(stack) > 1:
+	   	program_error(word, "more than one number in stack")
+
+	if len(stack) == 0:
+	   	program_error(word, "no size spesified")
+	
+	size = stack.pop()
+	if size <= 0:
+		program_error(word, "no numbers less than 1 allowed in memory reservation")
+	return size
+
+def parse_stuff(words):
+	words_return = []
 	memories = {}
 	memCapacity = 0
+	procs = {}
 	while True:
 		try:
 			word = next(words)
 		except StopIteration:
 			break
 
-		if word.type == 'MACRO_CALL':
+		if word.type == 'KEYWORD' and word.op == 'PROC':
+			try:
+				name = next(words)
+			except StopIteration:
+				program_error(word, "expected procedure name but found none")
+			if name.type != 'MACRO_CALL':
+				program_error(name, f"procedure name is wrong type {name.op}")
+			if name.name in procs.keys():
+				program_error_(word, f"redefinition of already existing procedure `{name.name}`")
+				program_note(procs[name.name]['word'], f"the first definition is located here")
+				exit(1)
+
+			args_in = []
+			args_out = []
+			dirOut = False
+			while True:
+				try:
+					arg = next(words)
+				except StopIteration:
+					program_error(word, "expected `in` and `end` but found nothing")
+				if arg.type == 'KEYWORD':
+					if arg.op in ['PROC_INT', 'PROC_PTR', 'PROC_BOOL']:
+						op = arg.op.replace('PROC_','')
+						if dirOut:
+							args_out.append((op, word))
+						else:
+							args_in.append((op, word))
+					elif arg.op == 'PROC_BAR':
+						if dirOut:
+							program_error(arg, 'multiple seperation bars in proc header')
+						dirOut = True
+					elif arg.op == 'PROC_IN':
+						break
+					else:
+						program_error(arg, f"`{arg.op}` is not supported inside procedure headers")
+				else:
+					program_error(arg, f"`{arg.type}` is not supported inside procedure headers")
+					
+			proc_words = []
+			loc_mems = []
+			depth = 1
+			while True:
+				try:
+					w = next(words)
+				except StopIteration:
+					program_error(word, "procedure has no end")
+				
+				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
+			   		depth += 1
+					
+				if w.type == 'KEYWORD' and w.op == 'END':
+					depth -= 1
+
+				if w.type == 'KEYWORD' and w.op == 'PROC':
+					program_error(w, "local procedures are not supported")
+				if depth == 0:
+					break
+
+				if word.type == 'KEYWORD' and word.op == 'MEMORY':
+					program_note(word, "local memory")
+					try:
+						name = next(words)
+					except StopIteration:
+						program_error(word, "memory definition is missing end")
+
+					if name.type != 'MACRO_CALL':
+						program_error(name, f"wrong type for memory name. Expected `MACRO_CALL`, but got `{name.type}")
+
+					if name.name in memories.keys():
+						program_error_(word, f"redefinition of already existing memory `{name.name}`")
+						program_note(memories[name.name][1], f"the first definition is located here")
+						exit(1)
+
+					size = precompute_memory_size(words)
+					memories[name.name] = Memory(size, memCapacity, name)
+					memCapacity += size
+					loc_mems.append(name.name)
+				if w.type == 'MACRO_CALL':
+					if w.name in memories.keys():
+						mem = memories[w.name]
+						proc_words.append(Const('MEMORY_OFFSET', mem.offset, word))
+					elif w.name in procs.keys():
+						procs[w.name]['used'] = True
+						proc_words.append(ProcCall(w, procs))
+					elif w.name not in procs.keys() and w.name == name.name:
+						used = True
+						proc_words.append(w)
+					else:
+						program_error(w, f"procedure `{w.name}` does not exist")
+				else:
+					proc_words.append(w)
+				#words_typecheck.append(w)
+			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs), 'used': False, 'loc_mems': loc_mems}
+		elif word.type == 'MACRO_CALL':
 			if word.name in memories.keys():
 				mem = memories[word.name]
-				words_bak.append(Const('MEMORY_OFFSET', mem['offset'], word))
+				words_return.append(Const('MEMORY_OFFSET', mem.offset, word))
+
+			elif word.name in procs.keys():
+				procs[word.name]['used'] = True
+				words_return.append(ProcCall(word, procs))
 			else:
-				words_bak.append(word)
+				matches = did_you_mean(word.name, procs.keys()+memories.keys())
+				if len(matches) >= 1:
+					program_error_(word, f"procedure or memory `{word.name}` doesn't exist")
+					for c, match in matches:
+						proc_word = procs[match]['word']
+						program_note(proc_word, f"did you mean `{match}`?")
+					exit(1)
+				else:
+					program_error(word, f"procedure or memory `{word.name}` doesn't exist")
+		
 		elif word.type == 'KEYWORD' and word.op == 'MEMORY':
 			try:
 				name = next(words)
@@ -581,103 +783,12 @@ def parse_memories(words):
 				program_note(memories[name.name][1], f"the first definition is located here")
 				exit(1)
 
-			stack = []
-				
-			while True:
-				try:
-					w = next(words)
-				except StopIteration:
-					program_error(word, "memory is missing end")
-
-				if w.type == 'KEYWORD':
-					if w.op == 'END':
-						break
-					else:
-						program_error_(w, "keywords are not allowed in memory reservation")
-						program_note(word, "memory definition")
-						exit(1)
-				elif w.type == 'CONST':
-					if w.value_type == 'INT':
-						stack.append(w.value)
-					elif w.value_type == 'STRING':
-						program_error_(w, "strings are not allowed in memory reservation")
-						program_note(word, "memory definition")
-						exit(1)
-					elif w.value_type == 'CHARACTER':
-						program_error_(w, "characters are not allowed in memory reservation")
-						program_note(word, "memory definition")
-						exit(1)
-					else:
-						program_error(w, "shouldn't get here??")
-
-				elif w.type == 'WORD':
-					if w.op == 'ADD':
-						if len(stack) < 2:
-							not_enough_arguments(w)
-						a = stack.pop()
-						b = stack.pop()
-						stack.append(a+b)
-					elif w.op == 'SUB':
-						if len(stack) < 2:
-							not_enough_arguments(w)
-						a = stack.pop()
-						b = stack.pop()
-						stack.append(b-a)
-					elif w.op == 'MULT':
-						if len(stack) < 2:
-							not_enough_arguments(w)
-						a = stack.pop()
-						b = stack.pop()
-						stack.append(a*b)
-					else:
-						print(w.op)
-						program_error_(w, "only addition, subtraction and multiplication are allowed in memory reservation")
-						program_note(word, "memory definition")
-						exit(1)
-
-				elif w.type == 'MACRO_CALL':
-					if w.name in macros.keys():
-						# TODO: preprocess maybe
-						m = macros[w.name]
-						mbody = list(preprocess((x for x in m[0]), args=args, includes=includes, expansions=expansions+1, macros=macros, insideProc=insideProc))
-						if len(mbody) != 1:
-							program_error_(w, "only macros with an integer constant are currently allowed inside a memory reservation")
-							program_note(m[1], "macro definition")
-							exit(1)
-						o = mbody.pop()
-						if o.type != 'CONST' or o.type == 'CONST' and o.value_type != 'INT':
-							program_error_(w, "only macros with an integer constant are currently allowed inside a memory reservation")
-							program_note(m[1], "macro definition")
-							program_note(o, "not const")
-							exit(1)
-						stack.append(o.value)
-					elif w.name in memories.keys():
-						stack.append(memories[w.name][0])
-					else:
-						program_error(word, f"macro or memory `{word.name}` does not exist or is used inside it's definition")
-						
-				else:
-					program_error_(w, "illegal type in memery reservation")
-					program_note(word, "memory definition")
-					exit(1)
-						
-			if len(stack) > 1:
-				program_error(word, "more than one number in stack")
-
-			if len(stack) == 0:
-				program_error(word, "no size spesified")
-
-			#print("Memory size reserved:", stack[0])
-
-			size = stack.pop()
-			if size <= 0:
-				program_error(word, "no numbers less than 1 allowed in memory reservation")
-			memories[name.name] = {'offset': memCapacity, 'size': size}
-			#print("Assignign offset", memOffset[0], "to", name.name)
+			size = precompute_memory_size(words)
+			memories[name.name] = Memory(size, memCapacity, name)
 			memCapacity += size
 		else:
-			words_bak.append(word)
-	return iter(words_bak), memories, memCapacity
+			words_return.append(word)
+	return iter(words_return), procs, memories, memCapacity
 
 def not_enough_arguments(word):
 	program_error(word, f"not enough arguments for operation `{word.op}`")
@@ -1306,7 +1417,11 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 			#	print("stack:", stack)
 				
 			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
-						
+
+		elif word.type == 'MACRO_CALL':
+			program_note(word, ".")
+			assert False, "shouldn't be here"
+		
 		else:
 			program_error(word, f'unknown word type `{word.type}`')
 			
@@ -1359,102 +1474,6 @@ def typecheck_program(words, procs):
 	
 	stack: List[Tuple[String, Word]] = []
 	words = typecheck_words(words, stack, procs)
-
-def parse_procs(words, memories):
-	words_return = []
-	procs = {}
-	while True:
-		try:
-			word = next(words)
-		except StopIteration:
-			break
-		if word.type == 'KEYWORD' and word.op == 'PROC':
-			try:
-				name = next(words)
-			except StopIteration:
-				program_error(word, "expected procedure name but found none")
-			if name.type != 'MACRO_CALL':
-				program_error(name, f"procedure name is wrong type {name.op}")
-			if name.name in procs.keys():
-				program_error_(word, f"redefinition of already existing procedure `{name.name}`")
-				program_note(procs[name.name]['word'], f"the first definition is located here")
-				exit(1)
-
-			args_in = []
-			args_out = []
-			dirOut = False
-			while True:
-				try:
-					arg = next(words)
-				except StopIteration:
-					program_error(word, "expected `in` and `end` but found nothing")
-				if arg.type == 'KEYWORD':
-					if arg.op in ['PROC_INT', 'PROC_PTR', 'PROC_BOOL']:
-						op = arg.op.replace('PROC_','')
-						if dirOut:
-							args_out.append((op, word))
-						else:
-							args_in.append((op, word))
-					elif arg.op == 'PROC_BAR':
-						if dirOut:
-							program_error(arg, 'multiple seperation bars in proc header')
-						dirOut = True
-					elif arg.op == 'PROC_IN':
-						break
-					else:
-						program_error(arg, f"`{arg.op}` is not supported inside procedure headers")
-				else:
-					program_error(arg, f"`{arg.type}` is not supported inside procedure headers")
-					
-			proc_words = []
-			loc_mems = []
-			depth = 1
-			while True:
-				try:
-					w = next(words)
-				except StopIteration:
-					program_error(word, "procedure has no end")
-				
-				if w.type == 'KEYWORD' and w.op == 'IF' or w.type == 'KEYWORD' and w.op == 'WHILE':
-			   		depth += 1
-					
-				if w.type == 'KEYWORD' and w.op == 'END':
-					depth -= 1
-
-				if w.type == 'KEYWORD' and w.op == 'PROC':
-					program_error(w, "local procedures are not supported")
-				if depth == 0:
-					break
-
-				if w.type == 'CONST' and w.value_type == 'MEMORY_OFFSET':
-					loc_mems.append(w)
-				if w.type == 'MACRO_CALL':
-					if w.name not in procs.keys() and w.name != name.name:
-						program_error(w, f"procedure `{w.name}` does not exist")
-					procs[w.name]['used'] = True
-					proc_words.append(ProcCall(w, procs))
-				else:
-					proc_words.append(w)
-				#words_typecheck.append(w)
-			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs), 'used': False, 'loc_mems': loc_mems}
-		elif word.type == 'MACRO_CALL':
-			if word.name not in procs.keys():
-				matches = did_you_mean(word.name, procs.keys())
-				if len(matches) >= 1:
-					program_error_(word, f"procedure `{word.name}` doesn't exist")
-					for c, match in matches:
-						proc_word = procs[match]['word']
-						program_note(proc_word, f"did you mean `{match}`?")
-					exit(1)
-				else:
-					program_error(word, f"procedure `{word.name}` doesn't exist")
-			procs[word.name]['used'] = True
-			words_return.append(ProcCall(word, procs))
-		else:
-			words_return.append(word)
-			#words_typecheck.append(word)
-	#return iter(words_return), iter(words_typecheck), procs
-	return words_return, procs
 	
 def generate_words(words, dataLabels):
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
@@ -2008,11 +2027,9 @@ def main():
 	
 	# Preprocess (includes and macro expansion)
 	words = preprocess(words, arguments)
-
-	words, memories, memCapacity = parse_memories(words)
 	
-	# Procedures
-	words, procs = parse_procs(words, memories)
+	# Procedures and memory
+	words, procs, memories, memCapacity = parse_stuff(words)
 	
 	# Typechecking
 	if not arguments.unsafe:

@@ -187,16 +187,16 @@ proc f_write
   1 syscall3 drop
 end
 
-proc f_writec
-    int // Int
-    int // Fd
-  in
-
-  // 1 buf fd
-  swap putc_char swap .
-  1 swap putc_char swap
-  f_write
-end
+//proc f_writec
+//    int // Char
+//    int // Fd
+//  in
+//
+//  // 1 putc_char fd
+//  swap putc_char swap .
+//  1 swap putc_char swap
+//  f_write
+//end
 
 proc f_close
     int // Fd
