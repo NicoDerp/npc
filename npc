@@ -1480,7 +1480,6 @@ def generate_words(words, dataLabels):
 	# depth: 2
 	depthCounters = []
 	labelDepth = 0
-	memReserved = 0
 
 	def updateLabels():
 		if len(depthCounters) == 0:
@@ -1521,13 +1520,11 @@ def generate_words(words, dataLabels):
 				code += f'    push    {word.value}\n'
 
 			elif word.value_type == 'MEMORY_OFFSET':
-				size = word.value[0]
-				offset = word.value[1]
+				offset = word.value
 				code +=  '\n    ;; -- CONST MEMORY PTR -- ;;\n'
 				code += f'    mov     rax, mem\n'
 				code += f'    add     rax, {offset}\n'
 				code +=  '    push    rax\n'
-				memReserved = max(memReserved, size+offset)
 				# mems[name] = size
 				
 			else:
@@ -1898,10 +1895,10 @@ def generate_words(words, dataLabels):
 		else:
 			program_error(word, f"unreckognized word type: '{word.type}'")
 
-	return code, memReserved
+	return code
 
 
-def generate_program(words, procs, args):
+def generate_program(words, procs, memories, memCapacity, args):
 	code =  'section .text\n'
 	code += 'global _start\n'
 
@@ -1951,7 +1948,7 @@ dump:
 	code += '    mov     [argv], rax\n'
 
 	dataLabels = []
-	c, memReserved = generate_words(words, dataLabels)
+	c = generate_words(words, dataLabels)
 	code += c
 	
 	#code += '    ret\n'
@@ -1969,7 +1966,7 @@ dump:
 		
 		body = proc['body']
 		index = proc['index']
-		c, mem = generate_words(body, dataLabels)
+		c = generate_words(body, dataLabels)
 		code += f'\nproc_{index}:\n'
 		code += '    pop     r14\n'
 		code += '    mov     [r15], r14\n'
@@ -1979,7 +1976,6 @@ dump:
 		code += '    sub     r15, 8\n'
 		code += '    mov     r14, [r15]\n'
 		code += '    jmp     r14\n'
-		memReserved += mem
 	
 	code += '\nsegment .data\n'
 	
@@ -1997,7 +1993,7 @@ dump:
 	code +=  'argv:\n'
 	code +=  '    resb    8\n'
 	code +=  'mem:\n'
-	code += f'    resb    {memReserved}\n'
+	code += f'    resb    {memCapacity}\n'
 	code +=  'ret_stack:\n'
 	code +=  '    resb    4096\n'
 		
