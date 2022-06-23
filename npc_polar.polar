@@ -26,21 +26,23 @@ macro sizeof(Op) 16 end
 memory op_count 8 end
 memory op_start sizeof(Op) 256 * end
 
-memory input_fd 8 end
-memory input_buf sizeof(ptr) end
-memory input_fn sizeof(ptr) end
-
 memory out_fn sizeof(ptr) end
 memory out_fd 8 end
-
-memory stat sizeof(fstat) end
 
 // Max word-size is 32 characters
 macro sizeof(word) 32 end
 
-memory lex_buf sizeof(word) end
-memory lex_i 1 end
-memory lex_inside_str sizeof(bool) end
+// 0      8     40     41
+//    8      32     1
+// [ stat | buf | index ]
+macro Lexer.stat    0  end
+macro Lexer.buf     8  end
+macro Lexer.index   40 end
+macro sizeof(Lexer) 41 end
+
+macro Token.type 0 end
+macro Token.value 8 end
+macro sizeof(Token) 16 end
 
 memory inside_while sizeof(bool) end
 memory block_i 8 end
@@ -55,10 +57,6 @@ memory str_count 8 end
 macro sizeof(str) 16 end
 memory strings 64 sizeof(str) * end
 memory strings_i 8 end
-
-memory parse_next_word_eof sizeof(bool) end
-memory word_type 8 end
-memory word_value 8 end
 
 proc strbuf_append_char
     int // Char
@@ -90,8 +88,6 @@ proc append_str
   8 + rot .64
   strings_i inc64
 end
-
-//prov str_from_index
 
 // [ - - - - - - - v ]
 memory argbits 1 end
@@ -150,10 +146,6 @@ proc dump_ops in
     1 +
   end drop
 end
-
-macro NotImplemented "NotImplemented" puts 0 exit end
-macro Unreachable    "Unreachable"    puts 0 exit end
-macro MEM_CAPACITY 4096 end
 
 proc compile_ops in
   block_i 0 .64
@@ -394,23 +386,7 @@ proc compile_program in
   "\nsegment .bss\n"                       out_fd ,64 f_write
   "mem:\n"                                 out_fd ,64 f_write
   "    resb    4096\n"                     out_fd ,64 f_write
-  //MEM_CAPACITY dump
 end
-
-//def cross_reference(ops):
-//  stack = []
-//  n = 0
-//  
-//  for ptr in ops:
-//	typ = *ptr
-//	value = *(ptr+8)
-//    if typ in ["IF", "ELIF", "ELSE", "WHILE"]:
-//      stack.append(ptr)
-//    elif typ == "END":
-//      block_ptr = stack.pop()
-//      *(block_ptr+8) = n
-//      value = n
-//      n += 1
 
 // op-i
 proc crossreference_blocks in
@@ -546,29 +522,33 @@ proc parse_string
 end
 
 proc parse_word
+    ptr // Lex-buf
     --
     int // Type
     int // Value
   in
-  
-  lex_buf "+"c cstreq if
+
+  memory lex_buf sizeof(ptr) end
+  lex_buf swap .64
+
+  lex_buf ,ptr "+"c cstreq if
     OP_PLUS 0
-  else lex_buf "-"c cstreq        elif OP_SUB 0
-  else lex_buf "dump"c cstreq     elif OP_DUMP 0
-  else lex_buf "="c cstreq        elif OP_EQU 0
-  else lex_buf ">"c cstreq        elif OP_GT 0
-  else lex_buf "<"c cstreq        elif OP_LT 0
-  else lex_buf "dup"c cstreq      elif OP_DUP 0
-  else lex_buf "2dup"c cstreq     elif OP_2DUP 0
-  else lex_buf "drop"c cstreq     elif OP_DROP 0
-  else lex_buf "syscall3"c cstreq elif OP_SYSCALL3 0
-  else lex_buf "if"c cstreq elif
+  else lex_buf ,ptr "-"c cstreq        elif OP_SUB 0
+  else lex_buf ,ptr "dump"c cstreq     elif OP_DUMP 0
+  else lex_buf ,ptr "="c cstreq        elif OP_EQU 0
+  else lex_buf ,ptr ">"c cstreq        elif OP_GT 0
+  else lex_buf ,ptr "<"c cstreq        elif OP_LT 0
+  else lex_buf ,ptr "dup"c cstreq      elif OP_DUP 0
+  else lex_buf ,ptr "2dup"c cstreq     elif OP_2DUP 0
+  else lex_buf ,ptr "drop"c cstreq     elif OP_DROP 0
+  else lex_buf ,ptr "syscall3"c cstreq elif OP_SYSCALL3 0
+  else lex_buf ,ptr "if"c cstreq elif
     ?array_empty lnot if
       array_top inc64
     end KEY_IF 0
-  else lex_buf "elif"c cstreq     elif KEY_ELIF 0
-  else lex_buf "else"c cstreq     elif KEY_ELSE 0
-  else lex_buf "end"c cstreq      elif
+  else lex_buf ,ptr "elif"c cstreq     elif KEY_ELIF 0
+  else lex_buf ,ptr "else"c cstreq     elif KEY_ELSE 0
+  else lex_buf ,ptr "end"c cstreq      elif
     array_top dec64
     array_top ,64 0 =
     if
@@ -577,17 +557,17 @@ proc parse_word
     else
       KEY_END_IF 0
     end
-  else lex_buf "while"c cstreq elif
+  else lex_buf ,ptr "while"c cstreq elif
     KEY_WHILE 0
     1 array_push
-  else lex_buf "do"c cstreq       elif KEY_DO 0
-  else lex_buf "include"c cstreq  elif KEY_INCLUDE 0
+  else lex_buf ,ptr "do"c cstreq       elif KEY_DO 0
+  else lex_buf ,ptr "include"c cstreq  elif KEY_INCLUDE 0
   else
-    lex_buf cstr_to_int
+    lex_buf ,ptr cstr_to_int
     false = if
       drop
-      lex_buf parse_string false = if
-        "[ERROR] Unable to parse word '" puts lex_buf cputs "'\n" puts
+      lex_buf ,ptr parse_string false = if
+        "[ERROR] Unable to parse word '" puts lex_buf ,ptr cputs "'\n" puts
         1 exit
       end
       append_str
@@ -598,78 +578,46 @@ proc parse_word
   end
 end
 
-<<<<<<< HEAD
 proc parse_next_word
-    int // Index
+    ptr // Token
+    ptr // Lexer
     --
-    bool // End of file
+    bool
   in
-=======
-proc parse_file in
-  // buf_size i c bool
-  stat st_size ,64 0 while 2dup > do
-    dup input_buf ,64 cast(ptr) + ,
-    dup '"' = if
-      lex_inside_str lflip
-    end
-    dup ?wspace
-    lex_inside_str ,bool lnot
-    land
-    if
-      drop // Drop the character
->>>>>>> 314acd0e25b53c6e4d6431a586b3e59876d9b860
 
-  // i size
-  while
-    stat st_size ,64
-    over <= if
-      parse_next_word_eof true .
-      false
-    else
-      dup input_buf ,64 cast(ptr) + ,
-      "Parsing character: " puts dup putc "\n" puts
-      dup '"' = if
-        lex_inside_str lflip
-      end
-      dup ?wspace
-      lex_inside_str , cast(bool) lnot
-      land
-      if
-        drop // Drop the character
-  
-        // Check if the buffer is not empty
-        lex_i , 0 != if
-          // Print the contents of the buffer
-          //lex_buf cputs '\n' putc
-          parse_word
-          word_value swap .64
-          word_type swap .64
-    
-          // Reset stuff
-          lex_i 0 .
-          sizeof(word) lex_buf 0 memset
-          // Break
-          false
-        else
-          true
-        end
-      else
-        // Append character
-        lex_buf lex_i , + swap .
-        // Increment index
-        lex_i inc
-        true // Continue loop
-      end
-    end
-  do
-    1 +
-  end drop
-  parse_next_word_eof , lnot cast(bool)
+  memory token sizeof(ptr) end
+  memory lexer sizeof(ptr) end
+  memory buf 32 end
+
+  lexer swap .64
+  token swap .64
+  32 buf 0 memset
+
+  lexer ,ptr Lexer.buf + ,64
+  cstr_trim_left // Remove whitespace before word
+  ' ' buf cstr_cut_to_delimiter
+
+  "token: '" puts buf cputs "'\n" puts
+
+  buf parse_word
+  token ,ptr Token.value + swap .64
+  token ,ptr Token.type + swap .64
+
+  true
+
+  //dup '"' = if
+  //  inside_str lflip
+  //end
 end
 
 proc parse_file
     ptr // Cstr filename
   in
+
+  memory input_fd 8 end
+  memory input_fn sizeof(ptr) end
+  memory lexer sizeof(Lexer) end
+  memory token sizeof(Token) end
 
   input_fn swap .64
   O_RDONLY_USER input_fn ,64 f_open
@@ -686,28 +634,38 @@ proc parse_file
   end
   
   // Get fstat and check status
-  stat input_fd ,64 5 syscall2
+  lexer Lexer.stat + input_fd ,64 5 syscall2
   0 < if
     "[ERROR] Failed to open file\n" puts
     -1 exit
   end
 
   // Memory map file
-  0 input_fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
+  0 input_fd ,64 MAP_PRIVATE PROT_READ lexer Lexer.stat + st_size , 0 9 syscall6
   dup MAP_FAILED = if
     "Failed to memory map file\n" puts
     -1 exit
   end
 
-  input_buf swap .64
+  lexer Lexer.buf + swap .64
 
-  0 while dup parse_next_word do
-    word_type ,64 KEY_INCLUDE = if
-      "Shiiish" puts
-    else
-      word_type ,64 word_value ,64 push_op
-    end
-  end drop
+  is_verbose if
+    "\nCompiling file: '" puts input_fn ,ptr cputs "'\n" puts
+    "File descriptor: " puts input_fd ,64 dump
+    "File size: " puts lexer Lexer.stat + st_size ,64 dump
+    "\n" puts
+  end
+
+  while token lexer parse_next_word do
+    "\nParsed tok:\n" puts
+    "Type: " puts token Token.type + ,64 dump
+    "Value: " puts token Token.value + ,64 dump
+    //word_type ,64 KEY_INCLUDE = if
+    //  "Shiiish" puts
+    //else
+    //  word_type ,64 word_value ,64 push_op
+    //end
+  end
 end
 
 argc 1 = if
@@ -739,13 +697,6 @@ out_fn "a.out"c .64
   end
   1 +
 end drop
-
-is_verbose if
-  "\nCompiling file: '" puts 1 nth_argv cputs "'\n" puts
-  "File descriptor: " puts input_fd ,64 dump
-  "File size: " puts stat st_size ,64 dump
-  "\n" puts
-end
 
 1 nth_argv parse_file
 array_clean

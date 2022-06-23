@@ -114,11 +114,11 @@ proc >= int int -- bool in
   rot rot = lor
 end
 
-<<<<<<< HEAD
 proc <= int int -- bool in
   2dup <
   rot rot = lor
-=======
+end
+
 proc ,ptr
     ptr
     --
@@ -135,7 +135,6 @@ proc ,bool
   in
 
   , cast(bool)
->>>>>>> 314acd0e25b53c6e4d6431a586b3e59876d9b860
 end
 
 // n (n<-1) (n>-4095)
@@ -701,5 +700,47 @@ end
 
 proc lflip ptr in
   dup , lnot .
+end
+
+proc cstr_trim_left
+    ptr // Cstr
+    --
+    ptr // Cstr
+  in
+
+  // ptr c bool
+  while
+    dup ,
+    dup ' ' =
+    swap '\n' =
+    lor if
+      true
+    else
+      false
+    end
+  do inc64 end
+end
+
+proc cstr_cut_to_delimiter
+    ptr // Cstr
+    int // Delimiter
+    ptr // The cut
+  in
+
+  memory buf sizeof(ptr) end
+  buf swap .64
+
+  while
+     over ,
+     2dup = if
+       drop false
+     else
+       buf ,ptr swap .
+       buf inc64
+       true
+     end
+  do
+    swap 1 + swap
+  end drop drop
 end
 
