@@ -1,10 +1,12 @@
 
 include "std.polar"
 
-memory buf 64 end
+memory s sizeof(Str) end
+memory out sizeof(Str) end
 
-"   hei hei bip_bop!\n"c
-cstr_trim_left
-' ' buf cstr_cut_to_delimiter
-buf cputs
+s "hei halla\nbip_bop!\n" .Str
+
+s '\n' out str_cut_to_delimiter
+out ,Str puts
+
 

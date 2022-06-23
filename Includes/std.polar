@@ -69,9 +69,10 @@ macro S_USER_RD S_IRUSR end
 macro O_RDONLY_USER S_USER_RD O_RDONLY end
 
 macro sizeof(array) 16 sizeof(ptr) * end
-
 memory array 16 sizeof(ptr) * 1 + end
 memory array_i 8 end
+
+macro sizeof(Str) 16 end
 
 proc exit int in
   60 syscall1 drop
@@ -144,6 +145,57 @@ proc ,bool
   in
 
   , cast(bool)
+end
+
+proc ?str_empty
+    ptr
+    --
+    bool
+  in
+
+  8 + ,64 0 =
+end
+
+proc ,Str
+    ptr
+    --
+    int
+    ptr
+  in
+
+  dup 8 + ,64
+  swap ,ptr
+end
+
+proc .Str
+    ptr // Dst
+    int // Count
+    ptr // ptr
+  in
+
+  memory dst sizeof(ptr) end
+  rot dst swap .64
+
+  dst ,ptr swap .64
+  dst ,ptr 8 + swap .64
+end
+
+proc ,Str.data
+    ptr // Str
+    --
+    ptr // Str.data
+  in
+
+  ,ptr
+end
+
+proc ,Str.count
+    ptr // Str
+    --
+    int // Str.count
+  in
+
+  8 + ,64
 end
 
 // n (n<-1) (n>-4095)
@@ -734,24 +786,47 @@ proc cstr_cut_to_delimiter
     ptr // Cstr
     int // Delimiter
     ptr // The cut
-    --
-    ptr // Cstr
   in
 
   memory buf sizeof(ptr) end
   buf swap .64
 
   while
-     over ,
-     2dup = if
-       drop false
-     else
-       buf ,ptr swap .
-       buf inc64
-       true
-     end
+   over ,
+   2dup = if
+     drop false
+   else
+     buf ,ptr swap .
+     buf inc64
+     true
+   end
   do
     swap 1 + swap
-  end drop
+  end drop drop
+end
+
+proc str_cut_to_delimiter
+    ptr // Cstr
+    int // Delimiter
+    ptr // The cut
+  in
+
+  memory out sizeof(ptr) end
+  out swap .64
+
+  over ,Str.data out ,ptr swap .64
+
+  // (ptr|count) char char
+  while
+    over ,Str.data ,
+    over = if
+      false
+    else
+      out ,ptr 8 + inc64
+      true
+    end
+  do
+    swap 1 + swap
+  end drop drop
 end
 

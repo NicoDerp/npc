@@ -22,27 +22,30 @@ macro KEY_WHILE     18 end
 macro KEY_DO        19 end
 macro KEY_INCLUDE   20 end
 
-macro sizeof(Op) 16 end
-memory op_count 8 end
-memory op_start sizeof(Op) 256 * end
-
 memory out_fn sizeof(ptr) end
 memory out_fd 8 end
 
-// Max word-size is 32 characters
-macro sizeof(word) 32 end
+// 0     8      16    24        40
+//    8      8     8       16
+// [ buf | line | row | file_path]
+macro Lexer.buffer    0  end
+macro Lexer.line      8  end
+macro Lexer.row       16 end
+macro Lexer.file_path 24 end
+macro sizeof(Lexer)   40 end
 
-// 0      8     40     41
-//    8      32     1
-// [ stat | buf | index ]
-macro Lexer.line sizeof(ptr) end
-macro Lexer.row sizeof(uint8) end
-macro Lexer.index sizeof() end
-macro sizeof(Lexer) 41 end
+macro Loc.file_path 0 end
+macro Loc.row 8 end
+macro Loc.col 16 end
+macro sizeof(Loc) 24 end
 
 macro Token.type 0 end
 macro Token.value 8 end
-macro sizeof(Token) 16 end
+macro Token.loc 16 end
+macro sizeof(Token) 24 end
+
+memory op_count 8 end
+memory op_start sizeof(Op) 256 * end
 
 memory inside_while sizeof(bool) end
 memory block_i 8 end
@@ -54,9 +57,26 @@ memory strbuf_i 8 end
 memory str_start sizeof(ptr) end
 memory str_count 8 end
 
-macro sizeof(str) 16 end
-memory strings 64 sizeof(str) * end
+memory strings 64 sizeof(Str) * end
 memory strings_i 8 end
+
+proc ,Token.type
+    ptr
+    --
+    int
+  in
+
+  Token.type + ,64
+end
+
+proc ,Token.value
+    ptr
+    --
+    int
+  in
+
+  Token.value + ,64
+end
 
 proc strbuf_append_char
     int // Char
@@ -83,7 +103,7 @@ proc append_str
   in
 
   strings_i ,64
-  dup sizeof(str) * strings +
+  dup sizeof(Str) * strings +
   rot over swap .64
   8 + rot .64
   strings_i inc64
@@ -521,6 +541,22 @@ proc parse_string
   end
 end
 
+proc lexer_next_line
+    ptr // Lexer
+  in
+
+  memory lexer sizeof(ptr) end
+  lexer swap .64
+
+  lexer ,ptr Lexer.buffer +
+  '\n'
+  lexer ,ptr Lexer.line +
+  str_cut_to_delimiter
+
+  // Increment row
+  lexer ,ptr Lexer.row + inc64
+end
+
 proc parse_next_word
     ptr // Token
     ptr // Lexer
@@ -530,13 +566,15 @@ proc parse_next_word
 
   memory token sizeof(ptr) end
   memory lexer sizeof(ptr) end
-  memory buf 32 end
+  memory inside_str sizeof(bool) end
+
+  memory word sizeof(Str) end
 
   lexer swap .64
   token swap .64
-  32 buf 0 memset
+  sizeof(Str) word 0 memset
 
-  lexer ,ptr Lexer.line + ,ptr
+  lexer ,ptr Lexer.buf + ,ptr
   cstr_trim_left // Remove whitespace before word
 
   dup , '"' = dup putb if
@@ -606,62 +644,76 @@ proc parse_next_word
   //end
 end
 
+proc mmap_file
+    ptr // Filename
+    --
+    ptr // Buffer
+  in
+
+  memory fn sizeof(ptr) end
+  memory fd sizeof(uint8) end
+  memory stat sizeof(ptr) end
+  
+  O_RDONLY_USER fn ,ptr f_open
+
+  // Save file descriptor
+  fd swap .64
+  
+  // Check for errors (-4095 < fd < -1)
+  fd ,64 ?ferr
+  if
+    "[ERROR] Failed to open file: '" puts fn ,ptr cputs "'\n" puts
+    1 exit
+  end
+  
+  // Get fstat and check status
+  stat fd ,64 5 syscall2
+  0 < if
+    "[ERROR] Failed to open file: '" puts fn ,ptr cputs "'\n" puts
+    1 exit
+  end
+
+  // Memory map file
+  0 fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
+  dup MAP_FAILED = if
+    "[ERROR] Failed to memory map file: '" puts fn ,ptr cputs "'\n" puts
+    1 exit
+  end
+end
+
 proc parse_file
     ptr // Cstr filename
   in
 
-  memory input_fd 8 end
-  memory input_fn sizeof(ptr) end
+  memory file_path sizeof(ptr) end
+  file_path swap .64
+
   memory lexer sizeof(Lexer) end
-  memory token sizeof(Token) end
-  memory stat sizeof(ptr) end
+  sizeof(Lexer) lexer 0 memset
+  lexer Lexer.buffer    + file_path ,ptr mmap_file   .Str
+  lexer Lexer.file_path + file_path ,ptr cstr_to_str .Str
 
-  input_fn swap .64
-  O_RDONLY_USER input_fn ,64 f_open
-
-  // Save file descriptor
-  input_fd swap .64
   
-  // Check for errors (-4095 < fd < -1)
-  input_fd ,64 ?ferr
-  if
-    "[ERROR] failed to open file: '" puts
-    1 nth_argv cputs "'\n" puts
-    -1 exit
-  end
-  
-  // Get fstat and check status
-  stat input_fd ,64 5 syscall2
-  0 < if
-    "[ERROR] Failed to open file\n" puts
-    -1 exit
-  end
-
-  // Memory map file
-  0 input_fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
-  dup MAP_FAILED = if
-    "Failed to memory map file\n" puts
-    -1 exit
-  end
-
-  lexer Lexer.line + swap .64
-
   is_verbose if
-    "\nCompiling file: '" puts input_fn ,ptr cputs "'\n" puts
+    "Parsing file: '" puts input_fn ,ptr cputs "'\n" puts
     "File descriptor: " puts input_fd ,64 dump
     "File size: " puts stat st_size ,64 dump
     "\n" puts
   end
 
-  while token lexer parse_next_word do
-    "\nParsed tok:\n" puts
-    "Type: " puts token Token.type + ,64 dump
-    "Value: " puts token Token.value + ,64 dump
-    token Token.type + ,64
-    token Token.value + ,64 push_op
+  memory op sizeof(Token) end
+  while op lexer parse_next_word do
+    "Parsed op:\n" puts
+    "Type: " puts op Op.type + ,64 dump
+    "Value: " puts op Op.value + ,64 dump
+    
+    op ,Op.type
+    op ,Op.value
+    push_op
   end
 end
 
+// If there are no arguments supplied show help message
 argc 1 = if
   print_help 0 exit
 end
@@ -673,9 +725,6 @@ end
 
 // Default out
 out_fn "a.out"c .64
-
-// Copy the second argument to a buffer (the filename to compile)
-//sizeof(input_fn) 1 nth_argv input_fn memcpy
 
 // Loop over args and do stuff
 2 while dup argc < do
