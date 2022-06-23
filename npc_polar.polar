@@ -95,7 +95,7 @@ proc is_verbose -- bool in
 end
 
 proc ?inside_while -- bool in
-  inside_while , cast(bool)
+  inside_while ,bool
 end
 
 proc print_help in
@@ -606,7 +606,7 @@ proc parse_file in
       lex_inside_str lflip
     end
     dup ?wspace
-    lex_inside_str , cast(bool) lnot
+    lex_inside_str ,bool lnot
     land
     if
       drop // Drop the character
