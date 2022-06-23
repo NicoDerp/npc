@@ -536,15 +536,17 @@ proc parse_next_word
   token swap .64
   32 buf 0 memset
 
-  lexer ,ptr
-  dup Lexer.buf
+  lexer ,ptr Lexer.line + ,ptr
   cstr_trim_left // Remove whitespace before word
-  
-  lex_buf ,,ptr '"' cstr_starts_with dup putb if
-    lex_buf '"' buf cstr_cut_to_delimiter ..ptr
+
+  dup , '"' = dup putb if
+    cstr_chop_left drop
+    '"' buf cstr_cut_to_delimiter
   else
-    lex_buf ' ' buf cstr_cut_to_delimiter ..ptr
+    ' ' buf cstr_cut_to_delimiter
   end
+  // ptr
+  lexer ,ptr Lexer.line + swap .64
 
   "Token: '" puts buf cputs "'\n" puts
   
@@ -612,6 +614,7 @@ proc parse_file
   memory input_fn sizeof(ptr) end
   memory lexer sizeof(Lexer) end
   memory token sizeof(Token) end
+  memory stat sizeof(ptr) end
 
   input_fn swap .64
   O_RDONLY_USER input_fn ,64 f_open
@@ -628,25 +631,25 @@ proc parse_file
   end
   
   // Get fstat and check status
-  lexer Lexer.stat + input_fd ,64 5 syscall2
+  stat input_fd ,64 5 syscall2
   0 < if
     "[ERROR] Failed to open file\n" puts
     -1 exit
   end
 
   // Memory map file
-  0 input_fd ,64 MAP_PRIVATE PROT_READ lexer Lexer.stat + st_size , 0 9 syscall6
+  0 input_fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
   dup MAP_FAILED = if
     "Failed to memory map file\n" puts
     -1 exit
   end
 
-  lexer Lexer.buf + swap .64
+  lexer Lexer.line + swap .64
 
   is_verbose if
     "\nCompiling file: '" puts input_fn ,ptr cputs "'\n" puts
     "File descriptor: " puts input_fd ,64 dump
-    "File size: " puts lexer Lexer.stat + st_size ,64 dump
+    "File size: " puts stat st_size ,64 dump
     "\n" puts
   end
 

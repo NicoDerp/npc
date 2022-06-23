@@ -735,7 +735,7 @@ proc cstr_cut_to_delimiter
     int // Delimiter
     ptr // The cut
     --
-    ptr
+    ptr // Cstr
   in
 
   memory buf sizeof(ptr) end
