@@ -571,7 +571,7 @@ def preprocess(words, args, includes=0, expansions=0, macros={}, insideProc=0):
 		else:
 			yield word
 
-def precompute_memory_size(words):
+def precompute_memory_size(word, words):
 	stack = []
 				
 	while True:
@@ -625,24 +625,7 @@ def precompute_memory_size(words):
 				exit(1)
 
 		elif w.type == 'MACRO_CALL':
-			if w.name in macros.keys():
-				m = macros[w.name]
-				mbody = precompute_memory_size(m.body)
-				if len(mbody) != 1:
-					program_error_(w, "only macros with an integer constant are currently allowed inside a memory reservation")
-					program_note(m[1], "macro definition")
-					exit(1)
-				o = mbody.pop()
-				if o.type != 'CONST' or o.type == 'CONST' and o.value_type != 'INT':
-					program_error_(w, "only macros with an integer constant are currently allowed inside a memory reservation")
-					program_note(m[1], "macro definition")
-					program_note(o, "not const")
-					exit(1)
-				stack.append(o.value)
-			elif w.name in memories.keys():
-				stack.append(memories[w.name][0])
-			else:
-				program_error(word, f"macro or memory `{word.name}` does not exist or is used inside it's definition")		
+			program_error(w, f"macro `{w.name}` does not exist")
 		else:
 			program_error_(w, "illegal type in memery reservation")
 			program_note(word, "memory definition")
@@ -729,7 +712,6 @@ def parse_stuff(words):
 				if depth == 0:
 					break
 				if w.type == 'KEYWORD' and w.op == 'MEMORY':
-					program_note(w, "local memory")
 					try:
 						mem_name = next(words)
 					except StopIteration:
@@ -755,7 +737,7 @@ def parse_stuff(words):
 						program_note(word, f"the procedure is located here")
 						exit(1)
 
-					size = precompute_memory_size(words)
+					size = precompute_memory_size(word, words)
 					loc_mems[mem_name.name] = Memory(size, locMemCapacity, mem_name)
 					locMemCapacity += size
 				elif w.type == 'MACRO_CALL':
@@ -772,13 +754,12 @@ def parse_stuff(words):
 						used = True
 						proc_words.append(w)
 					else:
-						did_you_mean(word, procs, memories, loc_mems)
+						did_you_mean(w, procs, memories, loc_mems)
 				else:
 					proc_words.append(w)
 				#words_typecheck.append(w)
 			procs[name.name] = {'body': proc_words, 'word': word, 'in': args_in, 'out': args_out, 'index': len(procs), 'used': False, 'locMemCapacity': locMemCapacity}
 		elif word.type == 'MACRO_CALL':
-			print(word.name, procs.keys())
 			if word.name in memories.keys():
 				mem = memories[word.name]
 				words_return.append(Const('MEMORY_OFFSET', mem.offset, word))
@@ -796,16 +777,16 @@ def parse_stuff(words):
 			if name.type != 'MACRO_CALL':
 				program_error(name, f"wrong type for memory name. Expected `MACRO_CALL`, but got `{name.type}")
 
-			if mem_name.name in memories.keys():
+			if name.name in memories.keys():
 				program_error_(word, f"redefinition of already existing global memory `{name.name}`")
 				program_note(memories[mem_name.name][1], f"the original definition is located here")
 				exit(1)
-			if mem_name.name in procs.keys():
+			if name.name in procs.keys():
 				program_error_(w, f"can't have name the same as procedure `{mem_name.name}`")
 				program_note(procs[mem_name.name]['word'], f"the procedure is located here")
 				exit(1)
 			
-			size = precompute_memory_size(words)
+			size = precompute_memory_size(word, words)
 			memories[name.name] = Memory(size, memCapacity, name)
 			memCapacity += size
 		else:
