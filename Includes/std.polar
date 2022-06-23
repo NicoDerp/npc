@@ -2,6 +2,9 @@
 macro NULL 0 cast(ptr) end
 macro sizeof(ptr) 8 end
 macro sizeof(bool) 1 end
+macro sizeof(char) 1 end
+macro sizeof(uint) 1 end
+macro sizeof(uint8) 8 end
 
 macro STDIN  0 end
 macro STDOUT 1 end
@@ -65,37 +68,10 @@ macro S_USER_RD S_IRUSR end
 
 macro O_RDONLY_USER S_USER_RD O_RDONLY end
 
-memory memcpy_src 8 end
-memory memcpy_dst 8 end
-memory memcpy_size 8 end
-
-memory memset_size 8 end
-memory memset_dst 8 end
-memory memset_val 1 end
-
-memory putc_char 1 end
-
-memory cstr_to_int_out 8 end
-memory cstr_to_int_str 8 end
-memory cstr_to_int_suc 1 end
-
-memory str_conc_buf 8 end
-
-memory streq_ptr 8 end
-
-macro sizeof(int_to_str_buf) 32 end
-memory int_to_str_buf sizeof(int_to_str_buf) end
-memory int_to_str_i 1 end
-
 macro sizeof(array) 16 sizeof(ptr) * end
+
 memory array 16 sizeof(ptr) * 1 + end
 memory array_i 8 end
-
-memory wstatus 8 end
-
-memory char_in_cstr_out sizeof(bool) end
-
-memory exec_cmd_err sizeof(bool) end
 
 proc exit int in
   60 syscall1 drop
@@ -116,13 +92,6 @@ end
 proc wait4 ptr int ptr int -- int in
   61 syscall4
 end
-
-//proc execve
-//    ptr // argv
-//    ptr // file
-//  in
-//  
-//end
 
 proc inc ptr in
   dup , 1 + .
@@ -145,9 +114,28 @@ proc >= int int -- bool in
   rot rot = lor
 end
 
+<<<<<<< HEAD
 proc <= int int -- bool in
   2dup <
   rot rot = lor
+=======
+proc ,ptr
+    ptr
+    --
+    ptr
+  in
+
+  ,64 cast(ptr)
+end
+
+proc ,bool
+    ptr
+    --
+    bool
+  in
+
+  , cast(bool)
+>>>>>>> 314acd0e25b53c6e4d6431a586b3e59876d9b860
 end
 
 // n (n<-1) (n>-4095)
@@ -192,16 +180,16 @@ proc f_write
   1 syscall3 drop
 end
 
-proc f_writec
-    int // Int
-    int // Fd
-  in
-
-  // 1 buf fd
-  swap putc_char swap .
-  1 swap putc_char swap
-  f_write
-end
+//proc f_writec
+//    int // Char
+//    int // Fd
+//  in
+//
+//  // 1 putc_char fd
+//  swap putc_char swap .
+//  1 swap putc_char swap
+//  f_write
+//end
 
 proc f_close
     int // Fd
@@ -215,8 +203,17 @@ proc puts int ptr -- in
 end
 
 proc putc int -- in
-  putc_char swap .
-  1 putc_char puts
+  memory char sizeof(char) end
+  char swap .
+  1 char puts
+end
+
+proc putb bool -- in
+  0 = if
+    "false"
+  else
+    "true"
+  end puts
 end
 
 // ptr i
@@ -271,20 +268,21 @@ proc streq
     bool // Str1 == Str2
   in
 
-  // ptr int
-  streq_ptr swap .64
-  rot
-  2dup = if
-    // Same length start checking chars
-    drop
-    // ptr int
+  memory p1 sizeof(ptr) end
+  memory p2 sizeof(ptr) end
+
+  // size
+  p1 swap .64
+  swap
+  p2 swap .64
+  over = if
     1 -
     while
       // If index is greater than or equal to zero
       dup 0 >= if
         // If the characters are the same
-        2dup + ,
-        over streq_ptr ,64 cast(ptr) + ,
+        p1 ,ptr ,
+        p2 ,ptr ,
         =
       else
         false
@@ -292,19 +290,21 @@ proc streq
     do
       // Decrement index
       1 -
+      p1 inc64
+      p2 inc64
     end
     // If the last characters are equal they are the same
     // And the index is -1
-    -1 = dup if
-      drop
-      ,
-      streq_ptr ,64 cast(ptr) ,
+    // bool
+    -1 = if
+      p1 ,ptr 1 - ,
+      p2 ,ptr 1 - ,
       =
     else
-      swap drop
+      false
     end
   else
-    drop drop drop false
+    drop false
   end
 end
 
@@ -317,22 +317,19 @@ proc memcpy
     ptr // Src
     ptr // Dst
   in
+
+  memory src sizeof(ptr) end
+  memory dst sizeof(ptr) end
+
+  dst swap .64
+  src swap .64
   
-  memcpy_dst swap .64
-  memcpy_src swap .64
-  memcpy_size swap .64
-
-  //memcpy_src "Src: " format
-  //memcpy_src ,64 "*Src: " format "\n" puts
-
-  // i i *dst
-  0 while dup memcpy_size ,64 < do
-    //memcpy_dst ,64 "*Dst: " format
-    dup memcpy_dst ,64 + cast(ptr)
-    over memcpy_src ,64 + cast(ptr) ,
-    //drop drop
-    .
-    1 +
+  while dup 0 > do
+    dst ,ptr
+    src ,ptr , .
+    src inc64
+    dst inc64
+    1 -
   end drop
 end
 
@@ -340,15 +337,18 @@ proc memset
      int // Size
      ptr // Dst
      int // Val
-   in
+  in
 
-  memset_val swap .
-  memset_dst swap .64
-  memset_size swap .64
+  memory dst sizeof(ptr) end
+  memory val sizeof(char) end
 
-  0 while dup memset_size ,64 < do
-    dup memset_dst ,64 cast(ptr) + memset_val , .
-    1 +
+  val swap .
+  dst swap .64
+
+  while dup 0 > do
+    dst ,ptr val , .
+    dst inc64
+    1 -
   end drop
 end
 
@@ -356,17 +356,21 @@ proc cstr_to_int
      ptr // Cstr
      --
      int // int(cstr)
-     bool // succeed
+     bool // success
   in
 
-  cstr_to_int_str swap .64
-  cstr_to_int_out 0 .64
-  cstr_to_int_suc 1 .
+  memory str sizeof(ptr) end
+  memory out 8 end
+  memory success sizeof(bool) end
+
+  str swap .64
+  out 0 .64
+  success true .
 
   // strlen 0 digit
-  cstr_to_int_str ,64 strlen swap drop
+  str ,64 strlen swap drop
   0 while 2dup > do
-    dup cstr_to_int_str ,64 + cast(ptr) ,
+    dup str ,ptr + ,
 
     dup '0' <
     over '9' >
@@ -374,16 +378,16 @@ proc cstr_to_int
       // Basically break
       // Since index == strlen
       drop drop dup
-      cstr_to_int_suc 0 .
+      success false .
     else
       '0' -
-      cstr_to_int_out ,64 10 * + cstr_to_int_out swap .64
+      out ,64 10 * + out swap .64
       1 +
     end
   end drop drop
   
-  cstr_to_int_out ,64
-  cstr_to_int_suc , cast(bool)
+  out ,64
+  success ,bool
 end
 
 proc power
@@ -410,17 +414,17 @@ proc str_conc
     int // Str2-size
     ptr // Str2-size
     ptr // Buffer
-    --
   in
 
-  str_conc_buf swap .64
-  over swap str_conc_buf ,64 memcpy
-  str_conc_buf ,64 + memcpy
+  memory buf sizeof(ptr) end
+  
+  buf swap .64
+  over swap buf ,ptr memcpy
+  buf ,ptr + memcpy
 end
 
 proc cputs
     ptr // Cstr
-    --
   in
 
   cstr_to_str puts
@@ -453,19 +457,22 @@ proc uint_to_cstr
     ptr
   in
 
-  sizeof(int_to_str_buf) int_to_str_buf 0 memset
-  int_to_str_i sizeof(int_to_str_buf) 2 - .
+  memory buf 32 end
+  memory index 1 end
+
+  32 buf 0 memset
+  index 30 . // size-2
 
   // div (buf+*i) char
   while
     10 /% '0' +
-    int_to_str_buf int_to_str_i , + swap .
+    buf index , + swap .
     dup 0 !=
   do
-    int_to_str_i dec
+    index dec
   end drop
 
-  int_to_str_buf int_to_str_i , +
+  buf index , +
 end
 
 // ptr -> argv[0] -> '/' // Filename
@@ -505,9 +512,12 @@ proc subp_exec_cmd
     bool // Error
   in
 
+  memory wstatus sizeof(ptr) end
+  memory err sizeof(bool) end
+
   fork
   dup -1 = if
-    exec_cmd_err true .
+    err true .
     //"[ERROR] Could not fork for exec_cmd\n" puts 1 exit
   else dup 0 > elif
     // Parent process. Wait for child to finish
@@ -516,7 +526,7 @@ proc subp_exec_cmd
       0 < if
         //"[ERROR] Could not wait for process to finish\n" puts
 	//1 exit
-        exec_cmd_err true .
+        err true .
         false
       else
         // int
@@ -524,7 +534,7 @@ proc subp_exec_cmd
         dup WIFEXITED if
           dup WEXITSTATUS
           dup 0 != if
-            exec_cmd_err true .
+            err true .
             //dup exit // Exit with the child's exit code if fail
           end
           drop // Drop exit-code
@@ -543,7 +553,7 @@ proc subp_exec_cmd
       //"Failed to execute command\n" puts 1 exit
     end
   end drop drop
-  exec_cmd_err , cast(bool)
+  err ,bool
 end
 
 proc array_push
@@ -607,11 +617,13 @@ proc char_in_cstr
     bool
   in
 
+  memory out sizeof(bool) end
+
   // ptr char
   while
     over ,
     dup 0 != if
-      over = if char_in_cstr_out 1 . end
+      over = if out true . end
       true
     else
       drop false
@@ -619,7 +631,7 @@ proc char_in_cstr
   do
     swap 1 + swap
   end drop drop
-  char_in_cstr_out , cast(bool)
+  out ,bool
 end
 
 proc cstr_leftmost_char

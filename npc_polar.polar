@@ -101,7 +101,7 @@ proc is_verbose -- bool in
 end
 
 proc ?inside_while -- bool in
-  inside_while , cast(bool)
+  inside_while ,bool
 end
 
 proc print_help in
@@ -598,11 +598,26 @@ proc parse_word
   end
 end
 
+<<<<<<< HEAD
 proc parse_next_word
     int // Index
     --
     bool // End of file
   in
+=======
+proc parse_file in
+  // buf_size i c bool
+  stat st_size ,64 0 while 2dup > do
+    dup input_buf ,64 cast(ptr) + ,
+    dup '"' = if
+      lex_inside_str lflip
+    end
+    dup ?wspace
+    lex_inside_str ,bool lnot
+    land
+    if
+      drop // Drop the character
+>>>>>>> 314acd0e25b53c6e4d6431a586b3e59876d9b860
 
   // i size
   while
