@@ -25,6 +25,7 @@ proc memcpy
 
   dst swap .64
   src swap .64
+  
   while dup 0 > do
     dst ,ptr
     src ,ptr , .

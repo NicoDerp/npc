@@ -756,9 +756,7 @@ def parse_stuff(words):
 						exit(1)
 
 					size = precompute_memory_size(words)
-					mem = Memory(size, memCapacity, mem_name)
-					#memories[name.name] = mem
-					loc_mems[mem_name.name] = mem
+					loc_mems[mem_name.name] = Memory(size, locMemCapacity, mem_name)
 					locMemCapacity += size
 				elif w.type == 'MACRO_CALL':
 					if w.name in memories.keys():
@@ -766,7 +764,7 @@ def parse_stuff(words):
 						proc_words.append(Const('MEMORY_OFFSET', mem.offset, word))
 					elif w.name in loc_mems.keys():
 						mem = loc_mems[w.name]
-						proc_words.append(Const('MEMORY_OFFSET', mem.offset, word))
+						proc_words.append(Const('LOC_MEMORY_OFFSET', mem.offset, word))
 					elif w.name in procs.keys():
 						procs[w.name]['used'] = True
 						proc_words.append(ProcCall(w, procs))
@@ -849,6 +847,9 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 				stack.append(('INT', word))
 
 			elif word.value_type == 'MEMORY_OFFSET':
+				stack.append(('PTR', word))
+
+			elif word.value_type == 'LOC_MEMORY_OFFSET':
 				stack.append(('PTR', word))
 				
 			else:
@@ -1550,6 +1551,13 @@ def generate_words(words, dataLabels):
 				code += f'    add     rax, {offset}\n'
 				code +=  '    push    rax\n'
 				# mems[name] = size
+
+			elif word.value_type == 'LOC_MEMORY_OFFSET':
+				offset = word.value
+				code +=  '\n    ;; -- CONST LOCAL MEMORY PTR -- ;;\n'
+				code += f'    mov     rax, r15\n'
+				code += f'    add     rax, {offset}\n'
+				code +=  '    push    rax\n'
 				
 			else:
 				program_error(word, f"unknown const type '{word.value_type}'")
@@ -1965,6 +1973,7 @@ dump:
 	code += '_start:\n'
 	code += '    ; Set up return stack\n'
 	code += '    mov     r15, ret_stack\n'
+	code += '    add     r15, 4095\n'
 	code += '    ; Set up argc and argv\n'
 	code += '    mov     rax, [rsp]\n'
 	code += '    mov     [argc], rax\n'
@@ -1988,16 +1997,19 @@ dump:
 		
 		body = proc['body']
 		index = proc['index']
+		cap = proc['locMemCapacity']
 		c = generate_words(body, dataLabels)
 		code += f'\nproc_{index}:\n'
-		code += '    pop     r14\n'
-		code += '    mov     [r15], r14\n'
-		code += '    add     r15, 8\n'
+		code +=  '    pop     r14\n'
+		code +=  '    sub     r15, 8\n'
+		code +=  '    mov     [r15], r14\n'
+		code += f'    sub     r15, {cap}\n'
 		code += c
-		code += '\n;; -- Return stack magic -- ;;\n'
-		code += '    sub     r15, 8\n'
-		code += '    mov     r14, [r15]\n'
-		code += '    jmp     r14\n'
+		code +=  '\n;; -- Return stack magic -- ;;\n'
+		code += f'    add     r15, {cap}\n'
+		code +=  '    mov     r14, [r15]\n'
+		code +=  '    add     r15, 8\n'
+		code +=  '    jmp     r14\n'
 	
 	code += '\nsegment .data\n'
 	
