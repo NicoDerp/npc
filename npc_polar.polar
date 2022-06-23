@@ -35,9 +35,9 @@ macro sizeof(word) 32 end
 // 0      8     40     41
 //    8      32     1
 // [ stat | buf | index ]
-macro Lexer.stat    0  end
-macro Lexer.buf     8  end
-macro Lexer.index   40 end
+macro Lexer.line sizeof(ptr) end
+macro Lexer.row sizeof(uint8) end
+macro Lexer.index sizeof() end
 macro sizeof(Lexer) 41 end
 
 macro Token.type 0 end
@@ -521,63 +521,6 @@ proc parse_string
   end
 end
 
-proc parse_word
-    ptr // Lex-buf
-    --
-    int // Type
-    int // Value
-  in
-
-  memory lex_buf sizeof(ptr) end
-  lex_buf swap .64
-
-  lex_buf ,ptr "+"c cstreq if
-    OP_PLUS 0
-  else lex_buf ,ptr "-"c cstreq        elif OP_SUB 0
-  else lex_buf ,ptr "dump"c cstreq     elif OP_DUMP 0
-  else lex_buf ,ptr "="c cstreq        elif OP_EQU 0
-  else lex_buf ,ptr ">"c cstreq        elif OP_GT 0
-  else lex_buf ,ptr "<"c cstreq        elif OP_LT 0
-  else lex_buf ,ptr "dup"c cstreq      elif OP_DUP 0
-  else lex_buf ,ptr "2dup"c cstreq     elif OP_2DUP 0
-  else lex_buf ,ptr "drop"c cstreq     elif OP_DROP 0
-  else lex_buf ,ptr "syscall3"c cstreq elif OP_SYSCALL3 0
-  else lex_buf ,ptr "if"c cstreq elif
-    ?array_empty lnot if
-      array_top inc64
-    end KEY_IF 0
-  else lex_buf ,ptr "elif"c cstreq     elif KEY_ELIF 0
-  else lex_buf ,ptr "else"c cstreq     elif KEY_ELSE 0
-  else lex_buf ,ptr "end"c cstreq      elif
-    array_top dec64
-    array_top ,64 0 =
-    if
-      array_pop drop
-      KEY_END_WHILE 0
-    else
-      KEY_END_IF 0
-    end
-  else lex_buf ,ptr "while"c cstreq elif
-    KEY_WHILE 0
-    1 array_push
-  else lex_buf ,ptr "do"c cstreq       elif KEY_DO 0
-  else lex_buf ,ptr "include"c cstreq  elif KEY_INCLUDE 0
-  else
-    lex_buf ,ptr cstr_to_int
-    false = if
-      drop
-      lex_buf ,ptr parse_string false = if
-        "[ERROR] Unable to parse word '" puts lex_buf ,ptr cputs "'\n" puts
-        1 exit
-      end
-      append_str
-      OP_PUSH_STR swap
-    else
-      OP_PUSH_INT swap
-    end
-  end
-end
-
 proc parse_next_word
     ptr // Token
     ptr // Lexer
@@ -593,13 +536,64 @@ proc parse_next_word
   token swap .64
   32 buf 0 memset
 
-  lexer ,ptr Lexer.buf + ,64
+  lexer ,ptr
+  dup Lexer.buf
   cstr_trim_left // Remove whitespace before word
-  ' ' buf cstr_cut_to_delimiter
+  
+  lex_buf ,,ptr '"' cstr_starts_with dup putb if
+    lex_buf '"' buf cstr_cut_to_delimiter ..ptr
+  else
+    lex_buf ' ' buf cstr_cut_to_delimiter ..ptr
+  end
 
-  "token: '" puts buf cputs "'\n" puts
+  "Token: '" puts buf cputs "'\n" puts
+  
+  buf "+"c cstreq if
+    OP_PLUS 0
+  else buf "-"c cstreq        elif OP_SUB 0
+  else buf "dump"c cstreq     elif OP_DUMP 0
+  else buf "="c cstreq        elif OP_EQU 0
+  else buf ">"c cstreq        elif OP_GT 0
+  else buf "<"c cstreq        elif OP_LT 0
+  else buf "dup"c cstreq      elif OP_DUP 0
+  else buf "2dup"c cstreq     elif OP_2DUP 0
+  else buf "drop"c cstreq     elif OP_DROP 0
+  else buf "syscall3"c cstreq elif OP_SYSCALL3 0
+  else buf "if"c cstreq elif
+    ?array_empty lnot if
+      array_top inc64
+    end KEY_IF 0
+  else buf "elif"c cstreq     elif KEY_ELIF 0
+  else buf "else"c cstreq     elif KEY_ELSE 0
+  else buf "end"c cstreq      elif
+    array_top dec64
+    array_top ,64 0 =
+    if
+      array_pop drop
+      KEY_END_WHILE 0
+    else
+      KEY_END_IF 0
+    end
+  else buf "while"c cstreq elif
+    KEY_WHILE 0
+    1 array_push
+  else buf "do"c cstreq       elif KEY_DO 0
+  else buf "include"c cstreq  elif KEY_INCLUDE 0
+  else
+    buf cstr_to_int
+    false = if
+      drop
+      buf parse_string false = if
+        "[ERROR] Unable to parse word '" puts buf cputs "'\n" puts
+        1 exit
+      end
+      append_str
+      OP_PUSH_STR swap
+    else
+      OP_PUSH_INT swap
+    end
+  end
 
-  buf parse_word
   token ,ptr Token.value + swap .64
   token ,ptr Token.type + swap .64
 
@@ -660,11 +654,8 @@ proc parse_file
     "\nParsed tok:\n" puts
     "Type: " puts token Token.type + ,64 dump
     "Value: " puts token Token.value + ,64 dump
-    //word_type ,64 KEY_INCLUDE = if
-    //  "Shiiish" puts
-    //else
-    //  word_type ,64 word_value ,64 push_op
-    //end
+    token Token.type + ,64
+    token Token.value + ,64 push_op
   end
 end
 

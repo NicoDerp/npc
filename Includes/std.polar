@@ -128,6 +128,15 @@ proc ,ptr
   ,64 cast(ptr)
 end
 
+proc ,,ptr
+    ptr
+    --
+    ptr
+  in
+
+  ,64 cast(ptr) ,64 cast(ptr)
+end
+
 proc ,bool
     ptr
     --
@@ -718,13 +727,15 @@ proc cstr_trim_left
     else
       false
     end
-  do inc64 end
+  do 1 + end
 end
 
 proc cstr_cut_to_delimiter
     ptr // Cstr
     int // Delimiter
     ptr // The cut
+    --
+    ptr
   in
 
   memory buf sizeof(ptr) end
@@ -741,6 +752,6 @@ proc cstr_cut_to_delimiter
      end
   do
     swap 1 + swap
-  end drop drop
+  end drop
 end
 
