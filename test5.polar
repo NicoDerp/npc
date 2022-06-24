@@ -1,13 +1,13 @@
 
 include "std.polar"
 
-memory s sizeof(Str) end
-memory out sizeof(Str) end
+memory a sizeof(Str) end
+memory b sizeof(Str) end
 
-s "hei halla\nbip_bop!a" .Str
+a "hei halla" .Str
+b "hei halla" .Str
 
-s '\n' out str_split_at_delimiter
-out ,Str puts
-s ,Str puts
-
+a str_chop_left drop
+a str_chop_right drop
+a ,Str puts
 

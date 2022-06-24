@@ -322,27 +322,28 @@ proc cstreq
 end
 
 proc streq
-    int ptr // Str1
-    int ptr // Str2
+    ptr // Str2
+    ptr // Str1
     --
     bool // Str1 == Str2
   in
 
-  memory p1 sizeof(ptr) end
-  memory p2 sizeof(ptr) end
+  memory s1 sizeof(ptr) end
+  s1 swap .64
+  memory s2 sizeof(ptr) end
+  s2 swap .64
 
-  // size
-  p1 swap .64
-  swap
-  p2 swap .64
-  over = if
-    1 -
+  s1 ,ptr ,Str.count
+  s2 ,ptr ,Str.count
+  = if
+    s1 ,ptr ,Str.count 1 -
     while
       // If index is greater than or equal to zero
-      dup 0 >= if
+      dup 0 > if
         // If the characters are the same
-        p1 ,ptr ,
-        p2 ,ptr ,
+        // index char
+        dup  s1 ,ptr ,Str.data + ,
+        over s2 ,ptr ,Str.data + ,
         =
       else
         false
@@ -350,21 +351,19 @@ proc streq
     do
       // Decrement index
       1 -
-      p1 inc64
-      p2 inc64
     end
     // If the last characters are equal they are the same
-    // And the index is -1
+    // And the index is 0
     // bool
-    -1 = if
-      p1 ,ptr 1 - ,
-      p2 ,ptr 1 - ,
+    0 = if
+      s1 ,ptr ,Str.data ,
+      s2 ,ptr ,Str.data ,
       =
     else
       false
     end
   else
-    drop false
+    false
   end
 end
 
@@ -832,4 +831,29 @@ proc str_split_at_delimiter
   dup inc64 // Increment in.ptr
   8 + dec64 // Decrement in.count
 end
+
+proc str_chop_left
+    ptr // Str
+    --
+    int // Char
+  in
+
+  // char ptr
+  dup ,Str.data ,
+  swap dup inc64
+  8 + dec64
+end
+
+proc str_chop_right
+    ptr // Str
+    --
+    int // Char
+  in
+
+  // ptr char
+  dup ,Str.count 1 -
+  over ,Str.data + ,
+  swap 8 + dec64
+end
+
 
