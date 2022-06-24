@@ -25,14 +25,14 @@ macro KEY_INCLUDE   20 end
 memory out_fn sizeof(ptr) end
 memory out_fd 8 end
 
-// 0     8      16    24        40
-//    8      8     8       16
-// [ buf | line | row | file_path]
+// 0     16     32         48    56
+//    16     16     16         8
+// [ buf | line | file_path | row ]
 macro Lexer.buffer    0  end
 macro Lexer.line      8  end
-macro Lexer.row       16 end
 macro Lexer.file_path 24 end
-macro sizeof(Lexer)   40 end
+macro Lexer.row       16 end
+macro sizeof(Lexer)   56 end
 
 macro Loc.file_path 0 end
 macro Loc.row 8 end
@@ -551,7 +551,7 @@ proc lexer_next_line
   lexer ,ptr Lexer.buffer +
   '\n'
   lexer ,ptr Lexer.line +
-  str_cut_to_delimiter
+  str_split_at_delimiter
 
   // Increment row
   lexer ,ptr Lexer.row + inc64
@@ -567,86 +567,97 @@ proc parse_next_word
   memory token sizeof(ptr) end
   memory lexer sizeof(ptr) end
   memory inside_str sizeof(bool) end
-
   memory word sizeof(Str) end
+
+  memory end_of_file sizeof(bool) end
 
   lexer swap .64
   token swap .64
   sizeof(Str) word 0 memset
 
-  lexer ,ptr Lexer.buf + ,ptr
-  cstr_trim_left // Remove whitespace before word
-
-  dup , '"' = dup putb if
-    cstr_chop_left drop
-    '"' buf cstr_cut_to_delimiter
-  else
-    ' ' buf cstr_cut_to_delimiter
-  end
-  // ptr
-  lexer ,ptr Lexer.line + swap .64
-
-  "Token: '" puts buf cputs "'\n" puts
-  
-  buf "+"c cstreq if
-    OP_PLUS 0
-  else buf "-"c cstreq        elif OP_SUB 0
-  else buf "dump"c cstreq     elif OP_DUMP 0
-  else buf "="c cstreq        elif OP_EQU 0
-  else buf ">"c cstreq        elif OP_GT 0
-  else buf "<"c cstreq        elif OP_LT 0
-  else buf "dup"c cstreq      elif OP_DUP 0
-  else buf "2dup"c cstreq     elif OP_2DUP 0
-  else buf "drop"c cstreq     elif OP_DROP 0
-  else buf "syscall3"c cstreq elif OP_SYSCALL3 0
-  else buf "if"c cstreq elif
-    ?array_empty lnot if
-      array_top inc64
-    end KEY_IF 0
-  else buf "elif"c cstreq     elif KEY_ELIF 0
-  else buf "else"c cstreq     elif KEY_ELSE 0
-  else buf "end"c cstreq      elif
-    array_top dec64
-    array_top ,64 0 =
-    if
-      array_pop drop
-      KEY_END_WHILE 0
-    else
-      KEY_END_IF 0
-    end
-  else buf "while"c cstreq elif
-    KEY_WHILE 0
-    1 array_push
-  else buf "do"c cstreq       elif KEY_DO 0
-  else buf "include"c cstreq  elif KEY_INCLUDE 0
-  else
-    buf cstr_to_int
-    false = if
-      drop
-      buf parse_string false = if
-        "[ERROR] Unable to parse word '" puts buf cputs "'\n" puts
-        1 exit
+  // Loop over lines until there isn't only whitespace
+  // lexer
+  lexer ,ptr
+  while
+    dup Lexer.line + ,ptr
+    dup str_trim_left
+    ?str_empty if
+      dup Lexer.buffer + ,ptr
+      ?str_empty if
+        end_of_file true .
+        false
+      else
+        true
       end
-      append_str
-      OP_PUSH_STR swap
     else
-      OP_PUSH_INT swap
+      false
     end
+  do dup lexer_next_line end
+  drop // Lexer
+
+  end_of_file ,bool lnot if
+    lexer ,ptr Lexer.line + ,ptr
+    str_split_at_delimiter
+  
+    
+    
+    buf "+"c cstreq if
+      OP_PLUS 0
+    else buf "-"c cstreq        elif OP_SUB 0
+    else buf "dump"c cstreq     elif OP_DUMP 0
+    else buf "="c cstreq        elif OP_EQU 0
+    else buf ">"c cstreq        elif OP_GT 0
+    else buf "<"c cstreq        elif OP_LT 0
+    else buf "dup"c cstreq      elif OP_DUP 0
+    else buf "2dup"c cstreq     elif OP_2DUP 0
+    else buf "drop"c cstreq     elif OP_DROP 0
+    else buf "syscall3"c cstreq elif OP_SYSCALL3 0
+    else buf "if"c cstreq elif
+      ?array_empty lnot if
+        array_top inc64
+      end KEY_IF 0
+    else buf "elif"c cstreq     elif KEY_ELIF 0
+    else buf "else"c cstreq     elif KEY_ELSE 0
+    else buf "end"c cstreq      elif
+      array_top dec64
+      array_top ,64 0 =
+      if
+        array_pop drop
+        KEY_END_WHILE 0
+      else
+        KEY_END_IF 0
+      end
+    else buf "while"c cstreq elif
+      KEY_WHILE 0
+      1 array_push
+    else buf "do"c cstreq       elif KEY_DO 0
+    else buf "include"c cstreq  elif KEY_INCLUDE 0
+    else
+      buf cstr_to_int
+      false = if
+        drop
+        buf parse_string false = if
+          "[ERROR] Unable to parse word '" puts buf cputs "'\n" puts
+          1 exit
+        end
+        append_str
+        OP_PUSH_STR swap
+      else
+        OP_PUSH_INT swap
+      end
+    end
+    token ,ptr Token.value + swap .64
+    token ,ptr Token.type + swap .64
+    true
+  else
+    false
   end
-
-  token ,ptr Token.value + swap .64
-  token ,ptr Token.type + swap .64
-
-  true
-
-  //dup '"' = if
-  //  inside_str lflip
-  //end
 end
 
 proc mmap_file
     ptr // Filename
     --
+    int // Size
     ptr // Buffer
   in
 
@@ -679,6 +690,7 @@ proc mmap_file
     "[ERROR] Failed to memory map file: '" puts fn ,ptr cputs "'\n" puts
     1 exit
   end
+  stat st_size ,64 swap
 end
 
 proc parse_file
@@ -693,7 +705,6 @@ proc parse_file
   lexer Lexer.buffer    + file_path ,ptr mmap_file   .Str
   lexer Lexer.file_path + file_path ,ptr cstr_to_str .Str
 
-  
   is_verbose if
     "Parsing file: '" puts input_fn ,ptr cputs "'\n" puts
     "File descriptor: " puts input_fd ,64 dump
@@ -701,14 +712,14 @@ proc parse_file
     "\n" puts
   end
 
-  memory op sizeof(Token) end
-  while op lexer parse_next_word do
-    "Parsed op:\n" puts
+  memory token sizeof(Token) end
+  while tokemn lexer parse_next_word do
+    "Parsed token:\n" puts
     "Type: " puts op Op.type + ,64 dump
     "Value: " puts op Op.value + ,64 dump
     
-    op ,Op.type
-    op ,Op.value
+    token ,Op.type
+    token ,Op.value
     push_op
   end
 end

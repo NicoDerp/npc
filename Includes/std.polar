@@ -270,9 +270,9 @@ end
 
 proc putb bool -- in
   0 = if
-    "false"
+    "false\n"
   else
-    "true"
+    "true\n"
   end puts
 end
 
@@ -805,15 +805,17 @@ proc cstr_cut_to_delimiter
 end
 
 proc str_split_at_delimiter
-    ptr // Str
-    int // Delimiter
     ptr // The cut
+    int // Delimiter
+    ptr // Str
   in
 
   // cstr del cstr
   memory out sizeof(ptr) end
-  out swap .64 // Set out buffer
+  rot out swap .64 // Set out buffer
   out ,ptr 8 + 0 .64 // Set out.counter to 0
+
+  swap
 
   over ,Str.data out ,ptr swap .64 // Set out.data to in.data
   while
@@ -856,4 +858,27 @@ proc str_chop_right
   swap 8 + dec64
 end
 
+proc str_trim_left
+    ptr // Str
+  in
+
+  memory s sizeof(ptr) end
+  s swap .64
+
+  // (data|count)
+  while
+    s ,ptr ,Str.count 0 != if
+      s ,ptr ,Str.data ,
+      dup ' ' =
+      swap '\n' =
+      lor if
+        true
+      else
+        false
+      end
+    else
+      false
+    end
+  do s ,ptr str_chop_left drop end
+end
 
