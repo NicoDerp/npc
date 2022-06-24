@@ -1479,7 +1479,7 @@ def typecheck_procs(procs):
 				print("Stack at end of code:")
 				for typ, word in stack:
 					program_note(word, typ)
-					exit(1)
+				exit(1)
 			
 def typecheck_program(words, procs):
 	#if procs != {}:

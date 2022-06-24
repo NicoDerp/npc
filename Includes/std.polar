@@ -321,7 +321,7 @@ proc cstreq
   , 0 = swap , 0 = land
 end
 
-proc streq
+proc pstreq
     ptr // Str2
     ptr // Str1
     --
@@ -364,6 +364,53 @@ proc streq
     end
   else
     false
+  end
+end
+
+proc streq
+    int ptr // Str1
+    int ptr // Str2
+    --
+    bool // Str1 == Str2
+  in
+
+  memory p1 sizeof(ptr) end
+  memory p2 sizeof(ptr) end
+
+  // size
+  p1 swap .64
+  swap
+  p2 swap .64
+  over = if
+    1 -
+    while
+      // If index is greater than or equal to zero
+      dup 0 >= if
+        // If the characters are the same
+        p1 ,ptr ,
+        p2 ,ptr ,
+        =
+      else
+        false
+      end
+    do
+      // Decrement index
+      1 -
+      p1 inc64
+      p2 inc64
+    end
+    // If the last characters are equal they are the same
+    // And the index is -1
+    // bool
+    -1 = if
+      p1 ,ptr 1 - ,
+      p2 ,ptr 1 - ,
+      =
+    else
+      false
+    end
+  else
+    drop false
   end
 end
 
@@ -504,10 +551,10 @@ end
 proc nth_argv
     int // n
     --
-    int
+    ptr
   in
 
-  8 * argv + ,64
+  8 * argv + ,ptr
 end
 
 proc uint_to_cstr
@@ -881,4 +928,43 @@ proc str_trim_left
     end
   do s ,ptr str_chop_left drop end
 end
+
+proc str_to_int
+     ptr // Str
+     --
+     int // int(str)
+     bool // success
+  in
+
+  memory str sizeof(ptr) end
+  memory out 8 end
+  memory success sizeof(bool) end
+
+  str swap .64
+  out 0 .64
+  success true .
+
+  // strlen 0 digit
+  str ,ptr ,Str.count
+  0 while 2dup > do
+    dup str ,ptr ,Str.data + ,
+
+    dup '0' <
+    over '9' >
+    lor if
+      // Basically break
+      // Since index == strlen
+      drop drop dup
+      success false .
+    else
+      '0' -
+      out ,64 10 * + out swap .64
+      1 +
+    end
+  end drop drop
+  
+  out ,64
+  success ,bool
+end
+
 
