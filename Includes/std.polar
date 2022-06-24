@@ -805,28 +805,31 @@ proc cstr_cut_to_delimiter
   end drop drop
 end
 
-proc str_cut_to_delimiter
-    ptr // Cstr
+proc str_split_at_delimiter
+    ptr // Str
     int // Delimiter
     ptr // The cut
   in
 
+  // cstr del cstr
   memory out sizeof(ptr) end
-  out swap .64
+  out swap .64 // Set out buffer
+  out ,ptr 8 + 0 .64 // Set out.counter to 0
 
-  over ,Str.data out ,ptr swap .64
-
-  // (ptr|count) char char
+  over ,Str.data out ,ptr swap .64 // Set out.data to in.data
   while
-    over ,Str.data ,
+    over ,Str.data , // *in.data
     over = if
       false
     else
-      out ,ptr 8 + inc64
+      out ,ptr 8 + inc64 // Increment out.counter
+      over dup inc64 // Increment in.ptr
+      8 + dec64 // Decrement in.count
       true
     end
-  do
-    swap 1 + swap
-  end drop drop
+  do end drop // Delimiter
+  // Remove first character
+  dup inc64 // Increment in.ptr
+  8 + dec64 // Decrement in.count
 end
 
