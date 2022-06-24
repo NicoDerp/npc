@@ -427,7 +427,7 @@ proc cstr_to_int
   success true .
 
   // strlen 0 digit
-  str ,64 strlen swap drop
+  str ,ptr strlen swap drop
   0 while 2dup > do
     dup str ,ptr + ,
 
@@ -759,7 +759,7 @@ proc cstr_starts_with
 end
 
 proc lflip ptr in
-  dup , lnot .
+  dup ,bool lnot .
 end
 
 proc cstr_trim_left

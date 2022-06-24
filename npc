@@ -1406,15 +1406,24 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 		elif word.type == 'PROC_CALL':
 			proc = procs[word.name]
-			if len(stack) < len(proc['in']):
-				stack_types = list(map(lambda a:a[0], stack))
-				in_types = list(map(lambda a:a[0], proc['in']))
-				program_error_(word, f"not enough arguments to call procedure `{word.name}`. Expected top of stack to be {in_types} but found {stack_types}")
+			stack_types = list(map(lambda a:a[0], stack))
+			in_types = list(map(lambda a:a[0], proc['in']))
+			
+			if len(stack_types) < len(in_types):
+				program_error_(word, f"not enough arguments to call procedure `{word.name}`.")
+				program_error_(word, f"Expected top of stack to be {', '.join(in_types)} but found {', '.join(stack_types)}")
 				program_note(proc['word'], "procedure definition")
 				exit(1)
-			
-			for i in proc['in']:
-				stack.pop()
+
+			proc_in = proc['in'].copy()
+			for i in range(len(proc_in)):
+				et, ew = proc_in.pop()
+				at, aw = stack.pop()
+				if et != at:
+					program_error_(word, f"wrong argument type for procedure `{word.name}`.")
+					program_error_(word, f"Expected {et} but found {at}")
+					program_note(aw, format_word(at, aw))
+					exit(1)
 				
 			for typ, w in proc['out']:
 				stack.append((typ, word))
