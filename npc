@@ -127,11 +127,15 @@ def program_error_(word, err):
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
 	print(f"{word.pos()}: error: {err}")
 
-	
 def program_note(word, note):
 	row = word.row
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
 	print(f"{word.pos()}: note: {note}")
+
+def program_warning(word, warning):
+	row = word.row
+	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
+	print(f"{word.pos()}: warning: {warning}")
 
 def compiler_error(err):
 	print(err)

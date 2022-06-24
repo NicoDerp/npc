@@ -55,9 +55,6 @@ macro sizeof(strbuf) 64 256 * end
 memory strbuf_start 64 256 * end
 memory strbuf_i 8 end
 
-memory str_start sizeof(ptr) end
-memory str_count 8 end
-
 memory strings 64 sizeof(Str) * end
 memory strings_i 8 end
 
@@ -489,30 +486,37 @@ proc crossreference_blocks in
 end
 
 proc parse_string
-    ptr // Cstr
+    ptr // Str
     --
     int // Str.count
     ptr // Str.ptr
     bool // Success
   in
 
+  memory str sizeof(ptr) end
+  str swap .64
+
+  memory str_start sizeof(ptr) end
+  memory str_count sizeof(uint8) end
+
   str_start strbuf_end .64
   str_count 0 .64
 
-  cstr_rightmost_char '"' !=
-  swap cstr_leftmost_char '"' !=
-  rot lor if
-    drop
+  str ,ptr str_rightmost_char '"' !=
+  str ,ptr str_leftmost_char '"' !=
+  lor if
     0 NULL false
   else
-    cstr_chop_left drop
-    cstr_chop_right drop
+    str ,ptr str_chop_left drop
+    str ,ptr str_chop_right drop
     while
-      dup ?cstr_empty lnot if
-        cstr_chop_left
+      // (data|count)
+      str ,ptr
+      dup ?str_empty lnot if
+        dup str_chop_left
 	dup '\\' = if
           drop
-          cstr_chop_left
+          dup str_chop_left
           dup 'n' = if
             drop
             '\n' strbuf_append_char
@@ -533,11 +537,11 @@ proc parse_string
 	  strbuf_append_char
 	  str_count inc64
 	end
-	true
+	drop true
       else
-        false
+        drop false
       end
-    do end drop
+    do end
     str_count ,64 str_start ,64 cast(ptr) true
   end
 end
@@ -549,9 +553,9 @@ proc lexer_next_line
   memory lexer sizeof(ptr) end
   lexer swap .64
 
-  lexer ,ptr Lexer.buffer +
-  '\n'
   lexer ,ptr Lexer.line +
+  '\n'
+  lexer ,ptr Lexer.buffer +
   str_split_at_delimiter
 
   // Increment row
@@ -564,7 +568,7 @@ proc parse_next_word
     --
     bool
   in
-
+  
   memory token sizeof(ptr) end
   memory lexer sizeof(ptr) end
   memory inside_str sizeof(bool) end
@@ -572,34 +576,59 @@ proc parse_next_word
 
   memory end_of_file sizeof(bool) end
 
+
   lexer swap .64
   token swap .64
   sizeof(Str) word 0 memset
+
+//  0 while dup 5 < do
+//    "--------\n" puts
+//    lexer ,ptr Lexer.line +
+//    dup ,Str puts "||\n" puts
+//    dup str_trim_left
+//    dup ?str_empty putb
+//    ,Str puts "||\n" puts
+//    lexer ,ptr lexer_next_line
+//  end drop
 
   // Loop over lines until there isn't only whitespace
   // lexer
   lexer ,ptr
   while
-    dup Lexer.line + ,ptr
+    dup Lexer.line +
     dup str_trim_left
-    ?str_empty if
-      dup Lexer.buffer + ,ptr
-      ?str_empty if
-        end_of_file true .
-        false
-      else
-        true
-      end
-    else
-      false
-    end
+    ?str_empty
+//    ?str_empty if
+//      dup Lexer.buffer +
+//      ?str_empty if
+//        end_of_file true .
+//        false
+//      else
+//        true
+//      end
+//    else
+//      true
+    //end
   do dup lexer_next_line end
+  "Line: '" puts dup Lexer.line + ,Str puts "'\n" puts
   drop // Lexer
 
   end_of_file ,bool lnot if
-    word ' ' lexer ,ptr Lexer.line + ,ptr
-    str_split_at_delimiter
-    
+    lexer ,ptr Lexer.line +
+    ,Str.data , '"' = if
+      // TODO: Parse string go here
+      // And that will loop until
+      // It finds a quote that isn't
+      // after \
+      word '"' lexer ,ptr Lexer.line +
+      str_split_at_delimiter
+    else
+      // TODO: extend this to include parsing
+      word ' ' lexer ,ptr Lexer.line +
+      str_split_at_delimiter
+    end
+    "Word: '" puts word ,Str puts "'\n" puts
+
     word ,Str "+" streq if
       OP_PLUS 0
     else word ,Str "-" streq        elif OP_SUB 0
@@ -635,7 +664,7 @@ proc parse_next_word
       word str_to_int
       false = if
         drop
-        word ,Str.data parse_string false = if
+        word parse_string false = if
           "[ERROR] Unable to parse word '" puts word ,Str puts "'\n" puts
           1 exit
         end
@@ -664,7 +693,7 @@ proc mmap_file
   fn swap .64
   
   memory fd sizeof(uint8) end
-  memory stat sizeof(ptr) end
+  memory stat sizeof(fstat) end
 
   O_RDONLY_USER fn ,ptr f_open
 
@@ -710,16 +739,15 @@ proc parse_file
 
   memory lexer sizeof(Lexer) end
   sizeof(Lexer) lexer 0 memset
-  lexer Lexer.buffer    + file_path ,ptr mmap_file
-  dump dump dump
-  //.Str
+  lexer Lexer.buffer    + file_path ,ptr mmap_file   .Str
   lexer Lexer.file_path + file_path ,ptr cstr_to_str .Str
 
+  lexer lexer_next_line
   memory token sizeof(Token) end
   while token lexer parse_next_word do
-    "Parsed token:\n" puts
     "Type: " puts token Token.type + ,64 dump
     "Value: " puts token Token.value + ,64 dump
+    "\n" puts
     
     token ,Token.type
     token ,Token.value

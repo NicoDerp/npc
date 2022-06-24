@@ -10,7 +10,6 @@ macro STDIN  0 end
 macro STDOUT 1 end
 macro STDERR 2 end
 
-macro sizeof(fstat) 144 end
 macro st_dev 0 +        end 
 macro st_ino 8 +        end 
 macro st_mode 24 +      end 
@@ -24,6 +23,7 @@ macro st_blocks 64 +    end
 macro st_atime 72 +     end
 macro st_mtime 88 +     end
 macro st_ctime 104 +    end
+macro sizeof(fstat) 144 end
 
 macro MAP_FAILED -1 end
 macro PROT_READ   1 end
@@ -857,8 +857,10 @@ proc str_split_at_delimiter
     ptr // Str
   in
 
-  // cstr del cstr
   memory out sizeof(ptr) end
+  memory empty sizeof(bool) end
+  empty false .
+  
   rot out swap .64 // Set out buffer
   out ,ptr 8 + 0 .64 // Set out.counter to 0
 
@@ -866,19 +868,30 @@ proc str_split_at_delimiter
 
   over ,Str.data out ,ptr swap .64 // Set out.data to in.data
   while
-    over ,Str.data , // *in.data
-    over = if
+    // (data|count) del bool
+    over ,Str.count 0 = if
+      empty true .
       false
     else
-      out ,ptr 8 + inc64 // Increment out.counter
-      over dup inc64 // Increment in.ptr
-      8 + dec64 // Decrement in.count
-      true
+      over ,Str.data , // *in.data
+      over =
+      if
+        false
+      else
+        out ,ptr 8 + inc64 // Increment out.counter
+        over dup inc64 // Increment in.ptr
+        8 + dec64 // Decrement in.count
+        true
+      end
     end
   do end drop // Delimiter
-  // Remove first character
-  dup inc64 // Increment in.ptr
-  8 + dec64 // Decrement in.count
+  empty ,bool lnot if
+    // Remove first character
+    dup inc64 // Increment in.ptr
+    8 + dec64 // Decrement in.count
+  else
+    drop
+  end
 end
 
 proc str_chop_left
@@ -967,4 +980,21 @@ proc str_to_int
   success ,bool
 end
 
+proc str_leftmost_char
+    ptr // Str
+    --
+    int // Char
+  in
+
+  ,Str.data ,
+end
+
+proc str_rightmost_char
+    ptr // Str
+    --
+    int // Char
+  in
+
+  ,Str swap 1 - + ,
+end
 
