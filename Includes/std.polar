@@ -74,6 +74,8 @@ memory array_i 8 end
 
 macro sizeof(Str) 16 end
 
+memory uint_to_cstr_buf 32 end
+
 proc exit int in
   60 syscall1 drop
 end
@@ -259,7 +261,7 @@ proc f_close
 end
 
 proc puts int ptr -- in
-  STDOUT write drop
+  1 write drop
 end
 
 proc putc int -- in
@@ -563,22 +565,21 @@ proc uint_to_cstr
     ptr
   in
 
-  memory buf 32 end
   memory index 1 end
 
-  32 buf 0 memset
+  32 uint_to_cstr_buf 0 memset
   index 30 . // size-2
 
   // div (buf+*i) char
   while
     10 /% '0' +
-    buf index , + swap .
+    uint_to_cstr_buf index , + swap .
     dup 0 !=
   do
     index dec
   end drop
 
-  buf index , +
+  uint_to_cstr_buf index , +
 end
 
 // ptr -> argv[0] -> '/' // Filename

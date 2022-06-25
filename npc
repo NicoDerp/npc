@@ -698,7 +698,7 @@ def parse_stuff(words):
 			proc_words = []
 			loc_mems = {}
 			locMemCapacity = 0
-			depth = 1
+			block_stack = [word]
 			while True:
 				try:
 					w = next(words)
@@ -706,14 +706,17 @@ def parse_stuff(words):
 					program_error(word, "procedure has no end")
 
 				if w.type == 'KEYWORD' and w.op in ['IF', 'WHILE']:
-			   		depth += 1
+			   		block_stack.append(w)
 					
 				if w.type == 'KEYWORD' and w.op == 'END':
-					depth -= 1
+					block_stack.pop()
 
 				if w.type == 'KEYWORD' and w.op == 'PROC':
-					program_error(w, "local procedures are not supported")
-				if depth == 0:
+					unclosed_w = block_stack.pop()
+					program_error_(w, "local procedures are not supported")
+					program_note(unclosed_w, f"maybe close this {unclosed_w.op}")
+					exit(1)
+				if len(block_stack) == 0:
 					break
 				if w.type == 'KEYWORD' and w.op == 'MEMORY':
 					try:
@@ -1378,7 +1381,7 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 					expected_types = list(map(lambda x: x[0], prev_stack))
 					if expected_types != actual_types:
 						program_error_(block_type, 'both if, else and elif blocks must produce the same types on the stack')
-						expected_vs_actual(word, expected_stack, stack)
+						expected_vs_actual(word, prev_stack, stack)
 						#program_note(word, f'expected types: {expected_types}')
 						#program_note(word, f'actual types: {actual_types}')
 						#exit(1)

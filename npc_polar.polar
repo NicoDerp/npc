@@ -173,7 +173,7 @@ proc compile_ops in
     dup , OP_PUSH_INT = if
       "\n;; -- OP_PUSH_INT -- ;;\n"	   out_fd ,64 f_write
       "    push    "			   out_fd ,64 f_write
-      dup 8 + , uint_to_cstr cstr_to_str   out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
       "\n"				   out_fd ,64 f_write
     
     else dup , OP_PUSH_STR = elif
@@ -378,12 +378,12 @@ proc compile_program in
   "\nsegment .data\n"                      out_fd ,64 f_write
 
   0 while dup strings_i ,64 < do
-    // i size (ptr+8)
+    // i ptr data 
     "str_"                                 out_fd ,64 f_write
     dup uint_to_cstr cstr_to_str           out_fd ,64 f_write
     
     dup sizeof(Str) * strings +
-    dup ,64 cast(ptr)
+    dup ,ptr
     swap 8 + ,64
     ":\n    db      "                      out_fd ,64 f_write
     // count ptr
@@ -486,64 +486,66 @@ proc crossreference_blocks in
 end
 
 proc parse_string
-    ptr // Str
+    ptr // Line
     --
     int // Str.count
     ptr // Str.ptr
-    bool // Success
+    bool // Closed
   in
 
-  memory str sizeof(ptr) end
-  str swap .64
+  memory line sizeof(ptr) end
+  line swap .64
 
   memory str_start sizeof(ptr) end
-  memory str_count sizeof(uint8) end
-
   str_start strbuf_end .64
+  
+  memory str_count sizeof(uint8) end
   str_count 0 .64
 
-  str ,ptr str_rightmost_char '"' !=
-  str ,ptr str_leftmost_char '"' !=
-  lor if
-    0 NULL false
-  else
-    str ,ptr str_chop_left drop
-    str ,ptr str_chop_right drop
-    while
-      // (data|count)
-      str ,ptr
-      dup ?str_empty lnot if
+  memory closed sizeof(bool) end
+  closed false .
+
+  line ,ptr str_chop_left drop
+  while
+    // (data|count)
+    line ,ptr
+    dup ?str_empty lnot if
+      dup str_chop_left
+      dup '\\' = if
+        drop
         dup str_chop_left
-	dup '\\' = if
+        dup 'n' = if
           drop
-          dup str_chop_left
-          dup 'n' = if
-            drop
-            '\n' strbuf_append_char
-            str_count inc64
-	  else dup '\\' = elif
-	    drop
-	    '\\' strbuf_append_char
-	    str_count inc64
-	  else dup 't' = elif
-	    drop
-	    '\t' strbuf_append_char
-	    str_count inc64
-          else
-            "[ERROR] Unreckognized escape sequence '\\" puts
-            putc "'\n" puts 1 exit
-	  end
-	else
-	  strbuf_append_char
-	  str_count inc64
-	end
-	drop true
+          '\n' strbuf_append_char
+          str_count inc64
+        else dup '\\' = elif
+          drop
+          '\\' strbuf_append_char
+          str_count inc64
+        else dup 't' = elif
+          drop
+          '\t' strbuf_append_char
+          str_count inc64
+        else
+          "[ERROR] Unreckognized escape sequence '\\" puts
+          putc "'\n" puts 1 exit
+        end
+        true
+      else dup '"' = elif
+        drop
+        closed true .
+        false
       else
-        drop false
+        strbuf_append_char
+        str_count inc64
+        true
       end
-    do end
-    str_count ,64 str_start ,64 cast(ptr) true
-  end
+      swap drop
+    else
+      drop false
+    end
+  do end
+  str_count ,64 str_start ,ptr closed ,bool
 end
 
 proc lexer_next_line
@@ -575,7 +577,7 @@ proc parse_next_word
   memory word sizeof(Str) end
 
   memory end_of_file sizeof(bool) end
-
+  end_of_file false .
 
   lexer swap .64
   token swap .64
@@ -597,85 +599,84 @@ proc parse_next_word
   while
     dup Lexer.line +
     dup str_trim_left
-    ?str_empty
-//    ?str_empty if
-//      dup Lexer.buffer +
-//      ?str_empty if
-//        end_of_file true .
-//        false
-//      else
-//        true
-//      end
-//    else
-//      true
-    //end
+    ?str_empty if
+      dup Lexer.buffer +
+      ?str_empty if
+        end_of_file true .
+        false
+      else
+        true
+      end
+    else
+      false
+    end
   do dup lexer_next_line end
-  "Line: '" puts dup Lexer.line + ,Str puts "'\n" puts
+
+  //"Line: '" puts dup Lexer.line + ,Str puts "'\n" puts
   drop // Lexer
 
   end_of_file ,bool lnot if
     lexer ,ptr Lexer.line +
     ,Str.data , '"' = if
-      // TODO: Parse string go here
-      // And that will loop until
-      // It finds a quote that isn't
-      // after \
-      word '"' lexer ,ptr Lexer.line +
-      str_split_at_delimiter
+      lexer ,ptr Lexer.line + parse_string false = if
+        "[ERROR] Unclosed string literal\n" puts
+        1 exit
+      end
+      "Parsing string '" puts
+      2dup puts "'\n" puts
+      append_str  token ,ptr Token.value + swap .64
+      OP_PUSH_STR token ,ptr Token.type + swap .64
     else
       // TODO: extend this to include parsing
       word ' ' lexer ,ptr Lexer.line +
       str_split_at_delimiter
-    end
-    "Word: '" puts word ,Str puts "'\n" puts
+      "Word: '" puts word ,Str puts "'\n" puts
 
-    word ,Str "+" streq if
-      OP_PLUS 0
-    else word ,Str "-" streq        elif OP_SUB 0
-    else word ,Str "dump" streq     elif OP_DUMP 0
-    else word ,Str "=" streq        elif OP_EQU 0
-    else word ,Str ">" streq        elif OP_GT 0
-    else word ,Str "<" streq        elif OP_LT 0
-    else word ,Str "dup" streq      elif OP_DUP 0
-    else word ,Str "2dup" streq     elif OP_2DUP 0
-    else word ,Str "drop" streq     elif OP_DROP 0
-    else word ,Str "syscall3" streq elif OP_SYSCALL3 0
-    else word ,Str "if" streq elif
-      ?array_empty lnot if
-        array_top inc64
-      end KEY_IF 0
-    else word ,Str "elif" streq     elif KEY_ELIF 0
-    else word ,Str "else" streq     elif KEY_ELSE 0
-    else word ,Str "end" streq      elif
-      array_top dec64
-      array_top ,64 0 =
-      if
-        array_pop drop
-        KEY_END_WHILE 0
+      word ,Str "+" streq if
+        OP_PLUS 0
+      else word ,Str "-" streq        elif OP_SUB 0
+      else word ,Str "dump" streq     elif OP_DUMP 0
+      else word ,Str "=" streq        elif OP_EQU 0
+      else word ,Str ">" streq        elif OP_GT 0
+      else word ,Str "<" streq        elif OP_LT 0
+      else word ,Str "dup" streq      elif OP_DUP 0
+      else word ,Str "2dup" streq     elif OP_2DUP 0
+      else word ,Str "drop" streq     elif OP_DROP 0
+      else word ,Str "syscall3" streq elif OP_SYSCALL3 0
+      else word ,Str "if" streq elif
+        ?array_empty lnot if
+          array_top inc64
+        end KEY_IF 0
+      else word ,Str "elif" streq     elif KEY_ELIF 0
+      else word ,Str "else" streq     elif KEY_ELSE 0
+      else word ,Str "end" streq      elif
+        array_top dec64
+        array_top ,64 0 =
+        if
+          array_pop drop
+          KEY_END_WHILE 0
+        else
+          KEY_END_IF 0
+        end
+      else word ,Str "while" streq elif
+        KEY_WHILE 0
+        1 cast(ptr) array_push
+      else word ,Str "do" streq       elif KEY_DO 0
+      else word ,Str "include" streq  elif KEY_INCLUDE 0
       else
-        KEY_END_IF 0
-      end
-    else word ,Str "while" streq elif
-      KEY_WHILE 0
-      1 cast(ptr) array_push
-    else word ,Str "do" streq       elif KEY_DO 0
-    else word ,Str "include" streq  elif KEY_INCLUDE 0
-    else
-      word str_to_int
-      false = if
-        drop
-        word parse_string false = if
+        word str_to_int
+        false = if
+          drop
           "[ERROR] Unable to parse word '" puts word ,Str puts "'\n" puts
           1 exit
+          0 0
+        else
+          OP_PUSH_INT swap
         end
-        append_str
-        OP_PUSH_STR swap
-      else
-        OP_PUSH_INT swap
       end
+      token ,ptr Token.value + swap .64
+      token ,ptr Token.type + swap .64
     end
-    token ,ptr Token.value + swap .64
-    token ,ptr Token.type + swap .64
     true
   else
     false
@@ -745,13 +746,32 @@ proc parse_file
   lexer lexer_next_line
   memory token sizeof(Token) end
   while token lexer parse_next_word do
-    "Type: " puts token Token.type + ,64 dump
-    "Value: " puts token Token.value + ,64 dump
+    "Type: " puts token ,Token.type dump
+    "Value: " puts token ,Token.value dump
     "\n" puts
-    
-    token ,Token.type
-    token ,Token.value
-    push_op
+
+    token ,Token.type KEY_INCLUDE = if
+      memory file_token sizeof(Token) end
+      file_token lexer parse_next_word false = if
+        "[ERROR] No filename specified after include keyword\n" puts
+        1 exit
+      end
+      file_token ,Token.type OP_PUSH_STR != if
+        "[ERROR] Filename after include keyword is the wrong type!\n" puts
+        "[NOTE] Expected a string but found " puts
+        file_token ,Token.type dump
+        1 exit
+      end
+      
+      "Including file: '" puts
+      // index
+      token ,Token.value
+
+    else
+      token ,Token.type
+      token ,Token.value
+      push_op
+    end
   end
 end
 
