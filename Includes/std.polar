@@ -169,6 +169,7 @@ proc ,Str
   swap ,ptr
 end
 
+// dst ptr count
 proc .Str
     ptr // Dst
     int // Count

@@ -21,6 +21,8 @@ macro KEY_END_WHILE 17 end
 macro KEY_WHILE     18 end
 macro KEY_DO        19 end
 macro KEY_INCLUDE   20 end
+macro KEY_MEMORY    21 end
+macro UNKNOWN       22 end
 
 memory out_fn sizeof(ptr) end
 memory out_fd 8 end
@@ -39,10 +41,13 @@ macro Loc.row 8 end
 macro Loc.col 16 end
 macro sizeof(Loc) 24 end
 
-macro Token.type 0 end
-macro Token.value 8 end
-macro Token.loc 16 end
-macro sizeof(Token) 24 end
+// 0      8      24     32
+//    8      16      8
+// [ type | value | loc ]
+macro Token.type    0 end
+macro Token.value   8 end
+macro Token.loc     24 end
+macro sizeof(Token) 32 end
 
 macro sizeof(Op) 16 end
 memory op_count 8 end
@@ -576,7 +581,6 @@ proc parse_next_word
   
   memory token sizeof(ptr) end
   memory lexer sizeof(ptr) end
-  memory inside_str sizeof(bool) end
   memory word sizeof(Str) end
 
   memory end_of_file sizeof(bool) end
@@ -585,16 +589,6 @@ proc parse_next_word
   lexer swap .64
   token swap .64
   sizeof(Str) word 0 memset
-
-//  0 while dup 5 < do
-//    "--------\n" puts
-//    lexer ,ptr Lexer.line +
-//    dup ,Str puts "||\n" puts
-//    dup str_trim_left
-//    dup ?str_empty putb
-//    ,Str puts "||\n" puts
-//    lexer ,ptr lexer_next_line
-//  end drop
 
   // Loop over lines until there isn't only whitespace
   // lexer
@@ -636,48 +630,51 @@ proc parse_next_word
       //"Word: '" puts word ,Str puts "'\n" puts
 
       word ,Str "+" streq if
-        OP_PLUS 0
-      else word ,Str "-" streq        elif OP_SUB 0
-      else word ,Str "dump" streq     elif OP_DUMP 0
-      else word ,Str "=" streq        elif OP_EQU 0
-      else word ,Str ">" streq        elif OP_GT 0
-      else word ,Str "<" streq        elif OP_LT 0
-      else word ,Str "dup" streq      elif OP_DUP 0
-      else word ,Str "2dup" streq     elif OP_2DUP 0
-      else word ,Str "drop" streq     elif OP_DROP 0
-      else word ,Str "syscall3" streq elif OP_SYSCALL3 0
+        OP_PLUS 0 NULL
+      else word ,Str "-" streq        elif OP_SUB 0 NULL
+      else word ,Str "dump" streq     elif OP_DUMP 0 NULL
+      else word ,Str "=" streq        elif OP_EQU 0 NULL
+      else word ,Str ">" streq        elif OP_GT 0 NULL
+      else word ,Str "<" streq        elif OP_LT 0 NULL
+      else word ,Str "dup" streq      elif OP_DUP 0 NULL
+      else word ,Str "2dup" streq     elif OP_2DUP 0 NULL
+      else word ,Str "drop" streq     elif OP_DROP 0 NULL
+      else word ,Str "syscall3" streq elif OP_SYSCALL3 0 NULL
       else word ,Str "if" streq elif
         ?array_empty lnot if
           array_top inc64
-        end KEY_IF 0
-      else word ,Str "elif" streq     elif KEY_ELIF 0
-      else word ,Str "else" streq     elif KEY_ELSE 0
+        end KEY_IF 0 NULL
+      else word ,Str "elif" streq     elif KEY_ELIF 0 NULL
+      else word ,Str "else" streq     elif KEY_ELSE 0 NULL
       else word ,Str "end" streq      elif
         array_top dec64
         array_top ,64 0 =
         if
           array_pop drop
-          KEY_END_WHILE 0
+          KEY_END_WHILE 0 NULL
         else
-          KEY_END_IF 0
+          KEY_END_IF 0 NULL
         end
       else word ,Str "while" streq elif
-        KEY_WHILE 0
+        KEY_WHILE 0 NULL
         1 cast(ptr) array_push
-      else word ,Str "do" streq       elif KEY_DO 0
-      else word ,Str "include" streq  elif KEY_INCLUDE 0
+      else word ,Str "do" streq       elif KEY_DO 0 NULL
+      else word ,Str "include" streq  elif KEY_INCLUDE 0 NULL
+      else word ,Str "memory" streq   elif KEY_MEMORY 0 NULL
       else
         word str_to_int
         false = if
           drop
-          "[ERROR] Unable to parse word '" puts word ,Str puts "'\n" puts
-          1 exit
-          0 0
+          //"[ERROR] Unable to parse word '" puts word ,Str puts "'\n" puts
+          //1 exit
+          UNKNOWN word ,Str
         else
-          OP_PUSH_INT swap
+          // op token.value value ptr
+          OP_PUSH_INT swap NULL
         end
       end
-      token ,ptr Token.value + swap .64
+      // type token.value value ptr
+      token ,ptr Token.value + rot rot .Str
       token ,ptr Token.type + swap .64
     end
     true
@@ -784,7 +781,61 @@ proc parse_file
         "'\n" puts
       end
       include_file_path parse_file
+    
+    else token ,Token.type KEY_MEMORY = elif
+      "Memory!!\n" puts
+      
+      memory name_token sizeof(Token) end
 
+      name_token lexer parse_next_word false = if
+        "[ERROR] No name specified after memory keyword\n" puts
+        1 exit
+      end
+
+      name_token ,Token.type UNKNOWN != if
+        "[ERROR] Name after memory keyword is the wrong type!\n" puts
+        "[NOTE] Expected unknown but found " puts
+        name_token ,Token.type dump
+        1 exit
+      end
+
+      //eval_contents
+      memory value_token sizeof(Token) end
+
+      value_token lexer parse_next_word false = if
+        "[ERROR] Expected value in memory definition but found none\n" puts
+        1 exit
+      end
+      
+      value_token ,Token.type OP_PUSH_INT != if
+        "[ERROR] Type '" puts
+        value_token ,Token.type uint_to_cstr cputs
+        "' is not allowed in memory definition\n" puts
+        1 exit
+      end
+
+      "VALUE:" puts
+      value_token Token.value + ,64 dump
+      value_token ,Token.value dump
+
+      memory end_token sizeof(Token) end
+      
+      end_token lexer parse_next_word false = if
+        "[ERROR] Expected end keyword after memory definition but found none\n" puts
+        1 exit
+      end
+
+      end_token ,Token.type KEY_END_IF != if
+        "[ERROR] Expected end keyword after memory definition but found " puts
+        end_token ,Token.type dump
+        1 exit
+      end
+      
+      is_verbose if
+        "Parsed memory:\n" puts
+        "Name: " puts name_token Token.value + ,Str puts "\n" puts
+        "Value: " puts value_token ,Token.value dump
+      end
     else
       token ,Token.type
       token ,Token.value
