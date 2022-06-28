@@ -817,6 +817,11 @@ out_fn "a.out"c .64
       "[ERROR] No filename supplied after '-o'\n" puts 1 exit
     end
     dup nth_argv out_fn swap .64
+  else
+    "[ERROR] Unreckognized argument '" puts
+    dup nth_argv cputs
+    "'\n" puts
+    1 exit
   end
   1 +
 end drop
