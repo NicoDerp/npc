@@ -58,6 +58,9 @@ memory strbuf_i 8 end
 memory strings 64 sizeof(Str) * end
 memory strings_i 8 end
 
+macro INCLUDE_CAP 10 end
+memory include_count sizeof(uint) end
+
 proc ,Token.type
     ptr
     --
@@ -622,15 +625,15 @@ proc parse_next_word
         "[ERROR] Unclosed string literal\n" puts
         1 exit
       end
-      "Parsing string '" puts
-      2dup puts "'\n" puts
+      //"Parsing string '" puts
+      //2dup puts "'\n" puts
       append_str  token ,ptr Token.value + swap .64
       OP_PUSH_STR token ,ptr Token.type + swap .64
     else
       // TODO: extend this to include parsing
       word ' ' lexer ,ptr Lexer.line +
       str_split_at_delimiter
-      "Word: '" puts word ,Str puts "'\n" puts
+      //"Word: '" puts word ,Str puts "'\n" puts
 
       word ,Str "+" streq if
         OP_PLUS 0
@@ -746,11 +749,18 @@ proc parse_file
   lexer lexer_next_line
   memory token sizeof(Token) end
   while token lexer parse_next_word do
-    "Type: " puts token ,Token.type dump
-    "Value: " puts token ,Token.value dump
-    "\n" puts
+    is_verbose if
+      "Type: " puts token ,Token.type dump
+      "Value: " puts token ,Token.value dump
+      "\n" puts
+    end
 
     token ,Token.type KEY_INCLUDE = if
+      include_count , INCLUDE_CAP >= if
+        "[ERROR] Include limit reached\n" puts 1 exit
+      end
+      include_count inc
+      
       memory file_token sizeof(Token) end
       
       file_token lexer parse_next_word false = if
@@ -767,9 +777,12 @@ proc parse_file
       memory include_file_path 64 end
       token ,Token.value sizeof(Str) * strings + ,Str
       include_file_path memcpy
-      "Including file: '" puts
-      include_file_path cputs
-      "'\n" puts
+
+      is_verbose if
+        "Including file: '" puts
+        include_file_path cputs
+        "'\n" puts
+      end
       include_file_path parse_file
 
     else
@@ -795,7 +808,7 @@ out_fn "a.out"c .64
 
 // Loop over args and do stuff
 2 while dup argc < do
-  "Parsing arg: '" puts dup nth_argv cputs "'\n" puts
+  //"Parsing arg: '" puts dup nth_argv cputs "'\n" puts
   dup nth_argv "-v"c cstreq if
     argbits argbits , 1 bor .
   else dup nth_argv "-o"c cstreq elif
