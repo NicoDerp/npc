@@ -82,10 +82,10 @@ class MacroCall(Classified, Position):
 		self.name = tok.token
 
 class ProcCall(Classified, Position):
-	def __init__(self, macro, procs):
+	def __init__(self, macro, index):
 		Classified.__init__(self, "PROC_CALL")
 		Position.__init__(self, macro.tok)
-		self.index = procs[macro.name]['index']
+		self.index = index
 		self.name = macro.name
 
 class Memory(Classified, Position):
@@ -127,11 +127,15 @@ def program_error_(word, err):
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
 	print(f"{word.pos()}: error: {err}")
 
-	
 def program_note(word, note):
 	row = word.row
 	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
 	print(f"{word.pos()}: note: {note}")
+
+def program_warning(word, warning):
+	row = word.row
+	row += 1 if word.row != 0 else 0  # Since emacs is dum dum
+	print(f"{word.pos()}: warning: {warning}")
 
 def compiler_error(err):
 	print(err)
@@ -694,7 +698,7 @@ def parse_stuff(words):
 			proc_words = []
 			loc_mems = {}
 			locMemCapacity = 0
-			depth = 1
+			block_stack = [word]
 			while True:
 				try:
 					w = next(words)
@@ -702,14 +706,17 @@ def parse_stuff(words):
 					program_error(word, "procedure has no end")
 
 				if w.type == 'KEYWORD' and w.op in ['IF', 'WHILE']:
-			   		depth += 1
+			   		block_stack.append(w)
 					
 				if w.type == 'KEYWORD' and w.op == 'END':
-					depth -= 1
+					block_stack.pop()
 
 				if w.type == 'KEYWORD' and w.op == 'PROC':
-					program_error(w, "local procedures are not supported")
-				if depth == 0:
+					unclosed_w = block_stack.pop()
+					program_error_(w, "local procedures are not supported")
+					program_note(unclosed_w, f"maybe close this {unclosed_w.op}")
+					exit(1)
+				if len(block_stack) == 0:
 					break
 				if w.type == 'KEYWORD' and w.op == 'MEMORY':
 					try:
@@ -749,10 +756,10 @@ def parse_stuff(words):
 						proc_words.append(Const('LOC_MEMORY_OFFSET', mem.offset, word))
 					elif w.name in procs.keys():
 						procs[w.name]['used'] = True
-						proc_words.append(ProcCall(w, procs))
+						proc_words.append(ProcCall(w, procs[w.name]['index']))
 					elif w.name not in procs.keys() and w.name == name.name:
 						used = True
-						proc_words.append(w)
+						proc_words.append(ProcCall(w, len(procs)))
 					else:
 						did_you_mean(w, procs, memories, loc_mems)
 				else:
@@ -765,7 +772,7 @@ def parse_stuff(words):
 				words_return.append(Const('MEMORY_OFFSET', mem.offset, word))
 			elif word.name in procs.keys():
 				procs[word.name]['used'] = True
-				words_return.append(ProcCall(word, procs))
+				words_return.append(ProcCall(word, procs[word.name]['index']))
 			else:
 				did_you_mean(word, procs, memories)
 		elif word.type == 'KEYWORD' and word.op == 'MEMORY':
@@ -1374,7 +1381,7 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 					expected_types = list(map(lambda x: x[0], prev_stack))
 					if expected_types != actual_types:
 						program_error_(block_type, 'both if, else and elif blocks must produce the same types on the stack')
-						expected_vs_actual(word, expected_stack, stack)
+						expected_vs_actual(word, prev_stack, stack)
 						#program_note(word, f'expected types: {expected_types}')
 						#program_note(word, f'actual types: {actual_types}')
 						#exit(1)
@@ -1406,15 +1413,24 @@ def typecheck_words(words, stack, procs={}, checkingProc=False):
 
 		elif word.type == 'PROC_CALL':
 			proc = procs[word.name]
-			if len(stack) < len(proc['in']):
-				stack_types = list(map(lambda a:a[0], stack))
-				in_types = list(map(lambda a:a[0], proc['in']))
-				program_error_(word, f"not enough arguments to call procedure `{word.name}`. Expected top of stack to be {in_types} but found {stack_types}")
+			stack_types = list(map(lambda a:a[0], stack))
+			in_types = list(map(lambda a:a[0], proc['in']))
+			
+			if len(stack_types) < len(in_types):
+				program_error_(word, f"not enough arguments to call procedure `{word.name}`.")
+				program_error_(word, f"Expected top of stack to be {', '.join(in_types)} but found {', '.join(stack_types)}")
 				program_note(proc['word'], "procedure definition")
 				exit(1)
-			
-			for i in proc['in']:
-				stack.pop()
+
+			proc_in = proc['in'].copy()
+			for i in range(len(proc_in)):
+				et, ew = proc_in.pop()
+				at, aw = stack.pop()
+				if et != at:
+					program_error_(word, f"wrong argument type for procedure `{word.name}`.")
+					program_error_(word, f"Expected {et} but found {at}")
+					program_note(aw, format_word(at, aw))
+					exit(1)
 				
 			for typ, w in proc['out']:
 				stack.append((typ, word))
@@ -1470,7 +1486,7 @@ def typecheck_procs(procs):
 				print("Stack at end of code:")
 				for typ, word in stack:
 					program_note(word, typ)
-					exit(1)
+				exit(1)
 			
 def typecheck_program(words, procs):
 	#if procs != {}:

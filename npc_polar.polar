@@ -20,25 +20,33 @@ macro KEY_END_IF    16 end
 macro KEY_END_WHILE 17 end
 macro KEY_WHILE     18 end
 macro KEY_DO        19 end
-
-macro sizeof(Op) 16 end
-memory op_count 8 end
-memory op_start sizeof(Op) 256 * end
-
-memory input_fd 8 end
-memory input_buf sizeof(ptr) end
+macro KEY_INCLUDE   20 end
 
 memory out_fn sizeof(ptr) end
 memory out_fd 8 end
 
-memory stat sizeof(fstat) end
+// 0     16     32         48    56
+//    16     16     16         8
+// [ buf | line | file_path | row ]
+macro Lexer.buffer    0  end
+macro Lexer.line      16  end
+macro Lexer.file_path 32 end
+macro Lexer.row       48 end
+macro sizeof(Lexer)   56 end
 
-// Max word-size is 32 characters
-macro sizeof(word) 32 end
+macro Loc.file_path 0 end
+macro Loc.row 8 end
+macro Loc.col 16 end
+macro sizeof(Loc) 24 end
 
-memory lex_buf sizeof(word) end
-memory lex_i 1 end
-memory lex_inside_str sizeof(bool) end
+macro Token.type 0 end
+macro Token.value 8 end
+macro Token.loc 16 end
+macro sizeof(Token) 24 end
+
+macro sizeof(Op) 16 end
+memory op_count 8 end
+memory op_start sizeof(Op) 256 * end
 
 memory inside_while sizeof(bool) end
 memory block_i 8 end
@@ -47,12 +55,29 @@ macro sizeof(strbuf) 64 256 * end
 memory strbuf_start 64 256 * end
 memory strbuf_i 8 end
 
-memory str_start sizeof(ptr) end
-memory str_count 8 end
-
-macro sizeof(str) 16 end
-memory strings 64 sizeof(str) * end
+memory strings 64 sizeof(Str) * end
 memory strings_i 8 end
+
+macro INCLUDE_CAP 10 end
+memory include_count sizeof(uint) end
+
+proc ,Token.type
+    ptr
+    --
+    int
+  in
+
+  Token.type + ,64
+end
+
+proc ,Token.value
+    ptr
+    --
+    int
+  in
+
+  Token.value + ,64
+end
 
 proc strbuf_append_char
     int // Char
@@ -79,13 +104,11 @@ proc append_str
   in
 
   strings_i ,64
-  dup sizeof(str) * strings +
+  dup sizeof(Str) * strings +
   rot over swap .64
   8 + rot .64
   strings_i inc64
 end
-
-//prov str_from_index
 
 // [ - - - - - - - v ]
 memory argbits 1 end
@@ -145,10 +168,6 @@ proc dump_ops in
   end drop
 end
 
-macro NotImplemented "NotImplemented" puts 0 exit end
-macro Unreachable    "Unreachable"    puts 0 exit end
-macro MEM_CAPACITY 4096 end
-
 proc compile_ops in
   block_i 0 .64
   0 while dup op_count ,64 < do
@@ -157,13 +176,13 @@ proc compile_ops in
     dup , OP_PUSH_INT = if
       "\n;; -- OP_PUSH_INT -- ;;\n"	   out_fd ,64 f_write
       "    push    "			   out_fd ,64 f_write
-      dup 8 + , uint_to_cstr cstr_to_str   out_fd ,64 f_write
+      dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
       "\n"				   out_fd ,64 f_write
     
     else dup , OP_PUSH_STR = elif
       "\n;; -- OP_PUSH_STR -- ;;\n"	   out_fd ,64 f_write
       "    mov     rax, "		   out_fd ,64 f_write
-      dup 8 + ,64 sizeof(str) * strings + 8 + ,64
+      dup 8 + ,64 sizeof(Str) * strings + 8 + ,64
       uint_to_cstr cstr_to_str             out_fd ,64 f_write 
       "\n    push    rax\n"		   out_fd ,64 f_write
       "    push    str_"		   out_fd ,64 f_write
@@ -362,12 +381,12 @@ proc compile_program in
   "\nsegment .data\n"                      out_fd ,64 f_write
 
   0 while dup strings_i ,64 < do
-    // i size (ptr+8)
+    // i ptr data 
     "str_"                                 out_fd ,64 f_write
     dup uint_to_cstr cstr_to_str           out_fd ,64 f_write
     
-    dup sizeof(str) * strings +
-    dup ,64 cast(ptr)
+    dup sizeof(Str) * strings +
+    dup ,ptr
     swap 8 + ,64
     ":\n    db      "                      out_fd ,64 f_write
     // count ptr
@@ -388,23 +407,7 @@ proc compile_program in
   "\nsegment .bss\n"                       out_fd ,64 f_write
   "mem:\n"                                 out_fd ,64 f_write
   "    resb    4096\n"                     out_fd ,64 f_write
-  //MEM_CAPACITY dump
 end
-
-//def cross_reference(ops):
-//  stack = []
-//  n = 0
-//  
-//  for ptr in ops:
-//	typ = *ptr
-//	value = *(ptr+8)
-//    if typ in ["IF", "ELIF", "ELSE", "WHILE"]:
-//      stack.append(ptr)
-//    elif typ == "END":
-//      block_ptr = stack.pop()
-//      *(block_ptr+8) = n
-//      value = n
-//      n += 1
 
 // op-i
 proc crossreference_blocks in
@@ -486,151 +489,311 @@ proc crossreference_blocks in
 end
 
 proc parse_string
-    ptr // Cstr
+    ptr // Line
     --
     int // Str.count
     ptr // Str.ptr
-    bool // Success
+    bool // Closed
   in
 
+  memory line sizeof(ptr) end
+  line swap .64
+
+  memory str_start sizeof(ptr) end
   str_start strbuf_end .64
+  
+  memory str_count sizeof(uint8) end
   str_count 0 .64
 
-  cstr_rightmost_char '"' !=
-  swap cstr_leftmost_char '"' !=
-  rot lor if
-    drop
-    0 NULL false
-  else
-    cstr_chop_left drop
-    cstr_chop_right drop
-    while
-      dup ?cstr_empty lnot if
-        cstr_chop_left
-	dup '\\' = if
+  memory closed sizeof(bool) end
+  closed false .
+
+  line ,ptr str_chop_left drop
+  while
+    // (data|count)
+    line ,ptr
+    dup ?str_empty lnot if
+      dup str_chop_left
+      dup '\\' = if
+        drop
+        dup str_chop_left
+        dup 'n' = if
           drop
-          cstr_chop_left
-          dup 'n' = if
-            drop
-            '\n' strbuf_append_char
-            str_count inc64
-	  else dup '\\' = elif
-	    drop
-	    '\\' strbuf_append_char
-	    str_count inc64
-	  else dup 't' = elif
-	    drop
-	    '\t' strbuf_append_char
-	    str_count inc64
-          else
-            "[ERROR] Unreckognized escape sequence '\\" puts
-            putc "'\n" puts 1 exit
-	  end
-	else
-	  strbuf_append_char
-	  str_count inc64
-	end
-	true
-      else
+          '\n' strbuf_append_char
+          str_count inc64
+        else dup '\\' = elif
+          drop
+          '\\' strbuf_append_char
+          str_count inc64
+        else dup 't' = elif
+          drop
+          '\t' strbuf_append_char
+          str_count inc64
+        else
+          "[ERROR] Unreckognized escape sequence '\\" puts
+          putc "'\n" puts 1 exit
+        end
+        true
+      else dup '"' = elif
+        drop
+        closed true .
         false
+      else
+        strbuf_append_char
+        str_count inc64
+        true
       end
-    do end drop
-    str_count ,64 str_start ,64 cast(ptr) true
+      swap drop
+    else
+      drop false
+    end
+  do end
+  str_count ,64 str_start ,ptr closed ,bool
+end
+
+proc lexer_next_line
+    ptr // Lexer
+  in
+
+  memory lexer sizeof(ptr) end
+  lexer swap .64
+
+  lexer ,ptr Lexer.line +
+  '\n'
+  lexer ,ptr Lexer.buffer +
+  str_split_at_delimiter
+
+  // Increment row
+  lexer ,ptr Lexer.row + inc64
+end
+
+proc parse_next_word
+    ptr // Token
+    ptr // Lexer
+    --
+    bool
+  in
+  
+  memory token sizeof(ptr) end
+  memory lexer sizeof(ptr) end
+  memory inside_str sizeof(bool) end
+  memory word sizeof(Str) end
+
+  memory end_of_file sizeof(bool) end
+  end_of_file false .
+
+  lexer swap .64
+  token swap .64
+  sizeof(Str) word 0 memset
+
+//  0 while dup 5 < do
+//    "--------\n" puts
+//    lexer ,ptr Lexer.line +
+//    dup ,Str puts "||\n" puts
+//    dup str_trim_left
+//    dup ?str_empty putb
+//    ,Str puts "||\n" puts
+//    lexer ,ptr lexer_next_line
+//  end drop
+
+  // Loop over lines until there isn't only whitespace
+  // lexer
+  lexer ,ptr
+  while
+    dup Lexer.line +
+    dup str_trim_left
+    ?str_empty if
+      dup Lexer.buffer +
+      ?str_empty if
+        end_of_file true .
+        false
+      else
+        true
+      end
+    else
+      false
+    end
+  do dup lexer_next_line end
+
+  //"Line: '" puts dup Lexer.line + ,Str puts "'\n" puts
+  drop // Lexer
+
+  end_of_file ,bool lnot if
+    lexer ,ptr Lexer.line +
+    ,Str.data , '"' = if
+      lexer ,ptr Lexer.line + parse_string false = if
+        "[ERROR] Unclosed string literal\n" puts
+        1 exit
+      end
+      //"Parsing string '" puts
+      //2dup puts "'\n" puts
+      append_str  token ,ptr Token.value + swap .64
+      OP_PUSH_STR token ,ptr Token.type + swap .64
+    else
+      // TODO: extend this to include parsing
+      word ' ' lexer ,ptr Lexer.line +
+      str_split_at_delimiter
+      //"Word: '" puts word ,Str puts "'\n" puts
+
+      word ,Str "+" streq if
+        OP_PLUS 0
+      else word ,Str "-" streq        elif OP_SUB 0
+      else word ,Str "dump" streq     elif OP_DUMP 0
+      else word ,Str "=" streq        elif OP_EQU 0
+      else word ,Str ">" streq        elif OP_GT 0
+      else word ,Str "<" streq        elif OP_LT 0
+      else word ,Str "dup" streq      elif OP_DUP 0
+      else word ,Str "2dup" streq     elif OP_2DUP 0
+      else word ,Str "drop" streq     elif OP_DROP 0
+      else word ,Str "syscall3" streq elif OP_SYSCALL3 0
+      else word ,Str "if" streq elif
+        ?array_empty lnot if
+          array_top inc64
+        end KEY_IF 0
+      else word ,Str "elif" streq     elif KEY_ELIF 0
+      else word ,Str "else" streq     elif KEY_ELSE 0
+      else word ,Str "end" streq      elif
+        array_top dec64
+        array_top ,64 0 =
+        if
+          array_pop drop
+          KEY_END_WHILE 0
+        else
+          KEY_END_IF 0
+        end
+      else word ,Str "while" streq elif
+        KEY_WHILE 0
+        1 cast(ptr) array_push
+      else word ,Str "do" streq       elif KEY_DO 0
+      else word ,Str "include" streq  elif KEY_INCLUDE 0
+      else
+        word str_to_int
+        false = if
+          drop
+          "[ERROR] Unable to parse word '" puts word ,Str puts "'\n" puts
+          1 exit
+          0 0
+        else
+          OP_PUSH_INT swap
+        end
+      end
+      token ,ptr Token.value + swap .64
+      token ,ptr Token.type + swap .64
+    end
+    true
+  else
+    false
   end
 end
 
-proc parse_word in
-  lex_buf cstr_to_str
-  2dup "+" streq if
-    OP_PLUS 0 push_op
-  else 2dup "-" streq elif
-    OP_SUB 0 push_op
-  else 2dup "dump" streq elif
-    OP_DUMP 0 push_op
-  else 2dup "=" streq elif
-    OP_EQU 0 push_op
-  else 2dup ">" streq elif
-    OP_GT 0 push_op
-  else 2dup "<" streq elif
-    OP_LT 0 push_op
-  else 2dup "dup" streq elif
-    OP_DUP 0 push_op
-  else 2dup "2dup" streq elif
-    OP_2DUP 0 push_op
-  else 2dup "drop" streq elif
-    OP_DROP 0 push_op
-  else 2dup "syscall3" streq elif
-    OP_SYSCALL3 0 push_op
-  else 2dup "if" streq elif
-    KEY_IF 0 push_op
-    ?array_empty lnot if array_top inc64 end
-  else 2dup "elif" streq elif
-    KEY_ELIF 0 push_op
-  else 2dup "else" streq elif
-    KEY_ELSE 0 push_op
-  else 2dup "end" streq elif
-    array_top dec64
-    array_top ,64 0 =
-    if
-      array_pop drop
-      KEY_END_WHILE 0 push_op
-    else
-      KEY_END_IF 0 push_op
+proc mmap_file
+    ptr // Filename
+    --
+    int // Size
+    ptr // Buffer
+  in
+
+  memory fn sizeof(ptr) end
+  fn swap .64
+  
+  memory fd sizeof(uint8) end
+  memory stat sizeof(fstat) end
+
+  O_RDONLY_USER fn ,ptr f_open
+
+  // Save file descriptor
+  fd swap .64
+
+  // Check for errors (-4095 < fd < -1)
+  fd ,64 ?ferr
+  if
+    "[ERROR] Failed to open file: '" puts fn ,ptr cputs "'\n" puts
+    1 exit
+  end
+
+  // Get fstat and check status
+  stat fd ,64 5 syscall2
+  0 < if
+    "[ERROR] Failed to open file: '" puts fn ,ptr cputs "'\n" puts
+    1 exit
+  end
+
+  // Memory map file
+  0 fd ,64 MAP_PRIVATE PROT_READ stat st_size ,64 0 9 syscall6 cast(ptr)
+  dup MAP_FAILED = if
+    "[ERROR] Failed to memory map file: '" puts fn ,ptr cputs "'\n" puts
+    1 exit
+  end
+
+  is_verbose if
+    "File path: '" puts fn ,ptr cputs "'\n" puts
+    "File descriptor: " puts fd ,64 dump
+    "File size: " puts stat st_size ,64 dump
+    "\n" puts
+  end
+  stat st_size ,64 swap
+end
+
+proc parse_file
+    ptr // Cstr filename
+  in
+
+  memory file_path sizeof(ptr) end
+  file_path swap .64
+
+  memory lexer sizeof(Lexer) end
+  sizeof(Lexer) lexer 0 memset
+  lexer Lexer.buffer    + file_path ,ptr mmap_file   .Str
+  lexer Lexer.file_path + file_path ,ptr cstr_to_str .Str
+
+  lexer lexer_next_line
+  memory token sizeof(Token) end
+  while token lexer parse_next_word do
+    is_verbose if
+      "Type: " puts token ,Token.type dump
+      "Value: " puts token ,Token.value dump
+      "\n" puts
     end
-  else 2dup "while" streq elif
-    KEY_WHILE 0 push_op
-    1 array_push
-  else 2dup "do" streq elif
-    KEY_DO 0 push_op
-  else
-    lex_buf cstr_to_int
-    false = if
-      drop
-      lex_buf parse_string false = if
-        "[ERROR] Unable to parse word '" puts lex_buf cputs "'\n" puts
+
+    token ,Token.type KEY_INCLUDE = if
+      include_count , INCLUDE_CAP >= if
+        "[ERROR] Include limit reached\n" puts 1 exit
+      end
+      include_count inc
+      
+      memory file_token sizeof(Token) end
+      
+      file_token lexer parse_next_word false = if
+        "[ERROR] No filename specified after include keyword\n" puts
         1 exit
       end
-      append_str
-      OP_PUSH_STR swap push_op
-    else
-      OP_PUSH_INT swap push_op
-    end
-  end drop drop
-end
-
-proc parse_file in
-  // buf_size i c bool
-  stat st_size ,64 0 while 2dup > do
-    dup input_buf ,64 cast(ptr) + ,
-    dup '"' = if
-      lex_inside_str lflip
-    end
-    dup ?wspace
-    lex_inside_str ,bool lnot
-    land
-    if
-      drop // Drop the character
-
-      // Check if the buffer is not empty
-      lex_i , 0 != if
-        // Print the contents of the buffer
-        //lex_buf cputs '\n' putc
-        parse_word
-  
-        // Reset stuff
-        lex_i 0 .
-        sizeof(word) lex_buf 0 memset
+      file_token ,Token.type OP_PUSH_STR != if
+        "[ERROR] Filename after include keyword is the wrong type!\n" puts
+        "[NOTE] Expected a string but found " puts
+        file_token ,Token.type dump
+        1 exit
       end
+
+      memory include_file_path 64 end
+      token ,Token.value sizeof(Str) * strings + ,Str
+      include_file_path memcpy
+
+      is_verbose if
+        "Including file: '" puts
+        include_file_path cputs
+        "'\n" puts
+      end
+      include_file_path parse_file
+
     else
-      // Append character
-      lex_buf lex_i , + swap .
-      // Increment index
-      lex_i inc
+      token ,Token.type
+      token ,Token.value
+      push_op
     end
-    1 +
-  end drop drop
+  end
 end
 
+// If there are no arguments supplied show help message
 argc 1 = if
   print_help 0 exit
 end
@@ -643,12 +806,9 @@ end
 // Default out
 out_fn "a.out"c .64
 
-// Copy the second argument to a buffer (the filename to compile)
-//sizeof(input_fn) 1 nth_argv input_fn memcpy
-
 // Loop over args and do stuff
 2 while dup argc < do
-  "Parsing arg: '" puts dup nth_argv cputs "'\n" puts
+  //"Parsing arg: '" puts dup nth_argv cputs "'\n" puts
   dup nth_argv "-v"c cstreq if
     argbits argbits , 1 bor .
   else dup nth_argv "-o"c cstreq elif
@@ -657,54 +817,16 @@ out_fn "a.out"c .64
       "[ERROR] No filename supplied after '-o'\n" puts 1 exit
     end
     dup nth_argv out_fn swap .64
+  else
+    "[ERROR] Unreckognized argument '" puts
+    dup nth_argv cputs
+    "'\n" puts
+    1 exit
   end
   1 +
 end drop
 
-// Open 1st arg which is file name
-O_RDONLY_USER 1 nth_argv f_open
-
-// Save file descriptor
-input_fd swap .64
-
-// Check for errors (-4095 < fd < -1)
-input_fd ,64 ?ferr
-if
-  "[ERROR] failed to open input file: '" puts
-  1 nth_argv cputs "'\n" puts
-  -1 exit
-end
-
-// Get fstat and check status
-stat input_fd ,64 5 syscall2
-0 < if
-  "Failed to open file\n" puts
-  -1 exit
-end
-
-
-// TODO:
-// - Make a 'stack' for blocks?
-// - Arg stuff
-// - Use nasm
-
-is_verbose if
-  "\nCompiling file: '" puts 1 nth_argv cputs "'\n" puts
-  "File descriptor: " puts input_fd ,64 dump
-  "File size: " puts stat st_size ,64 dump
-  "\n" puts
-end
-
-// Memory map file
-0 input_fd ,64 MAP_PRIVATE PROT_READ stat st_size , 0 9 syscall6
-dup MAP_FAILED = if
-  "Failed to memory map file\n" puts
-  -1 exit
-end
-
-input_buf swap .64
-
-parse_file
+1 nth_argv parse_file
 array_clean
 
 crossreference_blocks
@@ -743,7 +865,7 @@ array_clean
 "/usr/bin/ld"c array_push
 ".tmp_file.o"c array_push
 "-o"c          array_push
-out_fn ,64     array_push
+out_fn ,ptr    array_push
 
 array subp_exec_cmd true = if
   "[ERROR] Failed to execute linker\n" puts 1 exit

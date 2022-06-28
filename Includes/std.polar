@@ -10,7 +10,6 @@ macro STDIN  0 end
 macro STDOUT 1 end
 macro STDERR 2 end
 
-macro sizeof(fstat) 144 end
 macro st_dev 0 +        end 
 macro st_ino 8 +        end 
 macro st_mode 24 +      end 
@@ -24,6 +23,7 @@ macro st_blocks 64 +    end
 macro st_atime 72 +     end
 macro st_mtime 88 +     end
 macro st_ctime 104 +    end
+macro sizeof(fstat) 144 end
 
 macro MAP_FAILED -1 end
 macro PROT_READ   1 end
@@ -69,9 +69,12 @@ macro S_USER_RD S_IRUSR end
 macro O_RDONLY_USER S_USER_RD O_RDONLY end
 
 macro sizeof(array) 16 sizeof(ptr) * end
-
 memory array 16 sizeof(ptr) * 1 + end
 memory array_i 8 end
+
+macro sizeof(Str) 16 end
+
+memory uint_to_cstr_buf 32 end
 
 proc exit int in
   60 syscall1 drop
@@ -114,6 +117,11 @@ proc >= int int -- bool in
   rot rot = lor
 end
 
+proc <= int int -- bool in
+  2dup <
+  rot rot = lor
+end
+
 proc ,ptr
     ptr
     --
@@ -123,6 +131,15 @@ proc ,ptr
   ,64 cast(ptr)
 end
 
+proc ,,ptr
+    ptr
+    --
+    ptr
+  in
+
+  ,64 cast(ptr) ,64 cast(ptr)
+end
+
 proc ,bool
     ptr
     --
@@ -130,6 +147,57 @@ proc ,bool
   in
 
   , cast(bool)
+end
+
+proc ?str_empty
+    ptr
+    --
+    bool
+  in
+
+  8 + ,64 0 =
+end
+
+proc ,Str
+    ptr
+    --
+    int
+    ptr
+  in
+
+  dup 8 + ,64
+  swap ,ptr
+end
+
+proc .Str
+    ptr // Dst
+    int // Count
+    ptr // ptr
+  in
+
+  memory dst sizeof(ptr) end
+  rot dst swap .64
+
+  dst ,ptr swap .64
+  dst ,ptr 8 + swap .64
+end
+
+proc ,Str.data
+    ptr // Str
+    --
+    ptr // Str.data
+  in
+
+  ,ptr
+end
+
+proc ,Str.count
+    ptr // Str
+    --
+    int // Str.count
+  in
+
+  8 + ,64
 end
 
 // n (n<-1) (n>-4095)
@@ -193,7 +261,7 @@ proc f_close
 end
 
 proc puts int ptr -- in
-  STDOUT write drop
+  1 write drop
 end
 
 proc putc int -- in
@@ -204,9 +272,9 @@ end
 
 proc putb bool -- in
   0 = if
-    "false"
+    "false\n"
   else
-    "true"
+    "true\n"
   end puts
 end
 
@@ -253,6 +321,52 @@ proc cstreq
 
   // If they both are zero they are the same
   , 0 = swap , 0 = land
+end
+
+proc pstreq
+    ptr // Str2
+    ptr // Str1
+    --
+    bool // Str1 == Str2
+  in
+
+  memory s1 sizeof(ptr) end
+  s1 swap .64
+  memory s2 sizeof(ptr) end
+  s2 swap .64
+
+  s1 ,ptr ,Str.count
+  s2 ,ptr ,Str.count
+  = if
+    s1 ,ptr ,Str.count 1 -
+    while
+      // If index is greater than or equal to zero
+      dup 0 > if
+        // If the characters are the same
+        // index char
+        dup  s1 ,ptr ,Str.data + ,
+        over s2 ,ptr ,Str.data + ,
+        =
+      else
+        false
+      end
+    do
+      // Decrement index
+      1 -
+    end
+    // If the last characters are equal they are the same
+    // And the index is 0
+    // bool
+    0 = if
+      s1 ,ptr ,Str.data ,
+      s2 ,ptr ,Str.data ,
+      =
+    else
+      false
+    end
+  else
+    false
+  end
 end
 
 proc streq
@@ -362,7 +476,7 @@ proc cstr_to_int
   success true .
 
   // strlen 0 digit
-  str ,64 strlen swap drop
+  str ,ptr strlen swap drop
   0 while 2dup > do
     dup str ,ptr + ,
 
@@ -439,10 +553,10 @@ end
 proc nth_argv
     int // n
     --
-    int
+    ptr
   in
 
-  8 * argv + ,64
+  8 * argv + ,ptr
 end
 
 proc uint_to_cstr
@@ -451,22 +565,21 @@ proc uint_to_cstr
     ptr
   in
 
-  memory buf 32 end
   memory index 1 end
 
-  32 buf 0 memset
+  32 uint_to_cstr_buf 0 memset
   index 30 . // size-2
 
   // div (buf+*i) char
   while
     10 /% '0' +
-    buf index , + swap .
+    uint_to_cstr_buf index , + swap .
     dup 0 !=
   do
     index dec
   end drop
 
-  buf index , +
+  uint_to_cstr_buf index , +
 end
 
 // ptr -> argv[0] -> '/' // Filename
@@ -694,6 +807,195 @@ proc cstr_starts_with
 end
 
 proc lflip ptr in
-  dup , lnot .
+  dup ,bool lnot .
+end
+
+proc cstr_trim_left
+    ptr // Cstr
+    --
+    ptr // Cstr
+  in
+
+  // ptr c bool
+  while
+    dup ,
+    dup ' ' =
+    swap '\n' =
+    lor if
+      true
+    else
+      false
+    end
+  do 1 + end
+end
+
+proc cstr_cut_to_delimiter
+    ptr // Cstr
+    int // Delimiter
+    ptr // The cut
+  in
+
+  memory buf sizeof(ptr) end
+  buf swap .64
+
+  while
+   over ,
+   2dup = if
+     drop false
+   else
+     buf ,ptr swap .
+     buf inc64
+     true
+   end
+  do
+    swap 1 + swap
+  end drop drop
+end
+
+proc str_split_at_delimiter
+    ptr // The cut
+    int // Delimiter
+    ptr // Str
+  in
+
+  memory out sizeof(ptr) end
+  memory empty sizeof(bool) end
+  empty false .
+  
+  rot out swap .64 // Set out buffer
+  out ,ptr 8 + 0 .64 // Set out.counter to 0
+
+  swap
+
+  over ,Str.data out ,ptr swap .64 // Set out.data to in.data
+  while
+    // (data|count) del bool
+    over ,Str.count 0 = if
+      empty true .
+      false
+    else
+      over ,Str.data , // *in.data
+      over =
+      if
+        false
+      else
+        out ,ptr 8 + inc64 // Increment out.counter
+        over dup inc64 // Increment in.ptr
+        8 + dec64 // Decrement in.count
+        true
+      end
+    end
+  do end drop // Delimiter
+  empty ,bool lnot if
+    // Remove first character
+    dup inc64 // Increment in.ptr
+    8 + dec64 // Decrement in.count
+  else
+    drop
+  end
+end
+
+proc str_chop_left
+    ptr // Str
+    --
+    int // Char
+  in
+
+  // char ptr
+  dup ,Str.data ,
+  swap dup inc64
+  8 + dec64
+end
+
+proc str_chop_right
+    ptr // Str
+    --
+    int // Char
+  in
+
+  // ptr char
+  dup ,Str.count 1 -
+  over ,Str.data + ,
+  swap 8 + dec64
+end
+
+proc str_trim_left
+    ptr // Str
+  in
+
+  memory s sizeof(ptr) end
+  s swap .64
+
+  // (data|count)
+  while
+    s ,ptr ,Str.count 0 != if
+      s ,ptr ,Str.data ,
+      dup ' ' =
+      swap '\n' =
+      lor if
+        true
+      else
+        false
+      end
+    else
+      false
+    end
+  do s ,ptr str_chop_left drop end
+end
+
+proc str_to_int
+     ptr // Str
+     --
+     int // int(str)
+     bool // success
+  in
+
+  memory str sizeof(ptr) end
+  memory out 8 end
+  memory success sizeof(bool) end
+
+  str swap .64
+  out 0 .64
+  success true .
+
+  // strlen 0 digit
+  str ,ptr ,Str.count
+  0 while 2dup > do
+    dup str ,ptr ,Str.data + ,
+
+    dup '0' <
+    over '9' >
+    lor if
+      // Basically break
+      // Since index == strlen
+      drop drop dup
+      success false .
+    else
+      '0' -
+      out ,64 10 * + out swap .64
+      1 +
+    end
+  end drop drop
+  
+  out ,64
+  success ,bool
+end
+
+proc str_leftmost_char
+    ptr // Str
+    --
+    int // Char
+  in
+
+  ,Str.data ,
+end
+
+proc str_rightmost_char
+    ptr // Str
+    --
+    int // Char
+  in
+
+  ,Str swap 1 - + ,
 end
 
