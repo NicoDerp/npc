@@ -82,10 +82,10 @@ class MacroCall(Classified, Position):
 		self.name = tok.token
 
 class ProcCall(Classified, Position):
-	def __init__(self, macro, procs):
+	def __init__(self, macro, index):
 		Classified.__init__(self, "PROC_CALL")
 		Position.__init__(self, macro.tok)
-		self.index = procs[macro.name]['index']
+		self.index = index
 		self.name = macro.name
 
 class Memory(Classified, Position):
@@ -756,10 +756,10 @@ def parse_stuff(words):
 						proc_words.append(Const('LOC_MEMORY_OFFSET', mem.offset, word))
 					elif w.name in procs.keys():
 						procs[w.name]['used'] = True
-						proc_words.append(ProcCall(w, procs))
+						proc_words.append(ProcCall(w, procs[w.name]['index']))
 					elif w.name not in procs.keys() and w.name == name.name:
 						used = True
-						proc_words.append(w)
+						proc_words.append(ProcCall(w, len(procs)))
 					else:
 						did_you_mean(w, procs, memories, loc_mems)
 				else:
@@ -772,7 +772,7 @@ def parse_stuff(words):
 				words_return.append(Const('MEMORY_OFFSET', mem.offset, word))
 			elif word.name in procs.keys():
 				procs[word.name]['used'] = True
-				words_return.append(ProcCall(word, procs))
+				words_return.append(ProcCall(word, procs[word.name]['index']))
 			else:
 				did_you_mean(word, procs, memories)
 		elif word.type == 'KEYWORD' and word.op == 'MEMORY':

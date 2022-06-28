@@ -752,6 +752,7 @@ proc parse_file
 
     token ,Token.type KEY_INCLUDE = if
       memory file_token sizeof(Token) end
+      
       file_token lexer parse_next_word false = if
         "[ERROR] No filename specified after include keyword\n" puts
         1 exit
@@ -762,10 +763,14 @@ proc parse_file
         file_token ,Token.type dump
         1 exit
       end
-      
+
+      memory include_file_path 64 end
+      token ,Token.value sizeof(Str) * strings + ,Str
+      include_file_path memcpy
       "Including file: '" puts
-      // index
-      token ,Token.value
+      include_file_path cputs
+      "'\n" puts
+      include_file_path parse_file
 
     else
       token ,Token.type
