@@ -6,7 +6,7 @@ macro width 500 end
 memory nums width end
 memory chars width end
 
-macro rule110
+proc rule110 in
   // Write '\n' to mem 200
   chars width + '\n' .
   
@@ -26,7 +26,7 @@ macro rule110
     // Write all characters to stdout, the last is '\n'
     // count   ptr
     width 1 + chars
-    1 1 syscall3
+    1 1 syscall3 drop
 
     // (*mem << 1) | (*(mem + 1))
     // pattern
