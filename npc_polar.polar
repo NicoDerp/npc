@@ -26,6 +26,7 @@ macro UNKNOWN       22 end
 
 memory out_fn sizeof(ptr) end
 memory out_fd 8 end
+memory run_fn_buf 64 end
 
 // 0     16     32         48    56
 //    16     16     16         8
@@ -115,12 +116,9 @@ proc append_str
   strings_i inc64
 end
 
-// [ - - - - - - - v ]
-memory argbits 1 end
-
-proc is_verbose -- bool in
-  argbits , 1 band cast(bool)
-end
+memory verbose 1 end
+memory run_after_compile 1 end
+memory dont_assemble 1 end
 
 proc ?inside_while -- bool in
   inside_while ,bool
@@ -180,7 +178,7 @@ proc compile_ops in
 
     dup , OP_PUSH_INT = if
       "\n;; -- OP_PUSH_INT -- ;;\n"	   out_fd ,64 f_write
-      "    push    "			   out_fd ,64 f_write
+      "    push    "			       out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
       "\n"				   out_fd ,64 f_write
     
@@ -339,6 +337,10 @@ proc compile_ops in
 end
 
 proc compile_program in
+  verbose ,bool if
+    "Compiling\n" puts
+  end
+  
   "section .text\n"			   out_fd ,64 f_write
   "global _start\n"			   out_fd ,64 f_write
   "BITS 64\n"				   out_fd ,64 f_write
@@ -379,7 +381,7 @@ proc compile_program in
   
   compile_ops
   
-  "    xor     rdi, rdi\n"                 out_fd ,64 f_write
+  "\n    xor     rdi, rdi\n"               out_fd ,64 f_write
   "    mov     rax, 60\n"                  out_fd ,64 f_write
   "    syscall\n"                          out_fd ,64 f_write
   
@@ -416,6 +418,10 @@ end
 
 // op-i
 proc crossreference_blocks in
+  verbose ,bool if
+    "Crossreferencing\n" puts
+  end
+  
   0 while dup op_count ,64 < do
     dup sizeof(Op) * op_start +
     dup , KEY_IF = if
@@ -665,7 +671,7 @@ proc parse_next_word
         word str_to_int
         false = if
           drop
-          //"[ERROR] Unable to parse word '" puts word ,Str puts "'\n" puts
+          "[ERROR] Unable to parse word '" puts word ,Str puts "'\n" puts
           //1 exit
           UNKNOWN word ,Str
         else
@@ -673,9 +679,19 @@ proc parse_next_word
           OP_PUSH_INT swap NULL
         end
       end
-      // type token.value value ptr
-      token ,ptr Token.value + rot rot .Str
-      token ,ptr Token.type + swap .64
+
+      // type value ptr
+      2dup
+      "Ptr: " puts dump
+      "Value: " puts dump
+      rot
+      "Type: " puts dup dump "\n" puts
+      rot rot
+
+      // type value
+      token ,ptr Token.value + 8 + swap .64
+      token ,ptr Token.value +     swap .64
+      token ,ptr Token.type  +     swap .64
     end
     true
   else
@@ -722,7 +738,7 @@ proc mmap_file
     1 exit
   end
 
-  is_verbose if
+  verbose ,bool if
     "File path: '" puts fn ,ptr cputs "'\n" puts
     "File descriptor: " puts fd ,64 dump
     "File size: " puts stat st_size ,64 dump
@@ -746,7 +762,7 @@ proc parse_file
   lexer lexer_next_line
   memory token sizeof(Token) end
   while token lexer parse_next_word do
-    is_verbose if
+    verbose ,bool if
       "Type: " puts token ,Token.type dump
       "Value: " puts token ,Token.value dump
       "\n" puts
@@ -775,7 +791,7 @@ proc parse_file
       token ,Token.value sizeof(Str) * strings + ,Str
       include_file_path memcpy
 
-      is_verbose if
+      verbose ,bool if
         "Including file: '" puts
         include_file_path cputs
         "'\n" puts
@@ -831,7 +847,7 @@ proc parse_file
         1 exit
       end
       
-      is_verbose if
+      verbose ,bool if
         "Parsed memory:\n" puts
         "Name: " puts name_token Token.value + ,Str puts "\n" puts
         "Value: " puts value_token ,Token.value dump
@@ -861,63 +877,106 @@ out_fn "a.out"c .64
 2 while dup argc < do
   //"Parsing arg: '" puts dup nth_argv cputs "'\n" puts
   dup nth_argv "-v"c cstreq if
-    argbits argbits , 1 bor .
+    verbose true .
+
+  else dup nth_argv "-r"c cstreq elif
+    run_after_compile true .
+
+  else dup nth_argv "-S"c cstreq elif
+    dont_assemble true .
+
   else dup nth_argv "-o"c cstreq elif
     1 +
     dup argc = if
       "[ERROR] No filename supplied after '-o'\n" puts 1 exit
     end
     dup nth_argv out_fn swap .64
+
   else
     "[ERROR] Unreckognized argument '" puts
     dup nth_argv cputs
     "'\n" puts
     1 exit
+
   end
   1 +
 end drop
 
+// Check for '-r' and '-S'
+run_after_compile ,bool
+dont_assemble ,bool
+land if
+  "[ERROR] '-r' and '-S' together doesn't work" puts
+end
+
+"[INFO] Outputing into '" puts
+out_fn ,ptr cputs
+"'\n" puts
+
+// Compile first argument which is input filename
 1 nth_argv parse_file
 array_clean
 
+// Crossreference
 crossreference_blocks
 array_clean
 
-is_verbose if
+// Verbose stuff
+verbose ,bool if
   "Program:\n" puts
   dump_ops "\n" puts
 end
 
-S_IRUSR S_IWUSR S_IRGRP + +
-O_WRONLY O_CREAT O_TRUNC bor bor
-".tmp_file.s"c f_open
-out_fd swap .64
+// Now the output file is either temporary or primary
+dont_assemble ,bool if
+  S_IRUSR S_IWUSR S_IRGRP + +
+  O_WRONLY O_CREAT O_TRUNC bor bor
+  out_fn ,ptr f_open
+  out_fd swap .64
+else
+  S_IRUSR S_IWUSR S_IRGRP + +
+  O_WRONLY O_CREAT O_TRUNC bor bor
+  ".tmp_file.s"c f_open
+  out_fd swap .64
+end
 
+// Check for file open error
 out_fd ,64 ?ferr
 if
   "[ERROR] failed to open output file\n" puts -1 exit
 end
 
+// Compile
 compile_program
 
+// Close the file
 out_fd ,64 f_close
 
+// If '-S' flag is set then we are done!
+dont_assemble ,bool if
+  0 exit
+end
+
+// Execute assembler
 "/usr/bin/nasm"c array_push
 "-felf64"c       array_push
 ".tmp_file.s"c   array_push
 "-o"c            array_push
 ".tmp_file.o"c   array_push
 
+// Check if assembler failed
 array subp_exec_cmd true = if
   "[ERROR] Failed to execute assembler\n" puts 1 exit
 end
 array_clean
 
+// Execute linker
 "/usr/bin/ld"c array_push
 ".tmp_file.o"c array_push
 "-o"c          array_push
 out_fn ,ptr    array_push
 
+// Check if linker failed
 array subp_exec_cmd true = if
   "[ERROR] Failed to execute linker\n" puts 1 exit
 end
@@ -931,6 +990,20 @@ lor if
 end
 
 "[INFO] All done!\n" puts
+
+// If '-r' flag is set then run output
+run_after_compile ,bool if
+  "Running '" puts out_fn ,ptr cputs "'\n" puts
+  array_clean
+
+  "./"c out_fn ,ptr run_fn_buf cstr_conc
+
+  run_fn_buf array_push
+
+  array subp_exec_cmd true = if
+    "[ERROR] Failed to execute code!" puts
+  end
+end
 
 //"Assembly:\n\n" puts
 //compile_program

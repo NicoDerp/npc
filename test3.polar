@@ -1,8 +1,9 @@
 
+83 dump
 
-"Bip bop\n" 1 1 syscall3
+"11" 1 1 syscall3 drop
 
-memory buf 64 end
+"Bip bop\n" 1 1 syscall3 drop
 
 1 dump
 

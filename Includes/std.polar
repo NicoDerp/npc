@@ -532,6 +532,47 @@ proc str_conc
   buf ,ptr + memcpy
 end
 
+proc cstr_conc
+    ptr // Cstr1
+    ptr // Cstr2
+    ptr // Buffer
+  in
+
+  memory buf sizeof(ptr) end
+  memory index 1 end
+
+  // TODO also check for end of buffer so no overflow
+
+  buf swap .64
+
+  // len(1) 1 buf+l
+  // size source dest
+  swap cstr_to_str
+  over index swap .
+  buf ,ptr memcpy
+
+  cstr_to_str
+  buf ,ptr index , + memcpy
+
+  //swap
+  //0 while
+  //  over 2dup + ,
+  //  dup != 0
+  //  if
+  //    buf ,ptr
+  //    index , +
+  //    swap .
+  //    true
+  //  else
+  //    drop
+  //    false
+  //  end
+  //do
+  //  1 +
+  //  index inc
+  //end
+end
+
 proc cputs
     ptr // Cstr
   in
