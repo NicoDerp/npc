@@ -155,7 +155,7 @@ proc ?str_empty
     bool
   in
 
-  8 + ,64 0 =
+  ,64 0 =
 end
 
 proc ,Str
@@ -165,11 +165,12 @@ proc ,Str
     ptr
   in
 
-  dup 8 + ,64
-  swap ,ptr
+  // str.count ptr
+
+  dup ,64
+  swap 8 + ,ptr
 end
 
-// dst ptr count
 proc .Str
     ptr // Dst
     int // Count
@@ -178,6 +179,8 @@ proc .Str
 
   memory dst sizeof(ptr) end
   rot dst swap .64
+
+  swap
 
   dst ,ptr swap .64
   dst ,ptr 8 + swap .64
@@ -189,7 +192,7 @@ proc ,Str.data
     ptr // Str.data
   in
 
-  ,ptr
+  8 + ,ptr
 end
 
 proc ,Str.count
@@ -198,7 +201,7 @@ proc ,Str.count
     int // Str.count
   in
 
-  8 + ,64
+  ,64
 end
 
 // n (n<-1) (n>-4095)
@@ -903,35 +906,34 @@ proc str_split_at_delimiter
   memory out sizeof(ptr) end
   memory empty sizeof(bool) end
   empty false .
-  
+
   rot out swap .64 // Set out buffer
-  out ,ptr 8 + 0 .64 // Set out.counter to 0
+  out ,ptr 0 .64 // Set out.counter to 0
 
   swap
 
-  over ,Str.data out ,ptr swap .64 // Set out.data to in.data
+  over ,Str.data out ,ptr 8 + swap .64 // Set out.data to in.data
   while
-    // (data|count) del bool
-    over ,Str.count 0 = if
+    over ?str_empty if
       empty true .
       false
     else
       over ,Str.data , // *in.data
-      over =
+      over =           // Check if *int.data == delim
       if
         false
       else
-        out ,ptr 8 + inc64 // Increment out.counter
-        over dup inc64 // Increment in.ptr
-        8 + dec64 // Decrement in.count
+        out ,ptr inc64 // Increment out.counter
+        over dup 8 + inc64 // Increment in.ptr
+        dec64 // Decrement in.count
         true
       end
     end
   do end drop // Delimiter
   empty ,bool lnot if
     // Remove first character
-    dup inc64 // Increment in.ptr
-    8 + dec64 // Decrement in.count
+    dup dec64 // Decrement in.count
+    8 + inc64 // Increment in.ptr
   else
     drop
   end
@@ -943,10 +945,11 @@ proc str_chop_left
     int // Char
   in
 
-  // char ptr
+  // char str
   dup ,Str.data ,
-  swap dup inc64
-  8 + dec64
+  swap
+  dup dec64
+  8 + inc64
 end
 
 proc str_chop_right
@@ -968,10 +971,11 @@ proc str_trim_left
   memory s sizeof(ptr) end
   s swap .64
 
-  // (data|count)
+  // (count|data)
   while
-    s ,ptr ,Str.count 0 != if
+    s ,ptr ?str_empty lnot if
       s ,ptr ,Str.data ,
+      
       dup ' ' =
       swap '\n' =
       lor if

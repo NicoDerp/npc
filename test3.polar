@@ -1,4 +1,6 @@
 
+memory buf 8 end
+
 83 dump
 
 "11" 1 1 syscall3 drop

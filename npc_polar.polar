@@ -588,6 +588,8 @@ proc lexer_next_line
   lexer ,ptr Lexer.buffer +
   str_split_at_delimiter
 
+  lexer ,ptr Lexer.line + ,Str puts
+
   // Increment row
   lexer ,ptr Lexer.row + inc64
 end
@@ -864,8 +866,12 @@ proc parse_file
       
       verbose ,bool if
         "Parsed memory:\n" puts
-        "Name: " puts name_token Token.value + ,Str puts "\n" puts
-        "Value: " puts value_token ,Token.value dump
+        "Name: '" puts name_token Token.value +
+        dup ,64
+        over 8 + ,ptr puts
+        drop
+        "'\n" puts
+        "Value: " puts value_token ,Token.value dump     "\n" puts
       end
     else
       token ,Token.type
