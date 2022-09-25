@@ -98,6 +98,13 @@ proc strbuf_append_char
   strbuf_i inc64
 end
 
+proc strbuf_get_string
+    int // Index
+  in
+
+  drop
+end
+
 proc strbuf_end -- ptr in
   strbuf_start strbuf_i ,64 +
 end
@@ -125,13 +132,13 @@ proc ?inside_while -- bool in
 end
 
 proc print_help in
-  "Usage: npc <file> [options]\n\n"					puts
-  "Options:\n"								puts
-  "  -o <file>    Place the output into file\n"				puts
-  "  -S           Do not assemble, output is assembly code\n"		puts
-  "  -r           Run the program after a succesful compilation\n"	puts
-  "  --unsafe     Disable type-checking\n"				puts
-  "  --help       Display this information and exit\n"			puts
+  "Usage: npc <file> [options]\n\n"         puts
+  "Options:\n"                puts
+  "  -o <file>    Place the output into file\n"       puts
+  "  -S           Do not assemble, output is assembly code\n"   puts
+  "  -r           Run the program after a succesful compilation\n"  puts
+  "  --unsafe     Disable type-checking\n"        puts
+  "  --help       Display this information and exit\n"      puts
 end
 
 // [                                                 ]
@@ -177,88 +184,95 @@ proc compile_ops in
     dup sizeof(Op) * op_start +
 
     dup , OP_PUSH_INT = if
-      "\n;; -- OP_PUSH_INT -- ;;\n"	   out_fd ,64 f_write
-      "    push    "			       out_fd ,64 f_write
-      dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      "\n"				   out_fd ,64 f_write
+      "\n;; -- OP_PUSH_INT -- ;;\n"    out_fd ,64 f_write
+      "    push    "                   out_fd ,64 f_write
+      dup 8 + ,64
+              uint_to_cstr cstr_to_str out_fd ,64 f_write
+      "\n"                             out_fd ,64 f_write
     
     else dup , OP_PUSH_STR = elif
-      "\n;; -- OP_PUSH_STR -- ;;\n"	   out_fd ,64 f_write
-      "    mov     rax, "		   out_fd ,64 f_write
-      dup 8 + ,64 sizeof(Str) * strings + 8 + ,64
-      uint_to_cstr cstr_to_str             out_fd ,64 f_write 
-      "\n    push    rax\n"		   out_fd ,64 f_write
-      "    push    str_"		   out_fd ,64 f_write
-      dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write  
-      "\n"                                 out_fd ,64 f_write 
+      //dup 8 + ,64 sizeof(Str) * strings + 8 + ,64
+
+      "\n;; -- OP_PUSH_STR -- ;;\n"    out_fd ,64 f_write
+      "    mov     rax, "              out_fd ,64 f_write
+      dup 8 + ,64
+      sizeof(Str) *
+      strings +
+      8 + ,64
+          uint_to_cstr cstr_to_str     out_fd ,64 f_write 
+      "\n    push    rax\n"            out_fd ,64 f_write
+      "    push    str_"               out_fd ,64 f_write
+      dup 8 + ,64
+              uint_to_cstr cstr_to_str out_fd ,64 f_write  
+      "\n"                             out_fd ,64 f_write 
 
     else dup , OP_PLUS = elif
-      "\n;; -- OP_PLUS -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rcx\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    add     rax, rcx\n"		   out_fd ,64 f_write
-      "    push    rax\n"		   out_fd ,64 f_write
+      "\n;; -- OP_PLUS -- ;;\n"      out_fd ,64 f_write
+      "    pop     rcx\n"      out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    add     rax, rcx\n"       out_fd ,64 f_write
+      "    push    rax\n"      out_fd ,64 f_write
     
     else dup , OP_SUB = elif
-      "\n;; -- OP_SUB -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    pop     rcx\n"		   out_fd ,64 f_write
-      "    sub     rcx, rax\n"		   out_fd ,64 f_write
-      "    push    rcx\n"		   out_fd ,64 f_write
+      "\n;; -- OP_SUB -- ;;\n"       out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    pop     rcx\n"      out_fd ,64 f_write
+      "    sub     rcx, rax\n"       out_fd ,64 f_write
+      "    push    rcx\n"      out_fd ,64 f_write
     
     else dup , OP_DUMP = elif
-      "\n;; -- OP_DUMP -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rdi\n"		   out_fd ,64 f_write
-      "    call    dump\n"		   out_fd ,64 f_write
+      "\n;; -- OP_DUMP -- ;;\n"      out_fd ,64 f_write
+      "    pop     rdi\n"      out_fd ,64 f_write
+      "    call    dump\n"       out_fd ,64 f_write
     
     else dup , OP_EQU = elif
-      "\n;; -- OP_EQU -- ;;\n"		   out_fd ,64 f_write
-      "    xor     rdx, rdx\n"		   out_fd ,64 f_write
-      "    mov     rbx, 1\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    pop     rcx\n"		   out_fd ,64 f_write
-      "    cmp     rax, rcx\n"		   out_fd ,64 f_write
-      "    cmove   rdx, rbx\n"		   out_fd ,64 f_write
-      "    push    rdx\n"		   out_fd ,64 f_write
+      "\n;; -- OP_EQU -- ;;\n"       out_fd ,64 f_write
+      "    xor     rdx, rdx\n"       out_fd ,64 f_write
+      "    mov     rbx, 1\n"       out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    pop     rcx\n"      out_fd ,64 f_write
+      "    cmp     rax, rcx\n"       out_fd ,64 f_write
+      "    cmove   rdx, rbx\n"       out_fd ,64 f_write
+      "    push    rdx\n"      out_fd ,64 f_write
 
     else dup , OP_GT = elif
-      "\n;; -- OP_GT -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    pop     rcx\n"		   out_fd ,64 f_write
-      "    xor     rdx, rdx\n"		   out_fd ,64 f_write
-      "    mov     rbx, 1\n"		   out_fd ,64 f_write
-      "    cmp     rcx, rax\n"		   out_fd ,64 f_write
-      "    cmovg   rdx, rbx\n"		   out_fd ,64 f_write
-      "    push    rdx\n"		   out_fd ,64 f_write
+      "\n;; -- OP_GT -- ;;\n"      out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    pop     rcx\n"      out_fd ,64 f_write
+      "    xor     rdx, rdx\n"       out_fd ,64 f_write
+      "    mov     rbx, 1\n"       out_fd ,64 f_write
+      "    cmp     rcx, rax\n"       out_fd ,64 f_write
+      "    cmovg   rdx, rbx\n"       out_fd ,64 f_write
+      "    push    rdx\n"      out_fd ,64 f_write
 
     else dup , OP_LT = elif
-      "\n;; -- OP_LT -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    pop     rcx\n"		   out_fd ,64 f_write
-      "    xor     rdx, rdx\n"		   out_fd ,64 f_write
-      "    mov     rbx, 1\n"		   out_fd ,64 f_write
-      "    cmp     rcx, rax\n"		   out_fd ,64 f_write
-      "    cmovl   rdx, rbx\n"		   out_fd ,64 f_write
-      "    push    rdx\n"		   out_fd ,64 f_write
+      "\n;; -- OP_LT -- ;;\n"      out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    pop     rcx\n"      out_fd ,64 f_write
+      "    xor     rdx, rdx\n"       out_fd ,64 f_write
+      "    mov     rbx, 1\n"       out_fd ,64 f_write
+      "    cmp     rcx, rax\n"       out_fd ,64 f_write
+      "    cmovl   rdx, rbx\n"       out_fd ,64 f_write
+      "    push    rdx\n"      out_fd ,64 f_write
 
     else dup , OP_DUP = elif
-      "\n;; -- OP_DUP -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    push    rax\n"		   out_fd ,64 f_write
-      "    push    rax\n"		   out_fd ,64 f_write
+      "\n;; -- OP_DUP -- ;;\n"       out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    push    rax\n"      out_fd ,64 f_write
+      "    push    rax\n"      out_fd ,64 f_write
 
     else dup , OP_2DUP = elif
-      "\n;; -- 2DUP -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    pop     rcx\n"		   out_fd ,64 f_write
-      "    push    rcx\n"		   out_fd ,64 f_write
-      "    push    rax\n"		   out_fd ,64 f_write
-      "    push    rcx\n"		   out_fd ,64 f_write
-      "    push    rax\n"		   out_fd ,64 f_write
+      "\n;; -- 2DUP -- ;;\n"       out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    pop     rcx\n"      out_fd ,64 f_write
+      "    push    rcx\n"      out_fd ,64 f_write
+      "    push    rax\n"      out_fd ,64 f_write
+      "    push    rcx\n"      out_fd ,64 f_write
+      "    push    rax\n"      out_fd ,64 f_write
 
     else dup , OP_DROP = elif
-      "\n;; -- DROP -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rax\n"    		   out_fd ,64 f_write
+      "\n;; -- DROP -- ;;\n"       out_fd ,64 f_write
+      "    pop     rax\n"          out_fd ,64 f_write
 
     else dup , OP_SYSCALL3 = elif
       "\n    ;; -- SYSCALL3 -- ;;\n"       out_fd ,64 f_write
@@ -270,62 +284,62 @@ proc compile_ops in
       "    push    rax\n"                  out_fd ,64 f_write
 
     else dup , KEY_IF = elif
-      "\n;; -- KEY_IF -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    test    rax, rax\n"		   out_fd ,64 f_write
-      "    jz      .L"			   out_fd ,64 f_write
+      "\n;; -- KEY_IF -- ;;\n"       out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    test    rax, rax\n"       out_fd ,64 f_write
+      "    jz      .L"         out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      "\n"				   out_fd ,64 f_write
+      "\n"           out_fd ,64 f_write
       block_i inc64
 
     else dup , KEY_ELIF = elif
       "\n;; -- KEY_ELIF -- ;;\n"           out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    test    rax, rax\n"		   out_fd ,64 f_write
-      "    jz      .L"			   out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    test    rax, rax\n"       out_fd ,64 f_write
+      "    jz      .L"         out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      "\n"				   out_fd ,64 f_write
+      "\n"           out_fd ,64 f_write
       block_i inc64
 
     else dup , KEY_ELSE = elif
-      "\n;; -- KEY_ELSE -- ;;\n"	   out_fd ,64 f_write
-      "    jmp     .L"			   out_fd ,64 f_write
+      "\n;; -- KEY_ELSE -- ;;\n"     out_fd ,64 f_write
+      "    jmp     .L"         out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      "\n.L"				   out_fd ,64 f_write
+      "\n.L"           out_fd ,64 f_write
       block_i ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      ":\n"    	  	       		   out_fd ,64 f_write
+      ":\n"                      out_fd ,64 f_write
       block_i inc64
     
     else dup , KEY_END_IF = elif
-      "\n;; -- KEY_END_IF -- ;;\n"	   out_fd ,64 f_write
-      ".L"  	     			   out_fd ,64 f_write
+      "\n;; -- KEY_END_IF -- ;;\n"     out_fd ,64 f_write
+      ".L"                 out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      ":\n"				   out_fd ,64 f_write
+      ":\n"          out_fd ,64 f_write
       block_i inc64
 
     else dup , KEY_END_WHILE = elif
-      "\n;; -- KEY_END_WHILE -- ;;\n"	   out_fd ,64 f_write
-      "    jmp     .L"	    		   out_fd ,64 f_write
+      "\n;; -- KEY_END_WHILE -- ;;\n"    out_fd ,64 f_write
+      "    jmp     .L"             out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      "\n.L"  	     			   out_fd ,64 f_write
+      "\n.L"                 out_fd ,64 f_write
       block_i ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      ":\n"				   out_fd ,64 f_write
+      ":\n"          out_fd ,64 f_write
       block_i inc64
 
     else dup , KEY_WHILE = elif
-      "\n;; -- KEY_WHILE -- ;;\n"	   out_fd ,64 f_write
-      ".L"  	     			   out_fd ,64 f_write
+      "\n;; -- KEY_WHILE -- ;;\n"    out_fd ,64 f_write
+      ".L"                 out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      ":\n"				   out_fd ,64 f_write
+      ":\n"          out_fd ,64 f_write
       block_i inc64
 
     else dup , KEY_DO = elif
-      "\n;; -- KEY_DO -- ;;\n"		   out_fd ,64 f_write
-      "    pop     rax\n"		   out_fd ,64 f_write
-      "    test    rax, rax\n"		   out_fd ,64 f_write
-      "    jz      .L"			   out_fd ,64 f_write
+      "\n;; -- KEY_DO -- ;;\n"       out_fd ,64 f_write
+      "    pop     rax\n"      out_fd ,64 f_write
+      "    test    rax, rax\n"       out_fd ,64 f_write
+      "    jz      .L"         out_fd ,64 f_write
       dup 8 + ,64 uint_to_cstr cstr_to_str out_fd ,64 f_write
-      "\n"				   out_fd ,64 f_write
+      "\n"           out_fd ,64 f_write
       block_i inc64
 
     else
@@ -341,43 +355,43 @@ proc compile_program in
     "Compiling\n" puts
   end
   
-  "section .text\n"			   out_fd ,64 f_write
-  "global _start\n"			   out_fd ,64 f_write
-  "BITS 64\n"				   out_fd ,64 f_write
-  "dump:\n"				   out_fd ,64 f_write
+  "section .text\n"        out_fd ,64 f_write
+  "global _start\n"        out_fd ,64 f_write
+  "BITS 64\n"          out_fd ,64 f_write
+  "dump:\n"          out_fd ,64 f_write
   "    mov     r9, -3689348814741910323\n" out_fd ,64 f_write
-  "    sub     rsp, 40\n"		   out_fd ,64 f_write
-  "    mov     BYTE [rsp+31], 10\n"	   out_fd ,64 f_write
-  "    lea     rcx, [rsp+30]\n"		   out_fd ,64 f_write
-  ".L1:\n"				   out_fd ,64 f_write
-  "    mov     rax, rdi\n"		   out_fd ,64 f_write
-  "    lea     r8, [rsp+32]\n"		   out_fd ,64 f_write
-  "    mul     r9\n"			   out_fd ,64 f_write
-  "    mov     rax, rdi\n"		   out_fd ,64 f_write
-  "    sub     r8, rcx\n"		   out_fd ,64 f_write
-  "    shr     rdx, 3\n"		   out_fd ,64 f_write
-  "    lea     rsi, [rdx+rdx*4]\n"	   out_fd ,64 f_write
-  "    add     rsi, rsi\n"		   out_fd ,64 f_write
-  "    sub     rax, rsi\n"		   out_fd ,64 f_write
-  "    add     eax, 48\n"		   out_fd ,64 f_write
-  "    mov     BYTE [rcx], al\n"	   out_fd ,64 f_write
-  "    mov     rax, rdi\n"		   out_fd ,64 f_write
-  "    mov     rdi, rdx\n"		   out_fd ,64 f_write
-  "    mov     rdx, rcx\n"		   out_fd ,64 f_write
-  "    sub     rcx, 1\n"		   out_fd ,64 f_write
-  "    cmp     rax, 9\n"		   out_fd ,64 f_write
-  "    ja      .L1\n"			   out_fd ,64 f_write
-  "    lea     rax, [rsp+32]\n"		   out_fd ,64 f_write
-  "    mov     edi, 1\n"		   out_fd ,64 f_write
-  "    sub     rdx, rax\n"		   out_fd ,64 f_write
-  "    xor     eax, eax\n"		   out_fd ,64 f_write
-  "    lea     rsi, [rsp+32+rdx]\n"	   out_fd ,64 f_write
-  "    mov     rdx, r8\n"		   out_fd ,64 f_write
-  "    mov     rax, 1\n"		   out_fd ,64 f_write
-  "    syscall\n"			   out_fd ,64 f_write
-  "    add     rsp, 40\n"		   out_fd ,64 f_write
-  "    ret\n"				   out_fd ,64 f_write
-  "_start:\n"				   out_fd ,64 f_write
+  "    sub     rsp, 40\n"      out_fd ,64 f_write
+  "    mov     BYTE [rsp+31], 10\n"    out_fd ,64 f_write
+  "    lea     rcx, [rsp+30]\n"      out_fd ,64 f_write
+  ".L1:\n"           out_fd ,64 f_write
+  "    mov     rax, rdi\n"       out_fd ,64 f_write
+  "    lea     r8, [rsp+32]\n"       out_fd ,64 f_write
+  "    mul     r9\n"         out_fd ,64 f_write
+  "    mov     rax, rdi\n"       out_fd ,64 f_write
+  "    sub     r8, rcx\n"      out_fd ,64 f_write
+  "    shr     rdx, 3\n"       out_fd ,64 f_write
+  "    lea     rsi, [rdx+rdx*4]\n"     out_fd ,64 f_write
+  "    add     rsi, rsi\n"       out_fd ,64 f_write
+  "    sub     rax, rsi\n"       out_fd ,64 f_write
+  "    add     eax, 48\n"      out_fd ,64 f_write
+  "    mov     BYTE [rcx], al\n"     out_fd ,64 f_write
+  "    mov     rax, rdi\n"       out_fd ,64 f_write
+  "    mov     rdi, rdx\n"       out_fd ,64 f_write
+  "    mov     rdx, rcx\n"       out_fd ,64 f_write
+  "    sub     rcx, 1\n"       out_fd ,64 f_write
+  "    cmp     rax, 9\n"       out_fd ,64 f_write
+  "    ja      .L1\n"        out_fd ,64 f_write
+  "    lea     rax, [rsp+32]\n"      out_fd ,64 f_write
+  "    mov     edi, 1\n"       out_fd ,64 f_write
+  "    sub     rdx, rax\n"       out_fd ,64 f_write
+  "    xor     eax, eax\n"       out_fd ,64 f_write
+  "    lea     rsi, [rsp+32+rdx]\n"    out_fd ,64 f_write
+  "    mov     rdx, r8\n"      out_fd ,64 f_write
+  "    mov     rax, 1\n"       out_fd ,64 f_write
+  "    syscall\n"        out_fd ,64 f_write
+  "    add     rsp, 40\n"      out_fd ,64 f_write
+  "    ret\n"          out_fd ,64 f_write
+  "_start:\n"          out_fd ,64 f_write
   
   compile_ops
   
@@ -470,14 +484,14 @@ proc crossreference_blocks in
       0 while
         array_pop cast(ptr)
         dup ,64 KEY_ELSE = if
-	  block_i ,64
-	  over 8 +
-	  over .64
-	  drop drop
-	  true
-	else
-	  drop false
-	end
+    block_i ,64
+    over 8 +
+    over .64
+    drop drop
+    true
+  else
+    drop false
+  end
       do
         1 +
       end drop
@@ -625,10 +639,11 @@ proc parse_next_word
         "[ERROR] Unclosed string literal\n" puts
         1 exit
       end
+
       //"Parsing string '" puts
       //2dup puts "'\n" puts
       append_str  token ,ptr Token.value + swap .64
-      OP_PUSH_STR token ,ptr Token.type + swap .64
+      OP_PUSH_STR token ,ptr Token.type  + swap .64
     else
       // TODO: extend this to include parsing
       word ' ' lexer ,ptr Lexer.line +
