@@ -64,6 +64,17 @@ memory strbuf_i 8 end
 memory strings 64 sizeof(Str) * end
 memory strings_i 8 end
 
+//  0     8       16
+//    8       8
+// [ name | size ]
+macro Memory.name 0 end
+macro Memory.size 8 end
+macro sizeof(Memory) 16 end
+
+macro memories_count 64 end
+memory memories sizeof(Memory) memories_count * end
+memory memories_i 8 end
+
 macro INCLUDE_CAP 10 end
 memory include_count sizeof(uint) end
 
@@ -98,13 +109,6 @@ proc strbuf_append_char
   strbuf_i inc64
 end
 
-proc strbuf_get_string
-    int // Index
-  in
-
-  drop
-end
-
 proc strbuf_end -- ptr in
   strbuf_start strbuf_i ,64 +
 end
@@ -116,11 +120,37 @@ proc append_str
     int // Index
   in
 
+  // count data
+  swap
   strings_i ,64
-  dup sizeof(Str) * strings +
-  rot over swap .64
-  8 + rot .64
+  sizeof(Str) * strings +
+  dup rot .64
+  8 + swap .64
+
+  strings_i ,64
   strings_i inc64
+end
+
+proc append_memory
+    ptr // Name
+    int // Size
+    --
+    int // Index
+  in
+
+  memories_i ,64 memories_count = if
+    "[ERROR] Can't append memory since memories is full!\n" puts 1 exit
+  end
+
+  // size ptr
+  swap
+  memories_i ,64
+  sizeof(Memory) * memories +
+  dup rot .64
+  8 + swap .64
+
+  memories_i inc64
+  memories_i ,64
 end
 
 memory verbose 1 end
@@ -179,6 +209,8 @@ proc dump_ops in
 end
 
 proc compile_ops in
+  "Compiling ops\n" puts
+
   block_i 0 .64
   0 while dup op_count ,64 < do
     dup sizeof(Op) * op_start +
@@ -198,7 +230,7 @@ proc compile_ops in
       dup 8 + ,64
       sizeof(Str) *
       strings +
-      8 + ,64
+      ,64
           uint_to_cstr cstr_to_str     out_fd ,64 f_write 
       "\n    push    rax\n"            out_fd ,64 f_write
       "    push    str_"               out_fd ,64 f_write
@@ -401,14 +433,14 @@ proc compile_program in
   
   "\nsegment .data\n"                      out_fd ,64 f_write
 
+  "Assembling footer\n" puts
   0 while dup strings_i ,64 < do
     // i ptr data 
     "str_"                                 out_fd ,64 f_write
     dup uint_to_cstr cstr_to_str           out_fd ,64 f_write
-    
-    dup sizeof(Str) * strings +
-    dup ,ptr
-    swap 8 + ,64
+
+    // str.count str.data
+    dup sizeof(Str) * strings + ,Str swap
     ":\n    db      "                      out_fd ,64 f_write
     // count ptr
     while dup 0 > do
