@@ -1506,7 +1506,36 @@ def typecheck_program(words, procs):
 	stack: List[Tuple[String, Word]] = []
 	words = typecheck_words(words, stack, procs)
 	
-def generate_words(words, dataLabels):
+	
+	def generate_words_linux_elf64(words, dataLabels):
+	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
+	# depth: 2
+	depthCounters = []
+	labelDepth = 0
+
+	def updateLabels():
+		if len(depthCounters) == 0:
+			depthCounters.append(Depth(0))
+
+		x = depthCounters[-1].depth
+		#print("Last depth is", depthCounters[-1].depth)
+		while len(depthCounters) <= labelDepth:
+			x += 1
+			depthCounters.append(Depth(x))
+	
+	code = ""
+	
+	for word in words:
+		if word.type == 'CONST':
+			if word.value_type == 'INT':
+				code +=  '\n    ;; -- CONST INT -- ;;\n'
+				code += f'    push    {word.value}\n'
+				#code += f'    mov     rax, {word.value}\n'
+				#code +=  '    push    rax\n'
+
+
+	
+def generate_words_linux_elf64(words, dataLabels):
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
 	# depth: 2
 	depthCounters = []
@@ -1936,7 +1965,7 @@ def generate_words(words, dataLabels):
 	return code
 
 
-def generate_program(words, procs, memories, memCapacity, args):
+def generate_program_linux_elf64(words, procs, memories, memCapacity, args):
 	code =  'section .text\n'
 	code += 'global _start\n'
 
@@ -1987,7 +2016,7 @@ dump:
 	code += '    mov     [argv], rax\n'
 
 	dataLabels = []
-	c = generate_words(words, dataLabels)
+	c = generate_words_linux_elf64(words, dataLabels)
 	code += c
 
 	code += '    xor     rdi, rdi\n'
@@ -2038,7 +2067,546 @@ dump:
 	code +=  '    resb    4096\n'
 		
 	return code
+
+
+
+
+def generate_words_macos(words, dataLabels):
+	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
+	# depth: 2
+	depthCounters = []
+	labelDepth = 0
+
+	def updateLabels():
+		if len(depthCounters) == 0:
+			depthCounters.append(Depth(0))
+
+		x = depthCounters[-1].depth
+		#print("Last depth is", depthCounters[-1].depth)
+		while len(depthCounters) <= labelDepth:
+			x += 1
+			depthCounters.append(Depth(x))
+	
+	code = ""
+	
+	for word in words:
+		if word.type == 'CONST':
+			if word.value_type == 'INT':
+				code +=  '\n    ;; -- CONST INT -- ;;\n'
+				code += f'    push    {word.value}\n'
+				#code += f'    mov     rax, {word.value}\n'
+				#code +=  '    push    rax\n'
+
+			elif word.value_type == 'STR':
+				label = 'str_' + str(len(dataLabels))
+				dataLabels.append({'label': label, 'data': word.value, 'cstr': False})
+				size = len(word.value)
+				code +=  '\n    ;; -- CONST STR -- ;;\n'
+				code += f'    push    {size}\n'
+				code += f'    push    {label}\n'
+
+			elif word.value_type == 'CSTR':
+				label = 'cstr_' + str(len(dataLabels))
+				dataLabels.append({'label': label, 'data': word.value, 'cstr': True})
+				code +=  '\n    ;; -- CONST CSTR -- ;;\n'
+				code += f'    push    {label}\n'
+				
+			elif word.value_type == 'CHAR':
+				code +=  '\n    ;; -- CONST CHAR -- ;;\n'
+				code += f'    push    {word.value}\n'
+
+			elif word.value_type == 'MEMORY_OFFSET':
+				offset = word.value
+				code +=  '\n    ;; -- CONST MEMORY PTR -- ;;\n'
+				code += f'    mov     rax, mem\n'
+				code += f'    add     rax, {offset}\n'
+				code +=  '    push    rax\n'
+				# mems[name] = size
+
+			elif word.value_type == 'LOC_MEMORY_OFFSET':
+				offset = word.value
+				code +=  '\n    ;; -- CONST LOCAL MEMORY PTR -- ;;\n'
+				code += f'    mov     rax, r15\n'
+				code += f'    add     rax, {offset}\n'
+				code +=  '    push    rax\n'
+				
+			else:
+				program_error(word, f"unknown const type '{word.value_type}'")
+				
+		elif word.type == 'WORD':
+			#print(f"Generating WORD operation {word.op}")
+			if word.op == 'ADD':
+				code += '\n    ;; -- ADD -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rax\n'
+				code += '    add     rax, rcx\n'
+				code += '    push    rax\n'
+				
+			elif word.op == 'SUB':
+				code += '\n    ;; -- SUB -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    sub     rcx, rax\n'
+				code += '    push    rcx\n'
+
+			elif word.op == 'MULT':
+				code += '\n    ;; -- MULT -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    mul     rcx\n'
+				code += '    push    rax\n'
+
+			elif word.op == 'DIV':
+				code += '\n    ;; -- DIV -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rax\n'
+				code += '    cdq\n'
+				code += '    idiv    rcx\n'
+				code += '    push    rax\n'
+
+			elif word.op == 'DIVMOD':
+				code += '\n    ;; -- DIV -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rax\n'
+				code += '    cdq\n'
+				code += '    idiv    rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rdx\n'
+
+			elif word.op == 'ARGV':
+				code += '\n    ;; -- ARGV -- ;;\n'
+				code += '    mov     rax, [argv]\n'
+				code += '    push    rax\n'
+
+			elif word.op == 'ARGC':
+				code += '\n    ;; -- ARGC -- ;;\n'
+				code += '    mov     rax, [argc]\n'
+				code += '    push    rax\n'
+			
+			elif word.op == 'BINARY_OR':
+				code += '\n    ;; -- BINARY_OR -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rbx\n'
+				code += '    or      rbx, rax\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'BINARY_AND':
+				code += '\n    ;; -- BINARY_AND -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rbx\n'
+				code += '    and     rbx, rax\n'
+				code += '    push    rbx\n'
+
+			elif word.op == 'LOGICAL_OR':
+				code += '\n    ;; -- LOGICAL_OR -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rbx\n'
+				code += '    xor     rcx, rcx\n'
+				code += '    mov     rdx, 1\n'
+				code += '    cmp     rax, 0\n'
+				code += '    cmovne  rcx, rdx\n'
+				code += '    cmp     rbx, 0\n'
+				code += '    cmovne  rcx, rdx\n'
+				code += '    push    rcx\n'
+
+			elif word.op == 'LOGICAL_AND':
+				code += '\n    ;; -- LOGICAL_AND -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rbx\n'
+				code += '    xor     rcx, rcx\n'
+				code += '    mov     rdx, 1\n'
+				code += '    test    rax, rax\n'
+				code += '    cmovz   rdx, rcx\n'
+				code += '    test    rbx, rbx\n'
+				code += '    cmovz   rdx, rcx\n'
+				code += '    push    rdx\n'
+								
+			elif word.op == 'SHIFT_LEFT':
+				code += '\n    ;; -- SHIFT_LEFT -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rbx\n'
+				code += '    shl     rbx, cl\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'SHIFT_RIGHT':
+				code += '\n    ;; -- SHIFT_RIGHT -- ;;\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rbx\n'
+				code += '    shr     rbx, cl\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'DUMP':
+				code += '\n    ;; -- DUMP -- ;;\n'
+				code += '    pop     rdi\n'
+				code += '    call    dump\n'
+				
+			elif word.op == 'EQU':
+				code += '\n    ;; -- EQU -- ;;\n'
+				code += '    xor     rdx, rdx\n'
+				code += '    mov     rbx, 1\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    cmp     rax, rcx\n'
+				code += '    cmove   rdx, rbx\n'
+				code += '    push    rdx\n'
+
+			elif word.op == 'NOT_EQU':
+				code += '\n    ;; NOT_EQU -- ;;\n'
+				code += '    xor     rdx, rdx\n'
+				code += '    mov     rbx, 1\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    cmp     rax, rcx\n'
+				code += '    cmovne  rdx, rbx\n'
+				code += '    push    rdx\n'
+				
+			elif word.op == 'DUP':
+				code += '\n    ;; -- DUP -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    push    rax\n'
+				code += '    push    rax\n'
+				
+			elif word.op == '2DUP':
+				code += '\n    ;; -- 2DUP -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    push    rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rcx\n'
+				code += '    push    rax\n'
+				
+			elif word.op == 'SWAP':
+				code += '\n    ;; -- SWAP -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rcx\n'
+				
+			elif word.op == 'DROP':
+				code += '\n    ;; -- DROP -- ;;\n'
+				code += '    pop     rax\n'
+				
+			elif word.op == 'OVER':
+				code += '\n    ;; -- OVER -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    push    rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rcx\n'
+
+			elif word.op == 'ROT':
+				code += '\n    ;; -- ROT -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    pop     rbx\n'
+				code += '    push    rcx\n'
+				code += '    push    rax\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'GREATER_THAN':
+				code += '\n    ;; -- GREATER_THAN -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    xor     rdx, rdx\n'
+				code += '    mov     rbx, 1\n'
+				code += '    cmp     rcx, rax\n'
+				code += '    cmovg   rdx, rbx\n'
+				code += '    push    rdx\n'
+				
+			elif word.op == 'LESS_THAN':
+				code += '\n    ;; -- LESS_THAN -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rcx\n'
+				code += '    xor     rdx, rdx\n'
+				code += '    mov     rbx, 1\n'
+				code += '    cmp     rcx, rax\n'
+				code += '    cmovl   rdx, rbx\n'
+				code += '    push    rdx\n'
+				
+			elif word.op == 'MEM':
+				code += '\n    ;; -- MEM -- ;;\n'
+				code += '    push    mem\n'
+				
+			elif word.op == 'LOAD':
+				code += '\n    ;; -- LOAD -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    xor     rbx, rbx\n'
+				code += '    mov     bl, [rax]\n'
+				code += '    push    rbx\n'
+				
+			elif word.op == 'STORE':
+				code += '\n    ;; -- STORE -- ;;\n'
+				code += '    pop     rbx\n'  # 97
+				code += '    pop     rax\n'  # mem
+				code += '    mov     [rax], bl\n' # Move lower 8 bits into mem
+
+			elif word.op == 'LOAD64':
+				code += '\n    ;; -- LOAD64 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    xor     rbx, rbx\n'
+				code += '    mov     rbx, [rax]\n'
+				code += '    push    rbx\n'
+
+			elif word.op == 'STORE64':
+				code += '\n    ;; -- STORE64 -- ;;\n'
+				code += '    pop     rbx\n'
+				code += '    pop     rax\n'
+				code += '    mov     [rax], rbx\n'
+
+			elif word.op == 'SYSCALL0':
+				code += '\n    ;; -- SYSCALL0 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
+			
+			elif word.op == 'SYSCALL1':
+				code += '\n    ;; -- SYSCALL1 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rdi\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
+
+			elif word.op == 'SYSCALL2':
+				code += '\n    ;; -- SYSCALL1 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rdi\n'
+				code += '    pop     rsi\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
+				
+			elif word.op == 'SYSCALL3':
+				code += '\n    ;; -- SYSCALL3 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    mov     rbx, 0x2000000\n'
+				code += '    adc     rax, rbx\n'
+				code += '    pop     rdi\n'
+				code += '    pop     rsi\n'
+				code += '    pop     rdx\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
+
+			elif word.op == 'SYSCALL4':
+				code += '\n    ;; -- SYSCALL3 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rdi\n'
+				code += '    pop     rsi\n'
+				code += '    pop     rdx\n'
+				code += '    pop     r10\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
 		
+			elif word.op == 'SYSCALL6':
+				code += '\n    ;; -- SYSCALL6 -- ;;\n'
+				code += '    pop     rax\n'
+				code += '    pop     rdi\n'
+				code += '    pop     rsi\n'
+				code += '    pop     rdx\n'
+				code += '    pop     r10\n'
+				code += '    pop     r8\n'
+				code += '    pop     r9\n'
+				code += '    syscall\n'
+				code += '    push    rax\n'
+			
+			#elif word.op == 'CAST_INT':
+			#	program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
+			#	
+			#elif word.op == 'CAST_PTR':
+			#	program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
+			#	
+			#elif word.op == 'CAST_BOOL':
+			#	program_error(word, f"the cast shouldn't be here! It's probably a bug in the typechecker")
+			#	
+			#else:
+			#	program_error(word, f"unreckognized word '{word.op}'")
+				
+		elif word.type == 'KEYWORD':
+			#print(f"Generating KEYWORD operation {word.op}")
+			if word.op == 'WHILE':
+				updateLabels()
+				depthCounters[labelDepth].loop = True
+				while_label = depthCounters[labelDepth].nextLabel()
+				depthCounters[labelDepth].counter += 1
+				labelDepth += 2
+				updateLabels()
+				code += '\n;; -- WHILE -- ;;\n'
+				code += f'{while_label}:\n'
+				
+			elif word.op == 'DO':
+				end_label = depthCounters[labelDepth-2].nextLabel()
+				code += '\n;; -- DO -- ;;\n'
+				code +=  '    pop     rax\n'
+				code +=  '    test    rax, rax\n'
+				code += f'    jz      {end_label}\n'
+				
+			elif word.op == 'IF':
+				labelDepth += 1
+				updateLabels()
+				label = depthCounters[labelDepth].nextLabel()
+				depthCounters[labelDepth].counter -= 1
+				labelDepth += 1
+				updateLabels()
+				code +=  '\n    ;; -- IF -- ;;\n'
+				code +=  '    pop     rax\n'
+				code +=  '    test    rax, rax\n'
+				code += f'    jz      {label}\n'
+
+			elif word.op == 'ELIF':
+				label = depthCounters[labelDepth-1].nextLabel()
+				depthCounters[labelDepth-1].counter -= 1
+				code +=  '\n;; -- ELIF -- ;;\n'
+				code +=  '    pop     rax\n'
+				code +=  '    test    rax, rax\n'
+				code += f'    jz      {label}\n'
+			
+			elif word.op == 'ELSE':
+				else_label = depthCounters[labelDepth-1].nextLabel()
+				end_label = depthCounters[labelDepth-2].label()
+				code +=  '\n;; -- ELSE -- ;;\n'
+				code += f'    jmp {end_label}\n'
+				code += f'{else_label}:\n'
+				
+			elif word.op == 'END':
+				if_label = depthCounters[labelDepth-1].nextLabel()
+				depthCounters[labelDepth-1].counter += 1
+				labelDepth -= 2
+				label = depthCounters[labelDepth].label()
+				code += '\n;; -- END -- ;;\n'
+				if depthCounters[labelDepth].loop:
+					depthCounters[labelDepth].loop = False
+					depthCounters[labelDepth].counter -= 2
+					while_label = depthCounters[labelDepth].label()
+					depthCounters[labelDepth].counter += 2
+					code += f'    jmp     {while_label}\n'
+				depthCounters[labelDepth].counter += 1
+				code += f'{label}: ; end_label\n'
+				code += f'{if_label}:\n'
+
+			elif word.op == 'INCLUDE':
+				program_error(word, f"there shouldn't be an `include` here! It's probably a bug in the preprocessing")
+
+			else:
+				program_error(word, f"unreckognized keyword operation '{word.op}'")
+
+		elif word.type == 'MACRO':
+			program_error(word, f"there shouldn't be a macro here! It's probably a bug in the preprocessing")
+
+		elif word.type == 'PROC_CALL':
+			# Checking if the procedure exists is done
+			# in parse_procs
+			code += f'\n;; -- proc_{word.name} -- ;;\n'
+			code += f'    call proc_{word.index}\n'
+			#program_error(word, f"there shouldn't be a macro call here! It's probably a bug in the preprocessing")
+			
+		else:
+			program_error(word, f"unreckognized word type: '{word.type}'")
+
+	return code
+
+
+def generate_program_macos(words, procs, memories, memCapacity, args):
+	code =  'section .text\n'
+	code += 'global _start\n'
+
+	code += f"""\
+BITS 64
+dump:
+    mov     r9, -3689348814741910323
+    sub     rsp, 40
+    mov     BYTE [rsp+31], 10
+    lea     rcx, [rsp+30]
+.L1:
+    mov     rax, rdi
+    lea     r8, [rsp+32]
+    mul     r9
+    mov     rax, rdi
+    sub     r8, rcx
+    shr     rdx, 3
+    lea     rsi, [rdx+rdx*4]
+    add     rsi, rsi
+    sub     rax, rsi
+    add     eax, 48
+    mov     BYTE [rcx], al
+    mov     rax, rdi
+    mov     rdi, rdx
+    mov     rdx, rcx
+    sub     rcx, 1
+    cmp     rax, 9
+    ja      .L1
+    lea     rax, [rsp+32]
+    mov     edi, 1
+    sub     rdx, rax
+    xor     eax, eax
+    lea     rsi, [rsp+32+rdx]
+    mov     rdx, r8
+    mov     rax, 1
+    syscall
+    add     rsp, 40
+    ret
+"""
+	code += '_start:\n'
+	code += '    ; Set up return stack\n'
+	code += '    mov     r15, ret_stack\n'
+	code += '    add     r15, 4095\n'
+	code += '    ; Set up argc and argv\n'
+	code += '    mov     rax, [rsp]\n'
+	code += '    mov     [argc], rax\n'
+	code += '    lea     rax, [rsp+8]\n'
+	code += '    mov     [argv], rax\n'
+
+	dataLabels = []
+	c = generate_words_macos(words, dataLabels)
+	code += c
+
+	code += '    xor     rdi, rdi\n'
+	code += '    mov     rax, 60\n'
+	code += '    syscall\n'
+	
+	for name in procs:
+		proc = procs[name]
+
+		# Remove unused procedure code
+		if not proc['used'] and not args.disOpt:
+			continue
+		
+		body = proc['body']
+		index = proc['index']
+		cap = proc['locMemCapacity']
+		c = generate_words(body, dataLabels)
+		code += f'\nproc_{index}:\n'
+		code +=  '    pop     r14\n'
+		code +=  '    sub     r15, 8\n'
+		code +=  '    mov     [r15], r14\n'
+		code += f'    sub     r15, {cap}\n'
+		code += c
+		code +=  '\n;; -- Return stack magic -- ;;\n'
+		code += f'    add     r15, {cap}\n'
+		code +=  '    mov     r14, [r15]\n'
+		code +=  '    add     r15, 8\n'
+		code +=  '    jmp     r14\n'
+	
+	code += '\nsegment .data\n'
+	
+	for data in dataLabels:
+		data_bytes = ','.join(map(hex, bytes(data['data'], 'utf-8')))	
+		code += f'{data["label"]}:\n'
+		if data['cstr']:
+			code += f'    db      {data_bytes},0\n'
+		else:
+			code += f'    db      {data_bytes}\n'
+
+	code +=  'segment .bss\n'
+	code +=  'argc:\n'
+	code +=  '    resb    8\n'
+	code +=  'argv:\n'
+	code +=  '    resb    8\n'
+	code +=  'mem:\n'
+	code += f'    resb    {memCapacity}\n'
+	code +=  'ret_stack:\n'
+	code +=  '    resb    4096\n'
+		
+	return 
+
+
 def main():
 	arguments = parse_args()
 
@@ -2084,7 +2652,10 @@ def main():
 	start_compile = time.time()
 
 	# Compiling
-	code = generate_program(words, procs, memories, memCapacity, arguments)
+	if arguments.target_os == "linux":
+		code = generate_program_linux_elf64(words, procs, memories, memCapacity, arguments)
+	if arguments.target_os == "macos":
+		code = generate_program_macos(words, procs, memories, memCapacity, arguments)
 
 	end_compile = time.time()
 
