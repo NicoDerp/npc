@@ -1507,7 +1507,7 @@ def typecheck_program(words, procs):
 	words = typecheck_words(words, stack, procs)
 	
 	
-	def generate_words_linux_elf64(words, dataLabels):
+def generate_words_linux_elf64(words, dataLabels):
 	# [{'counter': 5, 'loop': False}, {'counter': 1, 'loop': True}]
 	# depth: 2
 	depthCounters = []
