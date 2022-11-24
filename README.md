@@ -47,7 +47,7 @@ You can change the width by altering WIDTH variable in the start, and recompilin
 
 An example output produced with 500 characters width:
 
-![Rule110](https://github.com/NicoDerp/npc/blob/master/rule110.png)
+![Rule110](https://github.com/NicoDerp/npc/blob/master/images/rule110.png)
 
 ## Quick start
 
