@@ -77,6 +77,7 @@ Usage: npc <file> [options]
 
 Options:
   -o <file>    Place the output into file
+  -O <os>      Set the target OS. If not specified then the machine's OS will be chosen.
   -S           Do not assemble, output is assembly code
   -r           Run the program after a succesful compilation
   --unsafe     Disable type-checking
