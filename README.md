@@ -10,7 +10,7 @@ Inspired by [Alexey Kutepov's Porth compiler](https://gitlab.com/tsoding/porth/)
 ## Milestones
 
 Polar is planned to
-- [x] Be Turing-complete
+- [x] Be [Turing-complete](https://en.wikipedia.org/wiki/Turing_completeness)
 - [ ] Have a complete standard library
 - [ ] Be self-hosted
 - [x] Be optimized
@@ -40,7 +40,14 @@ Simple program that prints the numbers from 0 to 99 in ascending order:
 end drop
 ```
 
-More examples are located at ./examples folder.
+More examples are located at the examples folder.
+
+Rule110 proves polar's turing completeness. The program will print out a type of triangle.
+You can change the width by altering WIDTH variable in the start, and recompiling.
+
+An example output produced with 500 characters width:
+
+![Rule110](https://github.com/NicoDerp/npc/blob/master/rule110.png)
 
 ## Quick start
 
