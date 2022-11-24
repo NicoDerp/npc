@@ -2033,7 +2033,7 @@ dump:
 		body = proc['body']
 		index = proc['index']
 		cap = proc['locMemCapacity']
-		c = generate_words(body, dataLabels)
+		c = generate_words_linux_elf64(body, dataLabels)
 		code += f'\nproc_{index}:\n'
 		code +=  '    pop     r14\n'
 		code +=  '    sub     r15, 8\n'
@@ -2175,12 +2175,12 @@ def generate_words_macos(words, dataLabels):
 
 			elif word.op == 'ARGV':
 				code += '\n    ;; -- ARGV -- ;;\n'
-				code += '    mov     rax, [argv]\n'
+				code += '    lea     rax, [rel argv]\n'
 				code += '    push    rax\n'
 
 			elif word.op == 'ARGC':
 				code += '\n    ;; -- ARGC -- ;;\n'
-				code += '    mov     rax, [argc]\n'
+				code += '    lea     rax, [rel argc]\n'
 				code += '    push    rax\n'
 			
 			elif word.op == 'BINARY_OR':
@@ -2549,9 +2549,9 @@ dump:
 	code += '    add     r15, 4095\n'
 	code += '    ; Set up argc and argv\n'
 	code += '    mov     rax, [rsp]\n'
-	code += '    mov     [argc], rax\n'
+	code += '    mov     [rel argc], rax\n'
 	code += '    lea     rax, [rsp+8]\n'
-	code += '    mov     [argv], rax\n'
+	code += '    mov     [rel argv], rax\n'
 
 	dataLabels = []
 	c = generate_words_macos(words, dataLabels)
@@ -2571,7 +2571,7 @@ dump:
 		body = proc['body']
 		index = proc['index']
 		cap = proc['locMemCapacity']
-		c = generate_words(body, dataLabels)
+		c = generate_words_macos(body, dataLabels)
 		code += f'\nproc_{index}:\n'
 		code +=  '    pop     r14\n'
 		code +=  '    sub     r15, 8\n'
@@ -2604,7 +2604,7 @@ dump:
 	code +=  'ret_stack:\n'
 	code +=  '    resb    4096\n'
 		
-	return 
+	return code
 
 
 def main():
@@ -2654,7 +2654,7 @@ def main():
 	# Compiling
 	if arguments.target_os == "linux":
 		code = generate_program_linux_elf64(words, procs, memories, memCapacity, arguments)
-	if arguments.target_os == "macos":
+	if arguments.target_os == "darwin":
 		code = generate_program_macos(words, procs, memories, memCapacity, arguments)
 
 	end_compile = time.time()
